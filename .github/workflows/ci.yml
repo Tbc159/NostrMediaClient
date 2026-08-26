@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Abilita pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Prepara Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Installa le dipendenze
+        run: pnpm install --frozen-lockfile
+
+      # Blinda le trappole dell'ADR 0002: applesauce-factory duplicherebbe
+      # applesauce-core, e un range largo su nostr-tools lo duplicherebbe a
+      # sua volta. Gira per primo: se fallisce, il resto e' rumore.
+      - name: Guardia sulle dipendenze critiche
+        run: pnpm guard:deps
+
+      - name: Formattazione
+        run: pnpm format:check
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test

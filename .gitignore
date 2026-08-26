@@ -1,0 +1,32 @@
+node_modules/
+dist/
+.output/
+.nuxt/
+.nitro/
+.cache/
+coverage/
+*.tsbuildinfo
+
+# Ambiente: i puntamenti privati a relay e server Blossom non vanno versionati.
+# Solo .env.example sta nel repo.
+.env
+.env.*
+!.env.example
+
+# Playwright
+test-results/
+playwright-report/
+blob-report/
+.playwright/
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Stato del dev server gestito da scripts/client.sh
+.run/
