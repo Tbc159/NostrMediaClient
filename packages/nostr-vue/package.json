@@ -1,0 +1,38 @@
+{
+  "name": "@nmc/nostr-vue",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Composables Vue sopra @nmc/nostr-core",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@nmc/nostr-core": "workspace:*",
+    "@vueuse/core": "^14.4.0",
+    "@vueuse/rxjs": "^14.4.0",
+    "rxjs": "catalog:"
+  },
+  "peerDependencies": {
+    "vue": "^3.5.41"
+  },
+  "devDependencies": {
+    "@nmc/config": "workspace:*",
+    "typescript": "^5.7.3",
+    "vitest": "^4.1.11",
+    "vue": "^3.5.41"
+  }
+}

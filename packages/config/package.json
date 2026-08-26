@@ -1,0 +1,15 @@
+{
+  "name": "@nmc/config",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Preset di configurazione condivisi fra i package del monorepo",
+  "files": [
+    "tsconfig.lib.json",
+    "tsconfig.vue.json"
+  ],
+  "exports": {
+    "./tsconfig.lib.json": "./tsconfig.lib.json",
+    "./tsconfig.vue.json": "./tsconfig.vue.json"
+  }
+}

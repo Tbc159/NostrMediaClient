@@ -1,0 +1,53 @@
+{
+  "name": "@nmc/nostr-core",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Dominio Nostr isomorfico: registry dei kind, relay, store, signer, media",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./kinds": {
+      "types": "./dist/kinds/index.d.ts",
+      "import": "./dist/kinds/index.js"
+    },
+    "./config": {
+      "types": "./dist/config/index.d.ts",
+      "import": "./dist/config/index.js"
+    },
+    "./relays": {
+      "types": "./dist/relays/index.d.ts",
+      "import": "./dist/relays/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "applesauce-accounts": "catalog:",
+    "applesauce-actions": "catalog:",
+    "applesauce-common": "catalog:",
+    "applesauce-content": "catalog:",
+    "applesauce-core": "catalog:",
+    "applesauce-loaders": "catalog:",
+    "applesauce-relay": "catalog:",
+    "applesauce-signers": "catalog:",
+    "nostr-tools": "catalog:",
+    "rxjs": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@nmc/config": "workspace:*",
+    "typescript": "^5.7.3",
+    "vitest": "^4.1.11"
+  }
+}

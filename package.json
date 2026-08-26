@@ -1,0 +1,43 @@
+{
+  "name": "nostr-media-client",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Client web Nostr con vocazione media — monorepo",
+  "packageManager": "pnpm@11.23.0",
+  "engines": {
+    "node": ">=22.12.0",
+    "pnpm": ">=11"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @nmc/web dev",
+    "start": "./scripts/client.sh start",
+    "stop": "./scripts/client.sh stop",
+    "restart": "./scripts/client.sh restart",
+    "status": "./scripts/client.sh status",
+    "logs": "./scripts/client.sh logs",
+    "build": "pnpm -r --filter './packages/**' build && pnpm --filter @nmc/web build",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "pnpm -r test",
+    "guard:deps": "node scripts/guard-deps.mjs",
+    "check:endpoints": "pnpm --filter @nmc/nostr-core build && node --env-file=.env scripts/check-endpoints.mjs",
+    "verify": "pnpm guard:deps && pnpm format:check && pnpm lint && pnpm typecheck && pnpm test"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.18.0",
+    "@types/node": "^22.10.0",
+    "eslint": "^9.18.0",
+    "eslint-config-prettier": "^10.0.1",
+    "eslint-plugin-vue": "^10.0.0",
+    "globals": "^16.0.0",
+    "prettier": "^3.4.2",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.21.0",
+    "vitest": "^4.1.11",
+    "vue-eslint-parser": "^10.0.0"
+  }
+}

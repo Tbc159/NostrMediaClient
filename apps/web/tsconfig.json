@@ -1,0 +1,4 @@
+{
+  // Nuxt genera i riferimenti reali in .nuxt/tsconfig.json durante `nuxt prepare`.
+  "extends": "./.nuxt/tsconfig.json"
+}

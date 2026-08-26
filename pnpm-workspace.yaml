@@ -1,0 +1,27 @@
+packages:
+  - 'apps/*'
+  - 'packages/*'
+
+# esbuild compila il proprio binario in post-install: pnpm blocca gli script
+# finche' non sono approvati esplicitamente qui. Serve a Vite e a Vitest.
+allowBuilds:
+  esbuild: true
+
+# Le dipendenze applesauce vanno tenute allineate sulla stessa minor.
+# Vedi docs/adr/0002-applesauce-6x-e-pin-nostr-tools.md: applesauce-factory
+# e' fermo alla 4.x e NON va mai aggiunto, pena due copie di applesauce-core.
+catalog:
+  applesauce-core: 6.2.0
+  applesauce-common: 6.2.0
+  applesauce-relay: 6.2.1
+  applesauce-loaders: 6.2.0
+  applesauce-signers: 6.2.2
+  applesauce-accounts: 6.2.0
+  applesauce-actions: 6.2.0
+  applesauce-content: 6.2.0
+  # Pin esatto: applesauce-core/relay dichiarano "nostr-tools": "~2.19".
+  # Con ^2.25 si finisce con due copie di nostr-tools nel bundle.
+  nostr-tools: 2.19.4
+  rxjs: ^7.8.2
+  zod: ^4.4.3
+  dexie: ^4.4.5
