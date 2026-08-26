@@ -101,6 +101,51 @@ e' un comando interno di pnpm e avrebbe la precedenza.
 
 ---
 
+## Fase GUI (branch `webapp/gui`) — schermate e form · IN CORSO
+
+Fatto e verificato nel browser (Firefox headless via WebDriver, 22 controlli):
+
+| Schermata                                  | Kind          | Stato                                       |
+| ------------------------------------------ | ------------- | ------------------------------------------- |
+| `/impostazioni` — accesso e configurazione | —             | fatto: NIP-07, chiave privata, sola lettura |
+| `/scrivi` — composer nota                  | 1             | fatto: compone e firma                      |
+| `/calendario/nuovo` — evento               | 31922 / 31923 | fatto: compone e firma, con fuso orario     |
+| `/calendario` — elenco                     | —             | segnaposto: serve la lettura dai relay      |
+| `/` — feed                                 | —             | segnaposto: serve la lettura dai relay      |
+
+**I form producono eventi veri**, non finti: passano dal registry dei kind e si
+fermano all'evento firmato. Quando arrivera' il pool di relay bastera'
+aggiungere l'invio, senza rifare i form.
+
+### Identita' — come si comporta
+
+Tre modalita': estensione NIP-07 (consigliata), chiave privata cifrata NIP-49,
+sola lettura. La chiave decifrata vive in una **variabile di modulo, fuori
+dallo stato dello store**: non e' reattiva, non compare nei devtools e non puo'
+finire nel payload SSR.
+
+Conseguenza voluta e verificata: navigando fra le pagine la chiave resta
+sbloccata, **una ricarica completa la richiude** e chiede di nuovo la password.
+
+### Bug trovati solo dal test nel browser
+
+Tre difetti sono passati indenni sia da `nuxt typecheck` sia da eslint, ed e'
+la ragione per cui il test end-to-end non e' sostituibile da quelli statici:
+
+1. **`BaseButton` con `to` era inerte.** `<component :is="'NuxtLink'">` non
+   risolve il componente e genera un elemento `<nuxtlink>` letterale, senza
+   href ne' navigazione. Tutti i pulsanti-link erano morti. Serve
+   `resolveComponent('NuxtLink')`.
+2. **Espressione di template non valida.** Un `@click` con due istruzioni su
+   righe separate, e un `as const` dentro un `v-for`: le espressioni dei
+   template Vue sono JavaScript puro, non TypeScript. La pagina impostazioni
+   non si caricava affatto.
+3. **Il form calendario partiva non valido.** Attivando "tutto il giorno" la
+   data di fine restava uguale a quella di inizio, che NIP-52 rifiuta perche'
+   la fine e' esclusiva. Ora scatta al giorno successivo.
+
+---
+
 ## Prossimo passo: Fase 1
 
 Costruire il contenuto vero di `nostr-core` sopra lo scheletro esistente:

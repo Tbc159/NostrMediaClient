@@ -33,6 +33,11 @@ export default defineNuxtConfig({
     '/settings/**': { ssr: false },
     // La diagnostica apre WebSocket verso i relay: e' per forza client-only.
     '/diagnostica': { ssr: false },
+    // Composizione e impostazioni toccano identita' e chiavi: mai in SSR,
+    // dove lo stato finirebbe serializzato nel payload HTML.
+    '/impostazioni': { ssr: false },
+    '/scrivi': { ssr: false },
+    '/calendario/**': { ssr: false },
     // Route pubbliche: SSR attivo per le anteprime Open Graph.
     '/a/**': { ssr: true },
     '/e/**': { ssr: true },

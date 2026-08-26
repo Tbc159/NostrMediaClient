@@ -1,3 +1,5 @@
 export * from './types.js'
 export * from './classify.js'
 export * from './registry.js'
+export * from './tags.js'
+export * from './definitions/index.js'

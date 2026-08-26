@@ -20,6 +20,10 @@
     "./relays": {
       "types": "./dist/relays/index.d.ts",
       "import": "./dist/relays/index.js"
+    },
+    "./identity": {
+      "types": "./dist/identity/index.d.ts",
+      "import": "./dist/identity/index.js"
     }
   },
   "main": "./dist/index.js",

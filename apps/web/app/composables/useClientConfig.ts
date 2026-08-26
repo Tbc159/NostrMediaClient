@@ -40,3 +40,18 @@ export function relayRoles(config: ClientConfig): Map<string, string[]> {
 
   return roles
 }
+
+/**
+ * Variante che non lancia: restituisce il valore oppure il messaggio d'errore.
+ *
+ * Serve alle pagine che devono restare visibili anche con una configurazione
+ * rotta — le impostazioni per prime, che sono il posto da cui la si sistema.
+ * Far esplodere proprio quella pagina lascerebbe l'utente senza via d'uscita.
+ */
+export function useClientConfigSafe(): { valore: ClientConfig | null; errore: string | null } {
+  try {
+    return { valore: useClientConfig(), errore: null }
+  } catch (err) {
+    return { valore: null, errore: err instanceof Error ? err.message : String(err) }
+  }
+}

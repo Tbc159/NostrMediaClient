@@ -5,3 +5,65 @@
   --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --font-mono: ui-monospace, 'JetBrains Mono', 'Fira Code', monospace;
 }
+
+/*
+ * Colori semantici come variabili CSS, non come classi Tailwind fisse.
+ * Il tema scuro ridefinisce solo queste, quindi i componenti restano identici
+ * e non si riempiono di coppie `bg-white dark:bg-neutral-900`.
+ */
+@layer base {
+  :root {
+    --sfondo: oklch(99% 0 0);
+    --sfondo-alt: oklch(97% 0.002 250);
+    --superficie: oklch(100% 0 0);
+    --bordo: oklch(90% 0.004 250);
+    --bordo-forte: oklch(80% 0.006 250);
+    --testo: oklch(25% 0.01 250);
+    --testo-tenue: oklch(52% 0.012 250);
+    --accento: oklch(55% 0.19 265);
+    --accento-testo: oklch(99% 0 0);
+    --pericolo: oklch(55% 0.21 25);
+    --successo: oklch(52% 0.15 150);
+    --avviso: oklch(62% 0.16 75);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --sfondo: oklch(18% 0.008 250);
+      --sfondo-alt: oklch(21% 0.008 250);
+      --superficie: oklch(23% 0.009 250);
+      --bordo: oklch(31% 0.01 250);
+      --bordo-forte: oklch(42% 0.012 250);
+      --testo: oklch(95% 0.005 250);
+      --testo-tenue: oklch(70% 0.012 250);
+      --accento: oklch(68% 0.16 265);
+      --accento-testo: oklch(18% 0.008 250);
+      --pericolo: oklch(68% 0.18 25);
+      --successo: oklch(70% 0.14 150);
+      --avviso: oklch(76% 0.14 75);
+    }
+  }
+
+  body {
+    background-color: var(--sfondo);
+    color: var(--testo);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /*
+   * Anello di focus visibile ovunque. È il requisito di accessibilità che si
+   * perde più facilmente scrivendo componenti a mano: senza, chi naviga da
+   * tastiera non sa dove si trova.
+   */
+  :focus-visible {
+    outline: 2px solid var(--accento);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+}
+
+@utility superficie {
+  background-color: var(--superficie);
+  border-color: var(--bordo);
+}
