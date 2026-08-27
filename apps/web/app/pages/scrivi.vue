@@ -179,13 +179,11 @@ function nuovo(): void {
           </p>
         </ClientOnly>
 
+        <PublishProgress :invio="bozza.invio" />
+
         <BaseAlert v-if="bozza.errore.value" tono="pericolo">{{ bozza.errore.value }}</BaseAlert>
       </form>
     </BaseCard>
-
-    <BaseAlert v-if="bozza.invio.errore.value" tono="pericolo">
-      {{ bozza.invio.errore.value }}
-    </BaseAlert>
 
     <BaseCard v-if="bozza.invio.esito.value" title="Esito della pubblicazione">
       <PublishResult :esito="bozza.invio.esito.value" />

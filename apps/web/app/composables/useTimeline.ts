@@ -29,7 +29,7 @@ export function useTimeline(
   /** Istante dell'ultimo caricamento riuscito: senza, non si distingue una timeline vuota da una mai caricata. */
   const ultimaLettura = ref<Date | null>(null)
 
-  const destinazioni = computed(() => opzioni.relays ?? config.readRelays)
+  const destinazioni = computed(() => opzioni.relays ?? config.value.readRelays)
 
   async function carica(): Promise<void> {
     if (!pool) return

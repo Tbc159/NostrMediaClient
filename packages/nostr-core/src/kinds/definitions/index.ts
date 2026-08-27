@@ -1,21 +1,38 @@
 import { getKindDefinition, registerKind } from '../registry.js'
+import { articleDefinition, articleDraftDefinition } from './article.js'
+import { blossomAuthDefinition } from './blossom-auth.js'
 import { calendarDateEventDefinition } from './calendar-date.js'
 import { calendarRsvpDefinition } from './calendar-rsvp.js'
 import { calendarTimeEventDefinition } from './calendar-time.js'
+import { fileMetadataDefinition } from './file-metadata.js'
 import { metadataDefinition } from './metadata.js'
 import { noteDefinition } from './note.js'
+import { pictureDefinition } from './picture.js'
+import { shortVideoDefinition, videoDefinition } from './video.js'
 
+export * from './article.js'
+export * from './blossom-auth.js'
 export * from './calendar-common.js'
 export * from './calendar-date.js'
 export * from './calendar-rsvp.js'
 export * from './calendar-time.js'
+export * from './file-metadata.js'
 export * from './metadata.js'
 export * from './note.js'
+export * from './picture.js'
+export * from './video.js'
 
 /** Tutte le definizioni note. Aggiungere un kind = aggiungerlo qui. */
 export const kindDefinitions = [
   metadataDefinition,
   noteDefinition,
+  pictureDefinition,
+  videoDefinition,
+  shortVideoDefinition,
+  fileMetadataDefinition,
+  blossomAuthDefinition,
+  articleDefinition,
+  articleDraftDefinition,
   calendarDateEventDefinition,
   calendarTimeEventDefinition,
   calendarRsvpDefinition,

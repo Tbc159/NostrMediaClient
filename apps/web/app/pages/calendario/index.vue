@@ -1,21 +1,7 @@
 <script setup lang="ts">
-import type { Filtro } from '@nmc/nostr-core'
-
 useHead({ title: 'Calendario · NostrMediaClient' })
 
-const identita = useIdentity()
-
-type Ambito = 'tutti' | 'miei'
-const ambito = ref<Ambito>('tutti')
-
-function filtro(): Filtro {
-  const base: Filtro = { kinds: [31922, 31923], limit: 100 }
-  if (ambito.value === 'miei' && identita.pubkey) return { ...base, authors: [identita.pubkey] }
-  return base
-}
-
-const elenco = useTimeline(filtro)
-watch(ambito, () => elenco.carica())
+const elenco = useEventiPropri([31922, 31923], { limite: 100 })
 
 /** Istante di inizio, per ordinare eventi con e senza orario nella stessa lista. */
 function inizio(tags: string[][], kind: number): number {
@@ -48,27 +34,10 @@ const passati = computed(() =>
   <div class="flex flex-col gap-6">
     <div class="flex flex-wrap items-start justify-between gap-3">
       <div>
-        <h1 class="text-xl font-semibold tracking-tight">Calendario</h1>
-        <p class="mt-1 text-sm text-[var(--testo-tenue)]">Eventi NIP-52 letti dai relay.</p>
+        <h1 class="text-xl font-semibold tracking-tight">I tuoi eventi</h1>
+        <p class="mt-1 text-sm text-[var(--testo-tenue)]">Kind 31922 e 31923, letti dai relay.</p>
       </div>
       <div class="flex flex-wrap items-center gap-2">
-        <BaseButton
-          size="sm"
-          :variant="ambito === 'tutti' ? 'primario' : 'fantasma'"
-          @click="ambito = 'tutti'"
-        >
-          Dai relay
-        </BaseButton>
-        <ClientOnly>
-          <BaseButton
-            v-if="identita.autenticato"
-            size="sm"
-            :variant="ambito === 'miei' ? 'primario' : 'fantasma'"
-            @click="ambito = 'miei'"
-          >
-            I miei
-          </BaseButton>
-        </ClientOnly>
         <BaseButton
           size="sm"
           variant="fantasma"
@@ -84,15 +53,16 @@ const passati = computed(() =>
     <BaseAlert v-if="elenco.errore.value" tono="pericolo">{{ elenco.errore.value }}</BaseAlert>
 
     <ClientOnly>
-      <div v-if="elenco.caricamento.value && !ordinati.length" class="flex flex-col gap-3">
+      <SenzaIdentita v-if="elenco.senzaIdentita.value" cosa="gli eventi di calendario" />
+
+      <div v-else-if="elenco.caricamento.value && !ordinati.length" class="flex flex-col gap-3">
         <div v-for="n in 2" :key="n" class="superficie h-28 animate-pulse rounded-xl border" />
       </div>
 
       <BaseCard v-else-if="!ordinati.length">
         <div class="flex flex-col items-center gap-3 py-6 text-center">
           <p class="text-sm text-[var(--testo-tenue)]">
-            Nessun evento di calendario sui relay configurati. Sono kind poco diffusi: è normale non
-            trovarne sui relay generalisti.
+            Non hai eventi di calendario sui relay di lettura.
           </p>
           <BaseButton to="/calendario/nuovo" variant="primario">Componi un evento</BaseButton>
         </div>

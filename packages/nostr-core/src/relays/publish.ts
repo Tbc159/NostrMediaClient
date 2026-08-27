@@ -26,6 +26,26 @@ export type EsitoRelay =
   | 'autenticazione'
   /** Connessione fallita, scaduta, o errore non attribuibile all'evento. */
   | 'irraggiungibile'
+  /** Mai contattato: un relay precedente aveva gia' preso in carico l'evento. */
+  | 'non tentato'
+
+/**
+ * Come distribuire l'evento fra i relay dell'elenco.
+ *
+ * - `sequenziale` — uno per volta, in ordine, fermandosi al primo che lo
+ *   prende in carico. E' il modo piu' affidabile: apre una sola connessione
+ *   per volta, quindi non incappa nei limiti per IP dei relay ne' in quelli
+ *   del browser sul numero di WebSocket aperti insieme.
+ * - `tutti` — tutti in parallelo. Piu' veloce e piu' ridondante, ma se il
+ *   primo tentativo apre cinque connessioni insieme e' anche il modo piu'
+ *   facile per vederne fallire qualcuna.
+ *
+ * Il compromesso e' reale e non ha una risposta unica: `sequenziale` mette
+ * l'evento su **un** relay, quindi meno raggiungibile da chi non lo legge;
+ * `tutti` lo mette ovunque, ma fallisce piu' spesso. Per questo la scelta
+ * resta del chiamante invece di essere cablata qui.
+ */
+export type StrategiaPubblicazione = 'sequenziale' | 'tutti'
 
 export interface RisultatoRelay {
   url: string
@@ -141,6 +161,12 @@ export interface OpzioniPubblicazione {
    * lettura gli rivelerebbe cosa leggi e quando.
    */
   auth?: AuthSigner
+
+  /** Distribuzione fra i relay. Predefinita: `sequenziale`. */
+  strategia?: StrategiaPubblicazione
+
+  /** Notifica il relay che si sta tentando, per dare riscontro durante l'attesa. */
+  onTentativo?: (url: string, indice: number, totale: number) => void
 }
 
 const TIMEOUT_PREDEFINITO = 12_000
@@ -166,16 +192,60 @@ export async function publishEvent(
   }
 
   const timeout = opzioni.timeoutMs ?? TIMEOUT_PREDEFINITO
+  const strategia = opzioni.strategia ?? 'sequenziale'
 
-  const risultati = await Promise.all(
-    destinazioni.map((url) => pubblicaSuUno(pool, url, event, timeout, opzioni.auth)),
-  )
+  const risultati =
+    strategia === 'tutti'
+      ? await Promise.all(
+          destinazioni.map((url, i) => {
+            opzioni.onTentativo?.(url, i, destinazioni.length)
+            return pubblicaSuUno(pool, url, event, timeout, opzioni.auth)
+          }),
+        )
+      : await aRotazione(pool, destinazioni, event, timeout, opzioni)
 
-  const accettati = risultati
-    .filter((r) => r.esito === 'accettato' || r.esito === 'duplicato')
-    .map((r) => r.url)
+  const accettati = risultati.filter(preso).map((r) => r.url)
 
   return { evento: event, risultati, accettati, riuscita: accettati.length > 0 }
+}
+
+/** Se il relay ha l'evento, comunque ci sia arrivato. */
+const preso = (r: RisultatoRelay): boolean => r.esito === 'accettato' || r.esito === 'duplicato'
+
+/**
+ * Prova i relay uno per volta, in ordine, fermandosi al primo che prende in
+ * carico l'evento.
+ *
+ * I relay non tentati compaiono comunque nel risultato, marcati come tali:
+ * ometterli farebbe sembrare che l'elenco configurato sia piu' corto di
+ * quello che e', e chi legge non capirebbe perche' il suo relay preferito non
+ * risulta da nessuna parte.
+ */
+async function aRotazione(
+  pool: RelayPool,
+  destinazioni: readonly string[],
+  event: NostrEvent,
+  timeout: number,
+  opzioni: OpzioniPubblicazione,
+): Promise<RisultatoRelay[]> {
+  const risultati: RisultatoRelay[] = []
+
+  for (const [indice, url] of destinazioni.entries()) {
+    opzioni.onTentativo?.(url, indice, destinazioni.length)
+    const risultato = await pubblicaSuUno(pool, url, event, timeout, opzioni.auth)
+    risultati.push(risultato)
+    if (preso(risultato)) break
+  }
+
+  for (const url of destinazioni.slice(risultati.length)) {
+    risultati.push({
+      url,
+      esito: 'non tentato',
+      motivo: 'Non contattato: un relay precedente aveva gia’ preso in carico l’evento.',
+    })
+  }
+
+  return risultati
 }
 
 /** Pubblica su un solo relay, gestendo autenticazione e scadenza. */
@@ -274,12 +344,50 @@ function conScadenza<T>(promise: Promise<T>, ms: number, url: string): Promise<T
   return Promise.race([promise, scadenza]).finally(() => clearTimeout(timer)) as Promise<T>
 }
 
+/**
+ * Ricava un messaggio leggibile da cio' che il WebSocket ha lanciato.
+ *
+ * Non e' quasi mai un `Error`: rxjs propaga direttamente l'evento DOM, e un
+ * `ErrorEvent` o un `CloseEvent` convertiti con `String()` diventano
+ * `[object ErrorEvent]`, che non dice niente a nessuno. I campi utili stanno
+ * dentro l'oggetto e vanno estratti a mano.
+ */
+function messaggioErrore(errore: unknown): string {
+  if (errore instanceof Error && errore.message) return errore.message
+  if (typeof errore === 'string' && errore.length > 0) return errore
+
+  if (typeof errore === 'object' && errore !== null) {
+    const e = errore as {
+      type?: string
+      message?: string
+      reason?: string
+      code?: number
+      error?: unknown
+    }
+    if (typeof e.message === 'string' && e.message.length > 0) return e.message
+    if (e.error !== undefined && e.error !== errore) return messaggioErrore(e.error)
+
+    // CloseEvent: il codice dice piu' della descrizione, che spesso e' vuota.
+    if (typeof e.code === 'number') {
+      const motivo = typeof e.reason === 'string' && e.reason.length > 0 ? ` (${e.reason})` : ''
+      return `connessione chiusa dal relay, codice ${e.code}${motivo}`
+    }
+    if (e.type === 'error') {
+      return 'connessione rifiutata o interrotta: il relay non e’ raggiungibile da questo browser'
+    }
+    if (typeof e.type === 'string') return `evento WebSocket "${e.type}"`
+  }
+
+  return 'errore di connessione non identificato'
+}
+
 function descriviErrore(errore: unknown, url: string, attesaAuth: boolean): string {
-  const testo = errore instanceof Error ? errore.message : String(errore)
   if (attesaAuth) {
     return `${url} ha chiesto l’autenticazione NIP-42 e la pubblicazione e’ rimasta in attesa. Accedi con una chiave che possa firmare.`
   }
-  return testo
+  return messaggioErrore(errore)
 }
+
+export { messaggioErrore }
 
 export type { PublishResponse }

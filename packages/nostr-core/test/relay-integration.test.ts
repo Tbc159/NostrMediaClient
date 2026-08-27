@@ -53,10 +53,12 @@ describe('pubblicazione e rilettura su un relay', () => {
     expect(letti[0]?.content).toBe('prova di andata e ritorno')
   })
 
-  it('riporta l' + "'esito di ogni relay invece di fermarsi al primo rifiuto", async () => {
+  it('in parallelo riporta l' + "'esito di ogni relay, anche di quelli che rifiutano", async () => {
     // E' il caso normale su Nostr: un elenco misto di relay che accettano e
     // relay che no. Un risultato unico nasconderebbe quale ha fatto cosa.
-    const esito = await publishEvent(pool, [buono.url, cattivo.url], nota('misto'))
+    const esito = await publishEvent(pool, [buono.url, cattivo.url], nota('misto'), {
+      strategia: 'tutti',
+    })
 
     expect(esito.risultati).toHaveLength(2)
     expect(esito.accettati).toEqual([buono.url])
@@ -65,6 +67,42 @@ describe('pubblicazione e rilettura su un relay', () => {
     const rifiuto = esito.risultati.find((r) => r.url === cattivo.url)
     expect(rifiuto?.esito).toBe('rifiutato')
     expect(rifiuto?.motivo).toMatch(/non ti consente di scrivere/)
+  })
+
+  it('a rotazione si ferma al primo relay che prende in carico l' + "'evento", async () => {
+    // Cosi' si apre una connessione per volta: e' il motivo per cui questa e'
+    // la strategia predefinita. Il prezzo e' che l'evento finisce su un solo
+    // relay, e il risultato deve dirlo invece di lasciarlo intuire.
+    const esito = await publishEvent(pool, [buono.url, cattivo.url], nota('rotazione'))
+
+    expect(esito.riuscita).toBe(true)
+    expect(esito.accettati).toEqual([buono.url])
+
+    const saltato = esito.risultati.find((r) => r.url === cattivo.url)
+    expect(saltato?.esito).toBe('non tentato')
+  })
+
+  it('a rotazione prosegue oltre un relay che rifiuta', async () => {
+    // E' il punto della rotazione: un rifiuto non deve fermare la catena,
+    // altrimenti basterebbe un relay ostile in cima all'elenco per rendere il
+    // client incapace di pubblicare.
+    const tentati: string[] = []
+    const esito = await publishEvent(pool, [cattivo.url, buono.url], nota('perseveranza'), {
+      onTentativo: (url) => tentati.push(url),
+    })
+
+    expect(tentati).toEqual([cattivo.url, buono.url])
+    expect(esito.riuscita).toBe(true)
+    expect(esito.accettati).toEqual([buono.url])
+    expect(esito.risultati[0]?.esito).toBe('rifiutato')
+  })
+
+  it('a rotazione tenta ogni relay prima di arrendersi', async () => {
+    const esito = await publishEvent(pool, [cattivo.url, cattivo.url], nota('nessuno'))
+    // Il secondo URL e' identico al primo e viene deduplicato: resta un solo
+    // tentativo, ma il risultato deve comunque dire che nessuno ha accettato.
+    expect(esito.riuscita).toBe(false)
+    expect(esito.risultati.every((r) => r.esito === 'rifiutato')).toBe(true)
   })
 
   it('considera riuscita la pubblicazione ripetuta dello stesso evento', async () => {

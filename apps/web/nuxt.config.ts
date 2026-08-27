@@ -38,6 +38,13 @@ export default defineNuxtConfig({
     '/impostazioni': { ssr: false },
     '/scrivi': { ssr: false },
     '/calendario/**': { ssr: false },
+    // Media e articoli leggono dai relay e caricano su Blossom: tutto client.
+    // Le due forme servono entrambe: `/**` non copre la rotta senza segmenti.
+    '/media': { ssr: false },
+    '/media/**': { ssr: false },
+    '/articoli': { ssr: false },
+    '/articoli/**': { ssr: false },
+    '/calendario': { ssr: false },
     // Route pubbliche: SSR attivo per le anteprime Open Graph.
     '/a/**': { ssr: true },
     '/e/**': { ssr: true },

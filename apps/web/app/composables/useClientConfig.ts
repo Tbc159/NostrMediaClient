@@ -1,19 +1,31 @@
 import { resolveClientConfig, type ClientConfig } from '@nmc/nostr-core'
+import { useConfigurazione } from '~/stores/configurazione'
 
 /**
- * Colla fra il runtimeConfig di Nuxt e la validazione del core.
+ * Endpoint in vigore, reattivi.
  *
- * Nuxt mappa `NUXT_PUBLIC_DEFAULT_READ_RELAYS` su `runtimeConfig.public.defaultReadRelays`,
- * mentre `resolveClientConfig` ragiona sui nomi delle variabili d'ambiente:
- * qui si ricostruisce quella forma, cosi' la validazione resta una sola,
- * condivisa fra app, SSR e script da riga di comando.
+ * La sorgente e' lo store `configurazione`: default del `.env` con sopra le
+ * scelte dell'utente. Restituisce un `computed` e non un oggetto fisso perche'
+ * gli endpoint cambiano mentre l'applicazione gira — chi li ha letti una volta
+ * al setup continuerebbe a pubblicare sui relay vecchi anche dopo che l'utente
+ * li ha sostituiti dalle impostazioni.
  *
- * @throws se la configurazione e' malformata. E' voluto: meglio fallire subito
- *         che scoprire a runtime di parlare con un endpoint sbagliato.
+ * @throws se la configurazione non e' valida. E' voluto: meglio fermarsi che
+ *         parlare con un endpoint sbagliato. La pagina delle impostazioni usa
+ *         `useClientConfigSafe`, perche' e' il posto da cui si rimedia.
  */
-export function useClientConfig(): ClientConfig {
-  const { public: pub } = useRuntimeConfig()
+export function useClientConfig(): ComputedRef<ClientConfig> {
+  const configurazione = useConfigurazione()
 
+  return computed(() => {
+    if (configurazione.config) return configurazione.config
+    throw new Error(configurazione.errore ?? 'Configurazione degli endpoint non disponibile.')
+  })
+}
+
+/** Solo i valori dell'ambiente, senza le scelte dell'utente. Per il confronto in UI. */
+export function envClientConfig(): ClientConfig {
+  const { public: pub } = useRuntimeConfig()
   return resolveClientConfig({
     NUXT_PUBLIC_DEFAULT_READ_RELAYS: String(pub.defaultReadRelays ?? ''),
     NUXT_PUBLIC_DEFAULT_WRITE_RELAYS: String(pub.defaultWriteRelays ?? ''),
@@ -48,10 +60,10 @@ export function relayRoles(config: ClientConfig): Map<string, string[]> {
  * rotta — le impostazioni per prime, che sono il posto da cui la si sistema.
  * Far esplodere proprio quella pagina lascerebbe l'utente senza via d'uscita.
  */
-export function useClientConfigSafe(): { valore: ClientConfig | null; errore: string | null } {
-  try {
-    return { valore: useClientConfig(), errore: null }
-  } catch (err) {
-    return { valore: null, errore: err instanceof Error ? err.message : String(err) }
-  }
+export function useClientConfigSafe(): ComputedRef<{
+  valore: ClientConfig | null
+  errore: string | null
+}> {
+  const configurazione = useConfigurazione()
+  return computed(() => ({ valore: configurazione.config, errore: configurazione.errore }))
 }

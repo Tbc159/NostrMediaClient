@@ -1,10 +1,64 @@
 <script setup lang="ts">
 import { passwordStrength } from '@nmc/nostr-core'
+import { campiEndpoint, useConfigurazione, type CampoEndpoint } from '~/stores/configurazione'
 
 useHead({ title: 'Impostazioni · NostrMediaClient' })
 
 const identita = useIdentity()
-const config = useClientConfigSafe()
+const configSafe = useClientConfigSafe()
+const config = computed(() => configSafe.value)
+
+const configurazione = useConfigurazione()
+
+/**
+ * Copia modificabile degli endpoint.
+ *
+ * Si edita una bozza e non lo store direttamente: cambiando i relay carattere
+ * per carattere si passa per stati intermedi non validi (`wss://u`), e
+ * applicarli man mano significherebbe far pubblicare il client su indirizzi
+ * scritti a meta'.
+ */
+const bozzaEndpoint = reactive(
+  Object.fromEntries(
+    campiEndpoint.map((c) => [c.chiave, configurazione.valoreDi(c.chiave)]),
+  ) as Record<CampoEndpoint['chiave'], string>,
+)
+
+const erroreEndpoint = ref<string | null>(null)
+const salvato = ref(false)
+
+const strategie = [
+  {
+    id: 'sequenziale' as const,
+    titolo: 'A rotazione, uno per volta (consigliata)',
+    spiegazione:
+      'Prova i relay nell’ordine in cui li hai scritti e si ferma al primo che prende in carico l’evento. Apre una connessione per volta, quindi non incappa nei limiti per indirizzo IP dei relay. In cambio l’evento finisce su un solo relay.',
+  },
+  {
+    id: 'tutti' as const,
+    titolo: 'Tutti insieme',
+    spiegazione:
+      'Invia a tutti i relay in parallelo. L’evento risulta più raggiungibile, ma aprire molte connessioni insieme è anche il modo più facile per vederne fallire qualcuna.',
+  },
+]
+
+function salvaEndpoint(): void {
+  salvato.value = false
+  const esito = configurazione.applica({ ...bozzaEndpoint })
+  if (esito.ok) {
+    erroreEndpoint.value = null
+    salvato.value = true
+  } else {
+    erroreEndpoint.value = esito.errore
+  }
+}
+
+function tornaAiDefault(): void {
+  configurazione.ripristinaDefault()
+  for (const c of campiEndpoint) bozzaEndpoint[c.chiave] = configurazione.valoreDi(c.chiave)
+  erroreEndpoint.value = null
+  salvato.value = true
+}
 
 type Scheda = 'estensione' | 'chiave' | 'lettura'
 const scheda = ref<Scheda>('estensione')
@@ -312,25 +366,99 @@ const etichettaModo: Record<string, string> = {
     </ClientOnly>
 
     <!-- ─────────── Endpoint ─────────── -->
-    <BaseCard title="Endpoint" subtitle="Definiti in .env. Dopo una modifica serve un riavvio.">
-      <BaseAlert v-if="config.errore" tono="pericolo">{{ config.errore }}</BaseAlert>
-      <dl v-else class="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-[auto_1fr]">
-        <dt class="text-[var(--testo-tenue)]">Lettura</dt>
-        <dd class="break-all font-mono text-xs">{{ config.valore?.readRelays.join(', ') }}</dd>
-        <dt class="text-[var(--testo-tenue)]">Scrittura</dt>
-        <dd class="break-all font-mono text-xs">{{ config.valore?.writeRelays.join(', ') }}</dd>
-        <dt class="text-[var(--testo-tenue)]">Indicizzatori</dt>
-        <dd class="break-all font-mono text-xs">{{ config.valore?.indexerRelays.join(', ') }}</dd>
-        <dt class="text-[var(--testo-tenue)]">Bozze</dt>
-        <dd class="break-all font-mono text-xs">
-          {{ config.valore?.draftRelay ?? 'non configurato — salvataggio bozze disattivo' }}
-        </dd>
-        <dt class="text-[var(--testo-tenue)]">Blossom</dt>
-        <dd class="break-all font-mono text-xs">{{ config.valore?.blossomServers.join(', ') }}</dd>
-      </dl>
-      <div class="mt-4">
-        <BaseButton to="/diagnostica" size="sm">Verifica gli endpoint →</BaseButton>
-      </div>
-    </BaseCard>
+    <ClientOnly>
+      <BaseCard
+        title="Endpoint"
+        subtitle="I valori del file .env sono soltanto il punto di partenza: qui li sostituisci, e la scelta resta in questo browser."
+      >
+        <BaseAlert v-if="config.errore" tono="pericolo" class="mb-4">
+          La configurazione attuale non è valida e il client non può leggere né pubblicare finché
+          resta così: {{ config.errore }}
+        </BaseAlert>
+
+        <form class="flex flex-col gap-5" @submit.prevent="salvaEndpoint">
+          <BaseField
+            v-for="campo in campiEndpoint"
+            :key="campo.chiave"
+            v-slot="{ id, describedBy }"
+            :label="campo.etichetta"
+            :hint="campo.descrizione"
+          >
+            <div class="flex flex-col gap-1">
+              <BaseTextarea
+                v-if="campo.multiplo"
+                :id="id"
+                v-model="bozzaEndpoint[campo.chiave]"
+                :rows="2"
+                :placeholder="
+                  campo.schema === 'wss'
+                    ? 'wss://uno.example, wss://due.example'
+                    : 'https://uno.example'
+                "
+                :described-by="describedBy"
+              />
+              <BaseInput
+                v-else
+                :id="id"
+                v-model="bozzaEndpoint[campo.chiave]"
+                :placeholder="campo.schema === 'wss' ? 'wss://privato.example' : 'https://…'"
+                :described-by="describedBy"
+              />
+              <p class="text-xs text-[var(--testo-tenue)]">
+                <BaseBadge v-if="configurazione.sovrascritto(campo.chiave)" tono="accento">
+                  sostituito da te
+                </BaseBadge>
+                <BaseBadge v-else>dal file .env</BaseBadge>
+              </p>
+            </div>
+          </BaseField>
+
+          <BaseAlert v-if="erroreEndpoint" tono="pericolo">{{ erroreEndpoint }}</BaseAlert>
+          <BaseAlert v-else-if="salvato" tono="successo">
+            Endpoint aggiornati. Valgono da subito, senza riavviare il client.
+          </BaseAlert>
+
+          <div class="flex flex-wrap gap-2">
+            <BaseButton type="submit" variant="primario">Salva gli endpoint</BaseButton>
+            <BaseButton
+              v-if="configurazione.personalizzata"
+              variant="fantasma"
+              @click="tornaAiDefault"
+            >
+              Torna ai valori del .env
+            </BaseButton>
+            <BaseButton to="/diagnostica" variant="fantasma">Verifica gli endpoint →</BaseButton>
+          </div>
+        </form>
+      </BaseCard>
+
+      <!-- ─────────── Strategia di pubblicazione ─────────── -->
+      <BaseCard
+        title="Come distribuire quello che pubblichi"
+        subtitle="Con più relay di scrittura c’è un compromesso, e non ha una risposta unica."
+      >
+        <div class="flex flex-col gap-3">
+          <label
+            v-for="s in strategie"
+            :key="s.id"
+            class="superficie flex cursor-pointer gap-3 rounded-lg border p-3"
+            :class="configurazione.strategia === s.id ? 'border-[var(--accento)]' : ''"
+          >
+            <input
+              type="radio"
+              name="strategia"
+              class="mt-1"
+              :value="s.id"
+              :checked="configurazione.strategia === s.id"
+              @change="configurazione.impostaStrategia(s.id)"
+            />
+            <span class="flex flex-col gap-1">
+              <span class="text-sm font-medium">{{ s.titolo }}</span>
+              <span class="text-xs text-[var(--testo-tenue)]">{{ s.spiegazione }}</span>
+            </span>
+          </label>
+        </div>
+      </BaseCard>
+    </ClientOnly>
   </div>
 </template>

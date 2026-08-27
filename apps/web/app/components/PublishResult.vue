@@ -17,6 +17,7 @@ const toni: Record<EsitoRelay, 'successo' | 'avviso' | 'neutro'> = {
   rifiutato: 'avviso',
   autenticazione: 'avviso',
   irraggiungibile: 'neutro',
+  'non tentato': 'neutro',
 }
 
 const etichette: Record<EsitoRelay, string> = {
@@ -25,24 +26,38 @@ const etichette: Record<EsitoRelay, string> = {
   rifiutato: 'rifiutato',
   autenticazione: 'autenticazione',
   irraggiungibile: 'nessuna risposta',
+  'non tentato': 'non tentato',
 }
 
-const totale = computed(() => props.esito.risultati.length)
 const accettati = computed(() => props.esito.accettati.length)
+
+/*
+ * Con la rotazione i relay non tentati non sono fallimenti: contarli nel
+ * denominatore farebbe leggere «1 su 4» a una pubblicazione andata come
+ * doveva.
+ */
+const tentati = computed(
+  () => props.esito.risultati.filter((r) => r.esito !== 'non tentato').length,
+)
+const saltati = computed(() => props.esito.risultati.length - tentati.value)
 </script>
 
 <template>
   <div class="flex flex-col gap-3">
     <BaseAlert :tono="esito.riuscita ? 'successo' : 'pericolo'">
       <template v-if="esito.riuscita">
-        Evento accettato da {{ accettati }} relay su {{ totale }}.
-        <template v-if="accettati < totale">
+        Evento accettato da {{ accettati }} su {{ tentati }} relay contattati.
+        <template v-if="saltati > 0">
+          Gli altri {{ saltati }} non sono stati contattati: bastava il primo che lo ha preso in
+          carico.
+        </template>
+        <template v-else-if="accettati < tentati">
           Gli altri non lo hanno preso: sotto trovi il motivo di ciascuno.
         </template>
       </template>
       <template v-else>
-        Nessun relay ha accettato l’evento. La firma è valida e l’evento resta copiabile: puoi
-        cambiare relay dalle impostazioni e riprovare.
+        Nessuno dei {{ tentati }} relay contattati ha accettato l’evento. La firma è valida e
+        l’evento resta copiabile: puoi cambiare relay dalle impostazioni e riprovare.
       </template>
     </BaseAlert>
 
@@ -51,6 +66,7 @@ const accettati = computed(() => props.esito.accettati.length)
         v-for="r in esito.risultati"
         :key="r.url"
         class="superficie flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border px-3 py-2 text-sm"
+        :class="r.esito === 'non tentato' ? 'opacity-60' : ''"
       >
         <BaseBadge :tono="toni[r.esito]">{{ etichette[r.esito] }}</BaseBadge>
         <code class="text-xs text-[var(--testo-tenue)]">{{ r.url }}</code>

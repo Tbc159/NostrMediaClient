@@ -1,4 +1,5 @@
 import { publishEvent, type NostrEvent, type RisultatoPubblicazione } from '@nmc/nostr-core'
+import { useConfigurazione } from '~/stores/configurazione'
 
 /**
  * Invio di un evento firmato ai relay.
@@ -12,17 +13,21 @@ export function usePublish() {
   const pool = useRelayPool()
   const identita = useIdentity()
   const config = useClientConfig()
+  const configurazione = useConfigurazione()
 
   const inCorso = ref(false)
+  /** Relay che si sta contattando adesso, per dare riscontro durante la rotazione. */
+  const tentativo = ref<{ url: string; indice: number; totale: number } | null>(null)
   const esito = ref<RisultatoPubblicazione | null>(null)
   const errore = ref<string | null>(null)
 
   /** Relay di destinazione: quelli di scrittura configurati. */
-  const destinazioni = computed(() => config.writeRelays)
+  const destinazioni = computed(() => config.value.writeRelays)
 
   function azzera(): void {
     esito.value = null
     errore.value = null
+    tentativo.value = null
   }
 
   /**
@@ -46,6 +51,10 @@ export function usePublish() {
         // L'autenticazione NIP-42 serve solo qui, in scrittura. In lettura
         // rivelerebbe al relay cosa leggi e quando, senza alcun vantaggio.
         auth: { signEvent: (template) => identita.firma(template) },
+        strategia: configurazione.strategia,
+        onTentativo: (url, indice, totale) => {
+          tentativo.value = { url, indice, totale }
+        },
       })
       return esito.value.riuscita
     } catch (e) {
@@ -53,8 +62,9 @@ export function usePublish() {
       return false
     } finally {
       inCorso.value = false
+      tentativo.value = null
     }
   }
 
-  return { inCorso, esito, errore, destinazioni, pubblica, azzera }
+  return { inCorso, esito, errore, destinazioni, tentativo, pubblica, azzera }
 }

@@ -159,6 +159,100 @@ sulla stessa versione.
 Il calendario ordina per **data dell'evento**, non per data di pubblicazione:
 in un calendario interessa quando l'evento accade, non quando e' stato scritto.
 
+### Sezioni disponibili
+
+| Rotta             | Kind             | Cosa fa                                                    |
+| ----------------- | ---------------- | ---------------------------------------------------------- |
+| `/`               | 1                | le tue note                                                |
+| `/scrivi`         | 1                | composer, firma e pubblica                                 |
+| `/media`          | 20, 21, 22, 1063 | i tuoi media                                               |
+| `/media/nuovo`    | idem             | upload Blossom, anteprima, `imeta`, pubblicazione          |
+| `/articoli`       | 30023, 30024     | i tuoi articoli, con le bozze locali                       |
+| `/articoli/nuovo` | 30023            | editor Markdown con anteprima sanificata                   |
+| `/calendario`     | 31922, 31923     | i tuoi eventi, divisi in programma / gia' svolti           |
+| `/impostazioni`   | —                | accesso, endpoint modificabili, strategia di pubblicazione |
+| `/diagnostica`    | —                | verifica di relay e server Blossom                         |
+
+**Tutti gli elenchi mostrano solo gli eventi dell'identita' attiva.** E' una
+scelta, non una limitazione temporanea travestita: senza la lista dei follow
+(kind 3) e senza il modello outbox (NIP-65), un elenco "di tutti" sarebbe _cio'
+che passa dai relay configurati_ — una fetta arbitraria della rete, diversa a
+ogni ricarica. I propri eventi sono un insieme che l'utente riconosce.
+
+### Endpoint modificabili dall'interfaccia
+
+Gli endpoint del `.env` restano quello che il piano dice che sono — default di
+primo avvio — e da `/impostazioni` si sostituiscono senza riavviare il client.
+La scelta vive in `localStorage`, quindi in quel browser e non nel repository.
+
+La sovrapposizione avviene sulla forma **grezza** dell'ambiente e non
+sull'oggetto gia' validato: cosi' la validazione resta quella sola di
+`resolveClientConfig`, condivisa fra app, SSR e riga di comando. Il salvataggio
+e' tutto-o-niente — accettare le modifiche valide e scartare le altre
+lascerebbe una configurazione a meta', diversa da quella scritta, senza che
+nulla lo dica.
+
+### Pubblicazione a rotazione
+
+Con piu' relay di scrittura il client ora li prova **uno per volta, in ordine,
+fermandosi al primo che prende in carico l'evento**. Configurabile: la
+strategia parallela resta disponibile dalle impostazioni.
+
+Il motivo per cui la rotazione e' il default e' misurato, non teorico: aprendo
+quattro WebSocket insieme se ne vedono fallire alcune, mentre una per volta
+passano. Il compromesso va detto: a rotazione l'evento finisce su **un** relay,
+quindi e' meno raggiungibile; in parallelo finisce ovunque, ma fallisce piu'
+spesso.
+
+I relay non contattati compaiono nel risultato marcati come tali, e non entrano
+nel conteggio: altrimenti una pubblicazione andata come doveva si leggerebbe
+«1 su 4».
+
+**Difetto corretto nel frattempo:** un errore di connessione WebSocket
+diventava il messaggio `[object ErrorEvent]`. rxjs propaga l'evento DOM, non un
+`Error`, e i campi utili vanno estratti a mano — `CloseEvent` porta il codice,
+`ErrorEvent` il messaggio.
+
+### Media (Blossom)
+
+`packages/nostr-core/src/media/blossom.ts` copre BUD-01/02/04/11. L'hash SHA-256
+si calcola **nel client prima dell'invio** e viaggia in `X-SHA-256`: un `409`
+dice che quel che e' arrivato non e' quel che si e' mandato, cosa che
+altrimenti si scoprirebbe solo vedendo l'immagine rotta nel post pubblicato.
+
+Il token BUD-11 (kind 24242) e' effimero e **non finisce mai su un relay**: sta
+nell'header `Authorization`, in base64url senza padding. Dura cinque minuti,
+perche' un token senza tag `server` e' spendibile su qualunque server Blossom
+fino alla scadenza.
+
+La replica sugli altri server non blocca: se fallisce, il file resta sul
+primario. Trattarla come errore butterebbe un caricamento riuscito perche' un
+server _secondario_ non risponde.
+
+Invariante rispettata: **se il caricamento fallisce non si pubblica nulla**. Un
+`imeta` che punta al vuoto resta pubblicato per sempre, e il kind 20 e'
+regolare, quindi non correggibile.
+
+### Long-form (NIP-23)
+
+Editor Markdown con anteprima. Due cose che la specifica dice e che il codice
+fa rispettare:
+
+- **niente HTML nel Markdown** — il `build` lo rifiuta;
+- **`created_at` e' l'ultima modifica, `published_at` la prima uscita**.
+  Aggiornare il secondo a ogni salvataggio farebbe risalire l'articolo nei feed
+  altrui a ogni correzione.
+
+L'anteprima passa comunque da DOMPurify. Il divieto di HTML vincola _chi
+scrive_, non chi legge: un evento arriva da un relay che non lo fa rispettare.
+
+**Le bozze restano nel browser.** NIP-23 dichiara **deprecato il kind 30024** e
+rimanda a NIP-37 (kind 31234, cifrato NIP-44 verso se stessi). Il 30024
+finirebbe sul relay _in chiaro_: chiamarlo bozza e' fuorviante. Il 30024 resta
+registrato in sola lettura, per non far sparire testi scritti con altri client.
+NIP-37 e' il passo successivo, e richiede di esporre NIP-44 in tutte e tre le
+modalita' di firma.
+
 ### Identita' — come si comporta
 
 Tre modalita': estensione NIP-07 (consigliata), chiave privata cifrata NIP-49,

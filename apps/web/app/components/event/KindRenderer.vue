@@ -42,6 +42,26 @@ const renderer = computed(() => {
     :evento="evento"
     :dati="(analisi as { dati: any }).dati"
   />
+  <EventPictureCard
+    v-else-if="renderer === 'picture'"
+    :evento="evento"
+    :dati="(analisi as { dati: any }).dati"
+  />
+  <EventVideoCard
+    v-else-if="renderer === 'video'"
+    :evento="evento"
+    :dati="(analisi as { dati: any }).dati"
+  />
+  <EventFileCard
+    v-else-if="renderer === 'file'"
+    :evento="evento"
+    :dati="(analisi as { dati: any }).dati"
+  />
+  <EventArticleCard
+    v-else-if="renderer === 'article'"
+    :evento="evento"
+    :dati="(analisi as { dati: any }).dati"
+  />
   <EventRawCard
     v-else
     :evento="evento"

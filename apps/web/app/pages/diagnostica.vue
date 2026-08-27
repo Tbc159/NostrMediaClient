@@ -47,7 +47,7 @@ const inCorso = ref(false)
 const ultimaVerifica = ref<Date | null>(null)
 
 try {
-  const config = useClientConfig()
+  const config = useClientConfig().value
   draftRelayConfigurato.value = config.draftRelay !== null
   relays.value = [...relayRoles(config)].map(([url, ruoli]) => ({ url, ruoli, stato: 'attesa' }))
   blossom.value = config.blossomServers.map((url) => ({ url, stato: 'attesa' }))
