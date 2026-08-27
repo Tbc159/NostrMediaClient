@@ -103,19 +103,61 @@ e' un comando interno di pnpm e avrebbe la precedenza.
 
 ## Fase GUI (branch `webapp/gui`) — schermate e form · IN CORSO
 
-Fatto e verificato nel browser (Firefox headless via WebDriver, 22 controlli):
+Fatto e verificato nel browser (Firefox headless via WebDriver):
 
-| Schermata                                  | Kind          | Stato                                       |
-| ------------------------------------------ | ------------- | ------------------------------------------- |
-| `/impostazioni` — accesso e configurazione | —             | fatto: NIP-07, chiave privata, sola lettura |
-| `/scrivi` — composer nota                  | 1             | fatto: compone e firma                      |
-| `/calendario/nuovo` — evento               | 31922 / 31923 | fatto: compone e firma, con fuso orario     |
-| `/calendario` — elenco                     | —             | segnaposto: serve la lettura dai relay      |
-| `/` — feed                                 | —             | segnaposto: serve la lettura dai relay      |
+| Schermata                                  | Kind          | Stato                                                   |
+| ------------------------------------------ | ------------- | ------------------------------------------------------- |
+| `/impostazioni` — accesso e configurazione | —             | NIP-07, chiave privata, sola lettura                    |
+| `/scrivi` — composer nota                  | 1             | compone, firma e **pubblica**                           |
+| `/calendario/nuovo` — evento               | 31922 / 31923 | compone, firma e **pubblica**, con fuso orario          |
+| `/calendario` — elenco                     | 31922 / 31923 | **legge dai relay**, separa in programma / gia' svolti  |
+| `/` — feed                                 | 1             | **legge dai relay**, filtro "dai relay" / "le mie note" |
 
-**I form producono eventi veri**, non finti: passano dal registry dei kind e si
-fermano all'evento firmato. Quando arrivera' il pool di relay bastera'
-aggiungere l'invio, senza rifare i form.
+**I form producono eventi veri** e li consegnano ai relay configurati.
+
+### Pubblicazione e lettura dai relay
+
+Aggiunti in `nostr-core/src/relays/`: `pool.ts` (fabbrica del `RelayPool`),
+`publish.ts` (invio con esito per relay), `request.ts` (lettura, deduplica,
+ordinamento).
+
+**Non esiste "pubblicato" in assoluto.** Esistono relay che hanno l'evento e
+relay che no: niente transazione, niente rollback. Percio' l'esito e' un elenco
+per relay, e la UI lo mostra cosi' com'e' invece di ridurlo a un booleano che
+nasconderebbe meta' della verita'. La soglia di riuscita e' **un** relay: un
+evento presente su uno solo e' comunque raggiungibile e replicabile, mentre
+pretendere l'unanimita' farebbe fallire ogni pubblicazione con un relay giu'.
+
+Tre punti non ovvi, tutti coperti da test:
+
+1. **E' il booleano dell'OK a dire se l'evento e' stato accettato, non il
+   prefisso.** NIP-01 mostra `pow:` e `duplicate:` anche su risposte positive:
+   leggere solo il prefisso segnalerebbe come fallita una pubblicazione
+   riuscita.
+2. **`duplicate` e' un successo.** Il relay ce l'ha gia': per chi pubblica il
+   risultato e' identico a un'accettazione. Ripubblicare non duplica nulla.
+3. **Un relay che pretende NIP-42 lascia la publish _in attesa_**, non la
+   rifiuta. Senza una scadenza esplicita il pulsante girerebbe per sempre; con
+   essa si arriva a un messaggio che dice cosa fare.
+
+**L'autenticazione NIP-42 si usa solo in scrittura, mai in lettura.** Quando
+consegni al relay un evento gia' firmato con la tua chiave, autenticarti non
+gli rivela nulla di nuovo. Farlo in lettura gli direbbe invece _cosa leggi e
+quando_, che e' informazione che non ha ragione di avere.
+
+In lettura vale la regola opposta all'errore: un relay che non risponde non fa
+fallire la lettura dagli altri: si restituisce quello che e' arrivato entro la
+scadenza. Un feed con tre note su cinque e' utile, uno in errore no.
+
+Gli eventi letti passano da `ultimaVersione()`: relay diversi possono avere
+versioni diverse dello stesso evento addressable, e senza quel passaggio la
+stessa riunione comparirebbe due volte in calendario, una col titolo vecchio e
+una col nuovo. Lo spareggio a parita' di `created_at` e' l'id minore, come
+prescrive NIP-01 — non e' estetica, e' cio' che fa convergere client diversi
+sulla stessa versione.
+
+Il calendario ordina per **data dell'evento**, non per data di pubblicazione:
+in un calendario interessa quando l'evento accade, non quando e' stato scritto.
 
 ### Identita' — come si comporta
 
@@ -165,16 +207,34 @@ la ragione per cui il test end-to-end non e' sostituibile da quelli statici:
 
 ---
 
-## Prossimo passo: Fase 1
+### Come si prova la pubblicazione senza scrivere su relay pubblici
 
-Costruire il contenuto vero di `nostr-core` sopra lo scheletro esistente:
+`test/helpers/relay-finto.ts` avvia un relay NIP-01 minimo in-process (porta
+assegnata dal sistema, quindi i test girano in parallelo). Non e' un mock del
+pool: il traffico passa davvero da un WebSocket e da messaggi NIP-01 veri, che
+e' l'unico modo per vedere i casi che contano — rifiuti, silenzi, sostituzione
+degli addressable. Un mock proverebbe soltanto che il nostro codice chiama se
+stesso.
 
-1. `relays/` — RelayPool su `applesauce-relay`, risolutore outbox NIP-65,
-   lettura NIP-11, AUTH NIP-42.
-2. `store/` — EventStore di `applesauce-core` con cache Dexie lato client.
-3. `signers/` — NIP-07, NIP-46 bunker, NIP-49; gestione account.
-4. Prime `kinds/definitions/`: 0, 1, 3, 5, 10002.
-5. `nostr-vue`: `useAccount`, `useProfile`, `useEvent`, `useTimeline`.
+Serve anche a non sporcare i relay pubblici con eventi di prova.
+
+---
+
+## Prossimo passo: Fase 1, il resto
+
+Fatto in questo giro: `relays/` — pool, pubblicazione con esito per relay,
+lettura con deduplica. Manca ancora:
+
+1. `relays/` — risolutore outbox NIP-65 (kind 10002) e lettura NIP-11 nel pool.
+   Finche' non c'e', "tutti" nel feed significa _quello che passa dai relay
+   configurati_, non l'intera rete: la UI lo dice invece di far credere a una
+   copertura che non ha.
+2. `store/` — EventStore di `applesauce-core` con cache Dexie lato client. Oggi
+   ogni cambio pagina rilegge dai relay: funziona, ma e' traffico sprecato.
+3. `signers/` — NIP-46 bunker (NIP-07 e NIP-49 gia' fatti).
+4. Restanti `kinds/definitions/`: 3 (follow), 5 (cancellazione), 10002.
+5. `nostr-vue`: `useAccount`, `useProfile`, `useEvent` — `useTimeline` per ora
+   vive in `apps/web`, va promosso quando serve a piu' di un'app.
 
 Il registry (`kinds/registry.ts`) e le sue invarianti sono gia' pronti e
 coperti da test: le definizioni si agganciano li' senza altre modifiche.

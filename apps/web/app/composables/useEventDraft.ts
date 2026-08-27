@@ -1,15 +1,17 @@
 import type { AnyKindDefinition, EventTemplate, NostrEvent } from '@nmc/nostr-core'
 
 /**
- * Ciclo di vita di un evento in composizione: costruzione, firma, esito.
+ * Ciclo di vita di un evento in composizione: costruzione, firma, invio.
  *
- * Il flusso si ferma all'evento firmato: la pubblicazione sui relay arriva con
- * il pool, in Fase 1. Fermarsi qui non e' una finzione — il template e la
- * firma sono gia' quelli veri, e quando il pool ci sara' bastera' aggiungere
- * l'invio senza toccare i form.
+ * I tre passaggi restano distinti perche' falliscono per ragioni diverse e si
+ * rimediano in modi diversi: un errore di costruzione si corregge nel form, uno
+ * di firma sbloccando la chiave, uno di invio cambiando relay. Fonderli in un
+ * unico pulsante "pubblica" nasconderebbe all'utente quale dei tre e' andato
+ * storto.
  */
 export function useEventDraft() {
   const identita = useIdentity()
+  const invio = usePublish()
 
   const template = ref<EventTemplate | null>(null)
   const firmato = ref<NostrEvent | null>(null)
@@ -20,6 +22,7 @@ export function useEventDraft() {
     template.value = null
     firmato.value = null
     errore.value = null
+    invio.azzera()
   }
 
   /**
@@ -64,5 +67,30 @@ export function useEventDraft() {
     }
   }
 
-  return { template, firmato, errore, inCorso, costruisci, firma, azzera }
+  /**
+   * Firma e invia in un colpo solo, per il pulsante principale dei form.
+   *
+   * Se l'evento e' gia' firmato non lo rifirma: rifirmare cambierebbe la firma
+   * a parita' di contenuto e, con NIP-07, farebbe ricomparire il popup
+   * dell'estensione a ogni tentativo di reinvio.
+   */
+  async function firmaEPubblica(): Promise<boolean> {
+    if (!firmato.value && !(await firma())) return false
+    if (!firmato.value) return false
+    return invio.pubblica(firmato.value)
+  }
+
+  return {
+    template,
+    firmato,
+    errore,
+    inCorso,
+    costruisci,
+    firma,
+    azzera,
+    firmaEPubblica,
+    // Stato dell'invio, esposto cosi' com'e': le pagine mostrano l'esito per
+    // relay, non un riassunto.
+    invio,
+  }
 }

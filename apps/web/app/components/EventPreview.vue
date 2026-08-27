@@ -39,8 +39,10 @@ async function copia(): Promise<void> {
       >{{ json }}</pre>
 
     <BaseAlert v-if="firmato" tono="info">
-      L’evento è firmato e valido. La pubblicazione sui relay arriva con il pool di connessioni: per
-      ora puoi copiarlo e inviarlo con un altro strumento.
+      L’evento è firmato: l’id e la firma qui sopra sono definitivi. Ripubblicarlo sugli stessi
+      relay non lo duplica — rispondono
+      <code>duplicate</code>
+      , che è un successo.
     </BaseAlert>
   </div>
 </template>

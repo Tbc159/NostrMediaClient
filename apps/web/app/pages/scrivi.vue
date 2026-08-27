@@ -141,23 +141,54 @@ function nuovo(): void {
             Componi evento
           </BaseButton>
           <ClientOnly>
-            <BaseButton
-              v-if="bozza.template.value"
-              variant="primario"
-              :loading="bozza.inCorso.value"
-              :disabled="!identita.puoFirmare"
-              @click="bozza.firma()"
-            >
-              Firma
-            </BaseButton>
+            <template v-if="bozza.template.value">
+              <BaseButton
+                variant="primario"
+                :loading="bozza.inCorso.value || bozza.invio.inCorso.value"
+                :disabled="!identita.puoFirmare"
+                @click="bozza.firmaEPubblica()"
+              >
+                {{ bozza.firmato.value ? 'Pubblica' : 'Firma e pubblica' }}
+              </BaseButton>
+              <BaseButton
+                v-if="!bozza.firmato.value"
+                variant="fantasma"
+                :loading="bozza.inCorso.value"
+                :disabled="!identita.puoFirmare"
+                @click="bozza.firma()"
+              >
+                Solo firma
+              </BaseButton>
+            </template>
           </ClientOnly>
           <BaseButton v-if="bozza.template.value" variant="fantasma" @click="nuovo">
             Ricomincia
           </BaseButton>
         </div>
 
+        <ClientOnly>
+          <p v-if="bozza.template.value" class="text-xs text-[var(--testo-tenue)]">
+            Destinazione:
+            <template v-for="(r, i) in bozza.invio.destinazioni.value" :key="r">
+              <template v-if="i > 0">,</template>
+              <code>{{ r }}</code>
+            </template>
+            — modificabili da
+            <NuxtLink to="/impostazioni" class="underline">impostazioni</NuxtLink>
+            .
+          </p>
+        </ClientOnly>
+
         <BaseAlert v-if="bozza.errore.value" tono="pericolo">{{ bozza.errore.value }}</BaseAlert>
       </form>
+    </BaseCard>
+
+    <BaseAlert v-if="bozza.invio.errore.value" tono="pericolo">
+      {{ bozza.invio.errore.value }}
+    </BaseAlert>
+
+    <BaseCard v-if="bozza.invio.esito.value" title="Esito della pubblicazione">
+      <PublishResult :esito="bozza.invio.esito.value" />
     </BaseCard>
 
     <BaseCard v-if="bozza.template.value" title="Evento">
