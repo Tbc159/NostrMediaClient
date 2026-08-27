@@ -105,13 +105,7 @@ e' un comando interno di pnpm e avrebbe la precedenza.
 
 Fatto e verificato nel browser (Firefox headless via WebDriver):
 
-| Schermata                                  | Kind          | Stato                                                   |
-| ------------------------------------------ | ------------- | ------------------------------------------------------- |
-| `/impostazioni` — accesso e configurazione | —             | NIP-07, chiave privata, sola lettura                    |
-| `/scrivi` — composer nota                  | 1             | compone, firma e **pubblica**                           |
-| `/calendario/nuovo` — evento               | 31922 / 31923 | compone, firma e **pubblica**, con fuso orario          |
-| `/calendario` — elenco                     | 31922 / 31923 | **legge dai relay**, separa in programma / gia' svolti  |
-| `/` — feed                                 | 1             | **legge dai relay**, filtro "dai relay" / "le mie note" |
+Elenco aggiornato delle schermate: vedi «Sezioni disponibili» piu' sotto.
 
 **I form producono eventi veri** e li consegnano ai relay configurati.
 
@@ -163,7 +157,7 @@ in un calendario interessa quando l'evento accade, non quando e' stato scritto.
 
 | Rotta             | Kind             | Cosa fa                                                    |
 | ----------------- | ---------------- | ---------------------------------------------------------- |
-| `/`               | 1                | le tue note                                                |
+| `/`               | tutti            | i tuoi eventi, con filtro per tipo                         |
 | `/scrivi`         | 1                | composer, firma e pubblica                                 |
 | `/media`          | 20, 21, 22, 1063 | i tuoi media                                               |
 | `/media/nuovo`    | idem             | upload Blossom, anteprima, `imeta`, pubblicazione          |
@@ -172,6 +166,19 @@ in un calendario interessa quando l'evento accade, non quando e' stato scritto.
 | `/calendario`     | 31922, 31923     | i tuoi eventi, divisi in programma / gia' svolti           |
 | `/impostazioni`   | —                | accesso, endpoint modificabili, strategia di pubblicazione |
 | `/diagnostica`    | —                | verifica di relay e server Blossom                         |
+
+La schermata `/` mostra **ogni kind che il client sa pubblicare**, con i filtri
+per tipo e i relativi conteggi. L'elenco arriva da `publishableKinds()` e non da
+una lista scritta a mano: registrare un kind nuovo lo fa comparire li' senza
+toccare la pagina, che e' il punto dell'intera struttura dei kind.
+
+Restano fuori gli **effimeri**, e non per prudenza: NIP-01 dice ai relay di non
+conservarli, quindi interrogarli restituirebbe sempre il vuoto. Il kind 24242 di
+Blossom e' l'esempio — viene firmato e spedito, ma dentro un header HTTP.
+
+Il filtro lavora su quanto e' gia' stato letto, senza tornare ai relay: gli
+eventi sono gia' tutti in pagina, e una seconda interrogazione aggiungerebbe
+attesa per mostrarne un sottoinsieme.
 
 **Tutti gli elenchi mostrano solo gli eventi dell'identita' attiva.** E' una
 scelta, non una limitazione temporanea travestita: senza la lista dei follow
@@ -250,8 +257,9 @@ scrive_, non chi legge: un evento arriva da un relay che non lo fa rispettare.
 rimanda a NIP-37 (kind 31234, cifrato NIP-44 verso se stessi). Il 30024
 finirebbe sul relay _in chiaro_: chiamarlo bozza e' fuorviante. Il 30024 resta
 registrato in sola lettura, per non far sparire testi scritti con altri client.
-NIP-37 e' il passo successivo, e richiede di esporre NIP-44 in tutte e tre le
-modalita' di firma.
+NIP-37 e' il passo successivo ed e' **rimandato a un branch feature dedicato**,
+per decisione dell'utente del 27 agosto 2026: il costo non e' il kind in se' ma
+la cifratura NIP-44, da esporre in tutte e tre le modalita' di firma.
 
 ### Identita' — come si comporta
 

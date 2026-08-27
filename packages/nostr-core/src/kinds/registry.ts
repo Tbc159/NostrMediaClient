@@ -110,6 +110,25 @@ export function feedEligibleKinds(): number[] {
 }
 
 /**
+ * Kind che il client sa costruire **e** che un relay conserva.
+ *
+ * E' l'insieme di cio' che ha senso rileggere dopo averlo pubblicato, e quindi
+ * l'elenco giusto per una schermata che mostra "quello che ho scritto". Si
+ * ricava dal registry invece di essere scritto a mano: registrare un kind nuovo
+ * lo fa comparire da solo, che e' il punto dell'intera struttura.
+ *
+ * Gli effimeri restano fuori per una ragione precisa, non per prudenza: NIP-01
+ * dice ai relay di **non conservarli**, quindi interrogarli restituirebbe
+ * sempre il vuoto. Il kind 24242 di Blossom e' l'esempio — viene firmato e
+ * spedito, ma dentro un header HTTP, e su un relay non arriva mai.
+ */
+export function publishableKinds(): number[] {
+  return allKindDefinitions()
+    .filter((def) => def.class !== 'ephemeral')
+    .map((def) => def.kind)
+}
+
+/**
  * Svuota il registry. Serve ai test per partire da uno stato pulito;
  * in produzione la registrazione avviene una volta sola all'avvio.
  */

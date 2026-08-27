@@ -5,7 +5,7 @@ const identita = useIdentity()
 onMounted(() => identita.ripristina())
 
 const voci = [
-  { to: '/', label: 'Note' },
+  { to: '/', label: 'Eventi' },
   { to: '/scrivi', label: 'Scrivi' },
   { to: '/media', label: 'Media' },
   { to: '/articoli', label: 'Articoli' },

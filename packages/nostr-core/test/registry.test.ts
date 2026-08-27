@@ -8,8 +8,10 @@ import {
   feedEligibleKinds,
   getKindDefinition,
   isKnownKind,
+  publishableKinds,
   registerKind,
 } from '../src/kinds/registry.js'
+import { registerBuiltinKinds } from '../src/kinds/definitions/index.js'
 import type { AnyKindDefinition, EventClass } from '../src/kinds/types.js'
 
 /** Definizione minima valida, da deformare caso per caso. */
@@ -151,5 +153,49 @@ describe('defineKind', () => {
 
     const built = def.build('ciao', { pubkey: 'ab'.repeat(32), now: 1_700_000_000 })
     expect(built).toEqual({ kind: 1, content: 'ciao', tags: [], created_at: 1_700_000_000 })
+  })
+})
+
+describe('publishableKinds', () => {
+  it('esclude gli effimeri, che un relay non conserva', () => {
+    // Non e' prudenza: NIP-01 dice ai relay di non memorizzarli, quindi
+    // interrogarli restituirebbe sempre il vuoto. Il 24242 di Blossom viene
+    // firmato e spedito, ma dentro un header HTTP.
+    clearRegistry()
+    registerBuiltinKinds()
+
+    const pubblicabili = publishableKinds()
+    expect(pubblicabili).toContain(1)
+    expect(pubblicabili).toContain(30023)
+    expect(pubblicabili).not.toContain(24242)
+  })
+
+  it('cresce da solo quando si registra un kind nuovo', () => {
+    // E' la promessa dell'intera struttura: aggiungere un kind non deve
+    // richiedere di aggiornare gli elenchi sparsi per l'applicazione.
+    clearRegistry()
+    registerBuiltinKinds()
+    const prima = publishableKinds().length
+
+    registerKind({
+      kind: 30078,
+      name: 'dati-applicativi',
+      nip: 'NIP-78',
+      class: 'addressable',
+      editable: true,
+      deletable: true,
+      schema: z.object({}),
+      identifier: () => 'x',
+      parse: () => ({}),
+      build: (_input, ctx) => ({
+        kind: 30078,
+        content: '',
+        tags: [['d', 'x']],
+        created_at: ctx.now,
+      }),
+    })
+
+    expect(publishableKinds()).toHaveLength(prima + 1)
+    expect(publishableKinds()).toContain(30078)
   })
 })

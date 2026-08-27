@@ -62,6 +62,16 @@ const renderer = computed(() => {
     :evento="evento"
     :dati="(analisi as { dati: any }).dati"
   />
+  <EventProfileCard
+    v-else-if="renderer === 'profile'"
+    :evento="evento"
+    :dati="(analisi as { dati: any }).dati"
+  />
+  <EventRsvpCard
+    v-else-if="renderer === 'calendar-rsvp'"
+    :evento="evento"
+    :dati="(analisi as { dati: any }).dati"
+  />
   <EventRawCard
     v-else
     :evento="evento"
