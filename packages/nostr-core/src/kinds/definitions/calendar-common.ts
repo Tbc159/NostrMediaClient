@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import { optionalTag, repeatedTags, tagValue, tagValues } from '../tags.js'
+import { optionalTag, repeatedTags, tagValue, tagValues, tagsNamed } from '../tags.js'
 import { normalizeHashtag } from '../tags.js'
 import type { NostrEvent } from '../types.js'
 
@@ -8,6 +8,17 @@ import type { NostrEvent } from '../types.js'
  * Parti comuni ai due kind di evento calendario NIP-52: 31922 (su data) e
  * 31923 (su orario). Cambia solo come si esprimono inizio e fine.
  */
+
+/** Partecipante a un evento: pubkey, relay consigliato e ruolo. */
+export const calendarParticipantSchema = z.object({
+  pubkey: z.string(),
+  /** Relay dove trovare quel profilo. Stringa vuota se non indicato. */
+  relay: z.string().optional(),
+  /** Ruolo libero: "speaker", "organizer", "host"… */
+  role: z.string().optional(),
+})
+
+export type CalendarParticipant = z.infer<typeof calendarParticipantSchema>
 
 /** Campi descrittivi condivisi. */
 export const calendarSharedSchema = z.object({
@@ -17,14 +28,20 @@ export const calendarSharedSchema = z.object({
   description: z.string(),
   summary: z.string().optional(),
   image: z.string().optional(),
-  location: z.string().optional(),
+  /**
+   * Luoghi dell'evento. NIP-52 definisce `location` come ripetibile: un
+   * incontro puo' avere insieme un indirizzo fisico e un link alla
+   * videochiamata, e tenerne uno solo perderebbe informazione.
+   */
+  locations: z.array(z.string()),
   /** Geohash del luogo (tag `g`). */
   geohash: z.string().optional(),
-  /** Pubkey dei partecipanti (tag `p`). */
-  participants: z.array(z.string()),
+  participants: z.array(calendarParticipantSchema),
   hashtags: z.array(z.string()),
   /** Riferimenti esterni, es. link all'evento originale (tag `r`). */
   references: z.array(z.string()),
+  /** Coordinate di calendari (kind 31924) in cui si chiede di comparire. */
+  calendars: z.array(z.string()),
 })
 
 export type CalendarShared = z.infer<typeof calendarSharedSchema>
@@ -41,11 +58,15 @@ export interface CalendarSharedInput {
   description?: string
   summary?: string
   image?: string
-  location?: string
+  /** Uno o piu' luoghi. Una stringa sola resta il caso comune. */
+  location?: string | string[]
   geohash?: string
-  participants?: string[]
+  /** Pubkey semplici, oppure partecipanti con relay e ruolo. */
+  participants?: (string | CalendarParticipant)[]
   hashtags?: string[]
   references?: string[]
+  /** Coordinate `31924:<pubkey>:<d>` dei calendari a cui proporre l'evento. */
+  calendars?: string[]
 }
 
 /** Identificatore per un evento calendario nuovo. */
@@ -53,8 +74,23 @@ export function newCalendarIdentifier(): string {
   return crypto.randomUUID()
 }
 
+/** Normalizza un partecipante scritto come semplice pubkey. */
+function toParticipant(p: string | CalendarParticipant): CalendarParticipant {
+  return typeof p === 'string' ? { pubkey: p } : p
+}
+
 /** Legge dall'evento i campi descrittivi comuni. */
 export function parseShared(event: NostrEvent): CalendarShared {
+  const partecipanti: CalendarParticipant[] = tagsNamed(event, 'p')
+    .filter((t) => typeof t[1] === 'string' && t[1].length > 0)
+    .map((t) => ({
+      pubkey: t[1] as string,
+      // Le posizioni 2 e 3 sono relay e ruolo. Spesso il relay e' una stringa
+      // vuota usata come segnaposto per raggiungere il ruolo: va scartata.
+      ...(t[2] ? { relay: t[2] } : {}),
+      ...(t[3] ? { role: t[3] } : {}),
+    }))
+
   return {
     identifier: tagValue(event, 'd') ?? '',
     title: tagValue(event, 'title') ?? '',
@@ -65,28 +101,45 @@ export function parseShared(event: NostrEvent): CalendarShared {
     ...(tagValue(event, 'image') !== undefined
       ? { image: tagValue(event, 'image') as string }
       : {}),
-    ...(tagValue(event, 'location') !== undefined
-      ? { location: tagValue(event, 'location') as string }
-      : {}),
+    locations: tagValues(event, 'location'),
     ...(tagValue(event, 'g') !== undefined ? { geohash: tagValue(event, 'g') as string } : {}),
-    participants: tagValues(event, 'p'),
+    participants: partecipanti,
     hashtags: tagValues(event, 't').map(normalizeHashtag),
     references: tagValues(event, 'r'),
+    calendars: tagValues(event, 'a'),
   }
 }
 
 /** Costruisce i tag comuni, escluso `d` che dipende dal kind chiamante. */
 export function buildSharedTags(input: CalendarSharedInput): string[][] {
+  const luoghi =
+    input.location === undefined
+      ? []
+      : Array.isArray(input.location)
+        ? input.location
+        : [input.location]
+
+  const partecipanti = (input.participants ?? []).map(toParticipant).flatMap((p) => {
+    const pubkey = p.pubkey.trim()
+    if (!pubkey) return []
+    // Il ruolo sta in quarta posizione: per raggiungerlo serve comunque il
+    // campo relay, anche vuoto. Senza ruolo il tag resta corto.
+    if (p.role) return [['p', pubkey, p.relay ?? '', p.role]]
+    if (p.relay) return [['p', pubkey, p.relay]]
+    return [['p', pubkey]]
+  })
+
   return [
     ['d', input.identifier],
     ['title', input.title],
     ...optionalTag('summary', input.summary),
     ...optionalTag('image', input.image),
-    ...optionalTag('location', input.location),
+    ...repeatedTags('location', luoghi),
     ...optionalTag('g', input.geohash),
-    ...repeatedTags('p', input.participants ?? []),
+    ...partecipanti,
     ...repeatedTags('t', (input.hashtags ?? []).map(normalizeHashtag)),
     ...repeatedTags('r', input.references ?? []),
+    ...repeatedTags('a', input.calendars ?? []),
   ]
 }
 
@@ -258,4 +311,67 @@ export function formatInTimezone(unix: number, tz: string, locale = 'it-IT'): st
     dateStyle: 'full',
     timeStyle: 'short',
   }).format(new Date(unix * 1000))
+}
+
+// --- Tag D: indice giornaliero (solo kind 31923) ----------------------------
+
+/** Secondi in un giorno. */
+const SECONDI_AL_GIORNO = 86_400
+
+/**
+ * Soglia oltre la quale una durata e' quasi certamente un errore di unita'.
+ *
+ * NIP-52 non prevede ricorrenze: un evento singolo che copre piu' di un anno
+ * non esiste nella pratica. Il caso reale che questa soglia intercetta e' un
+ * timestamp passato in millisecondi invece che in secondi, che fa apparire un
+ * evento di un giorno come lungo esattamente 1000 giorni. La soglia deve
+ * quindi restare sotto quel valore per essere utile.
+ */
+const GIORNI_MASSIMI = 366
+
+/**
+ * Indice del giorno su cui cade un istante, come lo definisce NIP-52:
+ * `floor(unix_seconds / seconds_in_one_day)`.
+ *
+ * E' un calcolo puramente aritmetico sul timestamp, quindi **ancorato a UTC**:
+ * il fuso dell'evento non entra nel conto. La conseguenza e' controintuitiva
+ * ma voluta dalla specifica — un evento alle 23:00 a Tokyo cade nel giorno UTC
+ * precedente, e il suo tag `D` sara' quello. Introdurre qui il fuso
+ * produrrebbe indici che non corrispondono a quelli calcolati dagli altri
+ * client, rendendo l'evento invisibile alle loro ricerche per giorno.
+ */
+export function dayIndex(unixSeconds: number): number {
+  return Math.floor(unixSeconds / SECONDI_AL_GIORNO)
+}
+
+/**
+ * Tutti gli indici giornalieri coperti da un evento, estremi inclusi.
+ *
+ * NIP-52 chiede piu' tag `D` per coprire l'intera durata: servono ai relay e
+ * ai client per trovare gli eventi di un dato giorno senza scorrere l'intero
+ * archivio. Un evento senza fine occupa un giorno solo.
+ */
+export function dayIndexRange(start: number, end?: number): number[] {
+  const primo = dayIndex(start)
+  if (end === undefined) return [primo]
+
+  const ultimo = dayIndex(end)
+  if (ultimo < primo) {
+    throw new Error('La fine dell’evento precede l’inizio: impossibile calcolare i tag D.')
+  }
+
+  const quanti = ultimo - primo + 1
+  if (quanti > GIORNI_MASSIMI) {
+    throw new Error(
+      `L’evento coprirebbe ${quanti} giorni, un valore implausibile. ` +
+        'Controlla che start ed end siano in SECONDI e non in millisecondi.',
+    )
+  }
+
+  return Array.from({ length: quanti }, (_, i) => primo + i)
+}
+
+/** Tag `D` da inserire nell'evento, uno per giorno coperto. */
+export function buildDayTags(start: number, end?: number): string[][] {
+  return dayIndexRange(start, end).map((g) => ['D', String(g)])
 }

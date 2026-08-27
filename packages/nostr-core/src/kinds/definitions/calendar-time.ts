@@ -1,10 +1,12 @@
 import { z } from 'zod'
 
 import { defineKind } from '../registry.js'
-import { optionalTag, tagValue } from '../tags.js'
+import { optionalTag, tagValue, tagValues } from '../tags.js'
 import {
+  buildDayTags,
   buildSharedTags,
   calendarSharedSchema,
+  dayIndex,
   parseShared,
   timezoneSchema,
   type CalendarSharedInput,
@@ -34,6 +36,8 @@ export const timeEventSchema = calendarSharedSchema.extend({
   /** Fuso in cui l'evento va mostrato. */
   startTzid: z.string().optional(),
   endTzid: z.string().optional(),
+  /** Indici giornalieri dichiarati dai tag `D`. */
+  days: z.array(z.number().int()),
 })
 
 export type TimeEventParsed = z.infer<typeof timeEventSchema>
@@ -74,18 +78,31 @@ export const calendarTimeEventDefinition = defineKind<TimeEventParsed, TimeEvent
     const startTzid = tagValue(event, 'start_tzid')
     const endTzid = tagValue(event, 'end_tzid')
 
+    const days = tagValues(event, 'D')
+      .map((v) => Number.parseInt(v, 10))
+      .filter((n) => Number.isFinite(n))
+
     return timeEventSchema.parse({
       ...parseShared(event),
       start,
       ...(end !== undefined ? { end } : {}),
       ...(startTzid !== undefined ? { startTzid } : {}),
       ...(endTzid !== undefined ? { endTzid } : {}),
+      // Se i tag D mancano — evento scritto da un client piu' vecchio della
+      // revisione che li ha introdotti — si ricavano dall'istante, cosi' il
+      // dato letto e' comunque completo.
+      days: days.length > 0 ? days : [dayIndex(start)],
     })
   },
 
   build(input, ctx) {
-    if (input.end !== undefined && input.end < input.start) {
-      throw new Error('la fine di un evento non puo' + "' precedere l'inizio")
+    // NIP-52: «start ... Must be less than `end`, if it exists». Il confronto
+    // e' stretto: una fine uguale all'inizio descriverebbe una durata nulla,
+    // che si esprime invece omettendo `end`.
+    if (input.end !== undefined && input.end <= input.start) {
+      throw new Error(
+        'La fine deve essere successiva all’inizio. Per un evento istantaneo ometti end.',
+      )
     }
     for (const tz of [input.startTzid, input.endTzid]) {
       if (tz !== undefined) timezoneSchema.parse(tz)
@@ -98,6 +115,8 @@ export const calendarTimeEventDefinition = defineKind<TimeEventParsed, TimeEvent
         ...buildSharedTags(input),
         ['start', String(input.start)],
         ...(input.end !== undefined ? [['end', String(input.end)]] : []),
+        // Richiesto da NIP-52: un tag per ogni giorno coperto dall'evento.
+        ...buildDayTags(input.start, input.end),
         ...optionalTag('start_tzid', input.startTzid),
         // Il fuso di fine si scrive solo se diverso: ripeterlo uguale a quello
         // di inizio e' rumore che ogni lettore dovrebbe poi ignorare.

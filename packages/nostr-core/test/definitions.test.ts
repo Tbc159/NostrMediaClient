@@ -155,9 +155,14 @@ describe('kind 31923 — evento su orario', () => {
     expect(tag(t.tags, 'end_tzid')).toBe('Europe/Rome')
   })
 
-  it('rifiuta una fine precedente all' + "'inizio", () => {
+  it('esige una fine strettamente successiva all inizio', () => {
+    // NIP-52: «start ... Must be less than end, if it exists». Una fine uguale
+    // all'inizio descriverebbe una durata nulla, che si esprime omettendo end.
     expect(() => calendarTimeEventDefinition.build({ ...base, end: base.start - 1 }, CTX)).toThrow(
-      /precedere/,
+      /successiva/,
+    )
+    expect(() => calendarTimeEventDefinition.build({ ...base, end: base.start }, CTX)).toThrow(
+      /successiva/,
     )
   })
 

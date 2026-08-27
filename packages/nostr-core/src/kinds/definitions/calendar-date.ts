@@ -20,6 +20,13 @@ import {
  * NIP-52 definisce `end` come **esclusivo**: un evento di un solo giorno o
  * omette `end`, oppure lo mette al giorno successivo. Un `end` uguale a `start`
  * descriverebbe un evento di durata nulla.
+ *
+ * Nota sul tag `D`: la specifica lo richiede **solo per il kind 31923**, dove
+ * serve a indicizzare per giorno un istante assoluto. Qui non ha ragione di
+ * esistere, perche' `start` ed `end` sono gia' date di calendario: aggiungerlo
+ * significherebbe reintrodurre proprio l'ancoraggio a UTC che questo kind
+ * evita. La sezione del 31922 elenca infatti soltanto `start` ed `end`, e il
+ * suo esempio JSON non contiene alcun `D`.
  */
 
 export const dateEventSchema = calendarSharedSchema.extend({

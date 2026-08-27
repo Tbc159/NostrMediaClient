@@ -127,6 +127,25 @@ finire nel payload SSR.
 Conseguenza voluta e verificata: navigando fra le pagine la chiave resta
 sbloccata, **una ricarica completa la richiude** e chiede di nuovo la password.
 
+### Revisione su NIP-52 (segnalazione dell'utente)
+
+Rilettura della specifica corrente. Quattro scostamenti corretti:
+
+1. **Tag `D` mancante** — obbligatorio per il kind 31923: indice giornaliero
+   `floor(unix_seconds / 86400)`, con un tag per ogni giorno coperto.
+   **Non** si applica al 31922, dove la specifica elenca solo `start` ed `end`.
+2. **`location` e' ripetibile**: un incontro puo' avere insieme un indirizzo e
+   un link alla videochiamata.
+3. **`p` porta relay e ruolo** in terza e quarta posizione, non solo la pubkey.
+4. **`end` va confrontato in senso stretto**: la specifica dice «start must be
+   less than end», quindi una fine uguale all'inizio va rifiutata.
+
+Aggiunto anche il tag `a` verso i calendari (kind 31924).
+
+Nota sul tag `D`: e' ancorato a UTC, perche' la formula usa solo il timestamp.
+Un evento alle 23:00 a Tokyo cade quindi nel giorno UTC precedente. Introdurre
+il fuso nel calcolo produrrebbe indici incompatibili con gli altri client.
+
 ### Bug trovati solo dal test nel browser
 
 Tre difetti sono passati indenni sia da `nuxt typecheck` sia da eslint, ed e'
