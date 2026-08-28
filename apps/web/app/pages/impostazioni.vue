@@ -10,6 +10,11 @@ const config = computed(() => configSafe.value)
 
 const configurazione = useConfigurazione()
 
+// Questa e' la pagina da cui si accede con l'estensione: vale la pena
+// ricontrollare che ci sia ogni volta che la si apre, invece di fidarsi del
+// rilevamento fatto all'avvio dell'applicazione.
+onMounted(() => identita.rilevaEstensione())
+
 /**
  * Copia modificabile degli endpoint.
  *

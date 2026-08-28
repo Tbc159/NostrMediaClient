@@ -186,6 +186,38 @@ scelta, non una limitazione temporanea travestita: senza la lista dei follow
 che passa dai relay configurati_ — una fetta arbitraria della rete, diversa a
 ogni ricarica. I propri eventi sono un insieme che l'utente riconosce.
 
+### Il guasto con le estensioni NIP-07 (nos2x, Alby)
+
+Segnalato dall'utente: firmando con nos2x arrivava
+
+```
+Failed to execute 'postMessage' on 'Window': #<Object> could not be cloned.
+```
+
+Sembra un guasto dell'estensione e non lo e'. Le estensioni NIP-07 **non vivono
+nella pagina**: il codice iniettato passa l'evento al proprio content script con
+`window.postMessage`, che copia l'oggetto con lo **structured clone**. Lo
+structured clone rifiuta i `Proxy`, e un template composto in un form vive
+dentro un `ref`, che in Vue avvolge in un proxy reattivo qualunque oggetto ci si
+metta dentro. La firma falliva quindi _prima_ che l'estensione la vedesse.
+
+Rimedio: `plainEventTemplate()` in `nostr-core/src/identity/keys.ts`, applicata
+in `identity.ts` prima di consegnare il template a chiunque firmi. La
+ricostruzione e' esplicita — dice cosa riceve l'estensione, non lega il dominio
+a Vue, e ricopia anche i tag, che sono array annidati: appiattire solo il
+livello esterno lascerebbe proxy piu' in profondita'.
+
+Verificato in entrambe le direzioni: reintroducendo il difetto il test nel
+browser lo riproduce (Firefox e' anche piu' esplicito — «Proxy object could not
+be cloned»), con la correzione passa.
+
+**Difetto vicino, trovato di conseguenza:** `estensioneDisponibile` era un
+`computed` senza dipendenze reattive, quindi valutato una volta sola. Le
+estensioni iniettano `window.nostr` in modo asincrono e possono arrivare dopo
+l'avvio dell'applicazione, lasciando l'utente davanti a «nessuna estensione
+rilevata» che una ricarica smentisce. Ora e' un `ref` ricontrollato all'avvio,
+con qualche tentativo ravvicinato, e di nuovo all'apertura delle impostazioni.
+
 ### Endpoint modificabili dall'interfaccia
 
 Gli endpoint del `.env` restano quello che il piano dice che sono — default di

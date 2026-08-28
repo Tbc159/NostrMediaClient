@@ -9,6 +9,7 @@ import {
   parseSecretKeyInput,
   passwordStrength,
   publicKeyFrom,
+  plainEventTemplate,
   signWithSecretKey,
   toNpub,
   toNsec,
@@ -123,5 +124,54 @@ describe('pulizia della memoria', () => {
     const sk = newSecretKey()
     wipeSecretKey(sk)
     expect(sk.every((b) => b === 0)).toBe(true)
+  })
+})
+
+describe('plainEventTemplate', () => {
+  const template = {
+    kind: 1,
+    content: 'ciao',
+    tags: [
+      ['t', 'prova'],
+      ['e', 'aa'.repeat(32), '', 'root'],
+    ],
+    created_at: 1_800_000_000,
+  }
+
+  it('rende clonabile un template avvolto in un Proxy', () => {
+    // E' il guasto vero, non un caso di scuola: le estensioni NIP-07 passano
+    // l'evento al proprio content script con postMessage, che usa lo
+    // structured clone, e lo structured clone rifiuta i Proxy. Un template
+    // composto in un'interfaccia reattiva e' quasi sempre dentro un Proxy.
+    const avvolto = new Proxy(template, {})
+    expect(() => structuredClone(avvolto)).toThrow(/clone/i)
+    expect(() => structuredClone(plainEventTemplate(avvolto))).not.toThrow()
+  })
+
+  it('appiattisce anche i tag, che sono array annidati', () => {
+    // Appiattire solo il livello esterno lascerebbe i proxy piu' in
+    // profondita', e lo structured clone li troverebbe comunque.
+    const conTagAvvolti = {
+      ...template,
+      tags: template.tags.map((t) => new Proxy(t, {})),
+    }
+    expect(() => structuredClone(conTagAvvolti)).toThrow(/clone/i)
+    expect(() => structuredClone(plainEventTemplate(conTagAvvolti))).not.toThrow()
+  })
+
+  it('non altera il contenuto del template', () => {
+    expect(plainEventTemplate(template)).toEqual(template)
+  })
+
+  it("scarta le proprieta' estranee, che il relay rifiuterebbe", () => {
+    // Un evento Nostr ha esattamente quattro campi prima della firma: quello
+    // che arriva in piu' da uno store reattivo non deve finire nella firma.
+    const sporco = { ...template, __v_isRef: false, extra: 'roba' }
+    expect(Object.keys(plainEventTemplate(sporco)).sort()).toEqual([
+      'content',
+      'created_at',
+      'kind',
+      'tags',
+    ])
   })
 })

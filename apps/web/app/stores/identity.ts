@@ -3,6 +3,7 @@ import {
   encryptSecretKey,
   parsePublicKeyInput,
   parseSecretKeyInput,
+  plainEventTemplate,
   publicKeyFrom,
   signWithSecretKey,
   toNpub,
@@ -106,12 +107,32 @@ export const useIdentity = defineStore('identity', () => {
     return null
   })
 
-  const estensioneDisponibile = computed(
-    () => import.meta.client && typeof window.nostr !== 'undefined',
-  )
+  /**
+   * Se `window.nostr` c'e'.
+   *
+   * E' un `ref` e non un `computed` perche' non ha dipendenze reattive: un
+   * computed lo calcolerebbe una volta sola, al primo accesso, e resterebbe
+   * fermo li'. Le estensioni iniettano `window.nostr` in modo asincrono e
+   * possono arrivare **dopo** l'avvio dell'applicazione, lasciando l'utente
+   * davanti a un «nessuna estensione rilevata» che una ricarica smentisce.
+   */
+  const estensioneDisponibile = ref(false)
+
+  /** Ricontrolla la presenza dell'estensione. */
+  function rilevaEstensione(): boolean {
+    if (!import.meta.client) return false
+    estensioneDisponibile.value = typeof window.nostr !== 'undefined'
+    return estensioneDisponibile.value
+  }
 
   /** Ricarica lo stato salvato. Da chiamare all'avvio, lato client. */
   function ripristina(): void {
+    // Un paio di controlli ravvicinati coprono le estensioni che si iniettano
+    // subito dopo il caricamento della pagina.
+    if (!rilevaEstensione() && import.meta.client) {
+      for (const ritardo of [150, 600, 1500]) setTimeout(rilevaEstensione, ritardo)
+    }
+
     const salvato = leggiPersistito()
     if (!salvato) return
     modo.value = salvato.modo
@@ -198,16 +219,21 @@ export const useIdentity = defineStore('identity', () => {
 
   /** Firma un template con la modalita' attiva. */
   async function firma(template: EventTemplate): Promise<NostrEvent> {
+    // Il template arriva quasi sempre da un `ref`, e Vue avvolge in un Proxy
+    // reattivo qualunque oggetto ci si metta dentro. Va appiattito **prima** di
+    // consegnarlo a chi firma: vedi il commento su `plainEventTemplate`.
+    const piano = plainEventTemplate(template)
+
     if (modo.value === 'nip07') {
       if (!import.meta.client || !window.nostr) {
         throw new Error('Estensione NIP-07 non piu’ disponibile.')
       }
-      return window.nostr.signEvent(template)
+      return window.nostr.signEvent(piano)
     }
 
     if (modo.value === 'locale') {
       if (!chiaveInMemoria) throw new Error('Chiave bloccata: sbloccala con la password.')
-      return signWithSecretKey(template, chiaveInMemoria)
+      return signWithSecretKey(piano, chiaveInMemoria)
     }
 
     throw new Error(motivoNonFirmabile.value ?? 'Firma non disponibile in questa modalita’.')
@@ -223,6 +249,7 @@ export const useIdentity = defineStore('identity', () => {
     puoFirmare,
     motivoNonFirmabile,
     estensioneDisponibile,
+    rilevaEstensione,
     ripristina,
     accediConEstensione,
     accediConChiave,

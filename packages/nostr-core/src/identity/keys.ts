@@ -184,6 +184,39 @@ export function passwordStrength(password: string): {
 // --- Firma ------------------------------------------------------------------
 
 /**
+ * Copia piana di un template, senza involucri.
+ *
+ * Va applicata **prima di consegnare un template a un firmatario esterno**, e
+ * il motivo e' tutt'altro che teorico. Le estensioni NIP-07 non vivono nella
+ * pagina: il codice iniettato passa l'evento al proprio content script con
+ * `window.postMessage`, che copia l'oggetto con lo **structured clone**. Lo
+ * structured clone rifiuta i `Proxy`, con un errore che parla di clonazione e
+ * non di Nostr:
+ *
+ *     Failed to execute 'postMessage' on 'Window':
+ *     #<Object> could not be cloned.        (Chrome)
+ *     Proxy object could not be cloned.     (Firefox)
+ *
+ * Un template composto in un'interfaccia reattiva vive quasi sempre dentro un
+ * involucro di quel tipo — Vue avvolge in un proxy qualunque oggetto messo in
+ * un `ref` — e consegnarlo cosi' com'e' fa fallire la firma *prima* che
+ * l'estensione la veda, facendo sembrare guasta l'estensione.
+ *
+ * La ricostruzione e' esplicita invece di affidarsi a una funzione del
+ * framework: dice esattamente cosa riceve chi firma, e non lega il dominio a
+ * Vue. I tag si ricopiano uno per uno perche' sono array annidati, e
+ * appiattire solo il livello esterno lascerebbe proxy piu' in profondita'.
+ */
+export function plainEventTemplate(template: EventTemplate): EventTemplate {
+  return {
+    kind: template.kind,
+    content: template.content,
+    created_at: template.created_at,
+    tags: template.tags.map((tag) => [...tag]),
+  }
+}
+
+/**
  * Firma un template con una chiave privata in memoria.
  *
  * Calcola id e firma e restituisce l'evento completo. Usata solo dalla
