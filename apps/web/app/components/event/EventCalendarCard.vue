@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { formatInTimezone, type NostrEvent } from '@nmc/nostr-core'
+import { addressOf, formatInTimezone, type NostrEvent } from '@nmc/nostr-core'
 
 /**
  * Evento di calendario, kind 31922 (su data) o 31923 (con orario).
@@ -25,6 +25,9 @@ const props = defineProps<{
 }>()
 
 const conOrario = computed(() => props.evento.kind === 31923)
+
+/** Coordinata a cui una risposta deve puntare: non l'id, che cambia a ogni modifica. */
+const coordinata = computed(() => addressOf(props.evento))
 
 /** Fuso dell'osservatore, usato solo per dire se differisce da quello dell'evento. */
 const fusoLocale = Intl.DateTimeFormat().resolvedOptions().timeZone
@@ -106,5 +109,11 @@ function giornoPrecedente(iso: string): string {
     <p v-if="dati.description" class="mt-2 whitespace-pre-wrap break-words text-sm">
       {{ dati.description }}
     </p>
+
+    <template #azioni>
+      <NuxtLink :to="`/calendario/rsvp?a=${encodeURIComponent(coordinata)}`" class="underline">
+        Rispondi all’invito →
+      </NuxtLink>
+    </template>
   </EventShell>
 </template>

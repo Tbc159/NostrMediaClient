@@ -45,6 +45,7 @@ export default defineNuxtConfig({
     '/articoli': { ssr: false },
     '/articoli/**': { ssr: false },
     '/calendario': { ssr: false },
+    '/profilo': { ssr: false },
     // Route pubbliche: SSR attivo per le anteprime Open Graph.
     '/a/**': { ssr: true },
     '/e/**': { ssr: true },

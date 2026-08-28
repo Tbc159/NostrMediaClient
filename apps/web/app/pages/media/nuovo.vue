@@ -6,6 +6,11 @@ useHead({ title: 'Carica media · NostrMediaClient' })
 const identita = useIdentity()
 const upload = useUpload()
 const bozza = useEventDraft()
+const esistente = useEventoEsistente()
+const rotta = useRoute()
+
+/** Vero quando si sta ricomponendo un evento a partire da uno gia' pubblicato. */
+const daPrecedente = ref(false)
 
 const titolo = ref('')
 const descrizione = ref('')
@@ -138,7 +143,94 @@ function componi(): void {
   })
 }
 
+/**
+ * Ricompone un evento media partendo da uno gia' pubblicato.
+ *
+ * Non e' una modifica e il form lo dice: i kind media sono **regolari**, quindi
+ * immutabili come una nota. Quello che si ottiene e' un evento nuovo, con id
+ * nuovo e senza le reazioni ricevute dall'originale.
+ *
+ * I file pero' non si ricaricano: sono gia' su Blossom, identificati dal loro
+ * hash, e l'`imeta` dell'evento vecchio contiene tutto quello che serve.
+ */
+async function riprendi(id: string): Promise<void> {
+  const trovato = await esistente.perId(id)
+  if (!trovato) return
+
+  const definizione = getKindDefinition(trovato.kind)
+  if (!definizione) {
+    esistente.errore.value = `Kind ${trovato.kind} non gestito da questo client.`
+    return
+  }
+
+  try {
+    const dati = definizione.parse(trovato)
+    daPrecedente.value = true
+
+    descrizione.value = dati.content ?? ''
+    titolo.value = dati.title ?? ''
+    hashtag.value = (dati.hashtags ?? []).join(' ')
+    if (dati.contentWarning) {
+      conAvviso.value = true
+      avvisoContenuto.value = dati.contentWarning
+    }
+
+    formato.value =
+      trovato.kind === 20
+        ? 'immagini'
+        : trovato.kind === 21
+          ? 'video'
+          : trovato.kind === 22
+            ? 'video-corto'
+            : 'file'
+
+    // Gli allegati stanno in `imeta` per i kind 20/21/22 e nei tag piatti per
+    // il 1063: si normalizzano qui nella stessa forma che usa l'uploader.
+    const allegati =
+      trovato.kind === 1063
+        ? [
+            {
+              url: dati.url,
+              mime: dati.mime,
+              sha256: dati.sha256,
+              size: dati.size,
+              dim: dati.dim,
+              alt: dati.alt,
+            },
+          ]
+        : (dati.images ?? dati.variants ?? [])
+
+    upload.adotta(
+      allegati.map((a: Record<string, unknown>) => ({
+        nome:
+          String(a.url ?? '')
+            .split('/')
+            .pop() || 'file',
+        imeta: a,
+        copie: [String(a.url ?? '')],
+        anteprima: String(a.url ?? ''),
+        descrittore: {
+          url: String(a.url ?? ''),
+          sha256: String(a.sha256 ?? ''),
+          size: Number(a.size ?? 0),
+          type: String(a.mime ?? ''),
+          uploaded: trovato.created_at,
+        },
+      })),
+    )
+  } catch (e) {
+    esistente.errore.value = `L’evento non è interpretabile: ${e instanceof Error ? e.message : String(e)}`
+  }
+}
+
+onMounted(() => {
+  const da = rotta.query.da
+  if (typeof da === 'string' && da) void riprendi(da)
+})
+
 function ricomincia(): void {
+  daPrecedente.value = false
+  esistente.errore.value = null
   upload.azzera()
   bozza.azzera()
   titolo.value = ''
@@ -159,6 +251,22 @@ function ricomincia(): void {
     </div>
 
     <ClientOnly>
+      <div
+        v-if="esistente.caricamento.value"
+        class="superficie h-16 animate-pulse rounded-xl border"
+      />
+      <BaseAlert v-if="esistente.errore.value" tono="pericolo">
+        {{ esistente.errore.value }}
+      </BaseAlert>
+
+      <BaseAlert v-if="daPrecedente" tono="avviso">
+        Stai ricomponendo un evento a partire da uno già pubblicato.
+        <strong>Non è una modifica</strong>
+        : i kind media sono eventi regolari, immutabili come una nota, quindi ne uscirà uno nuovo
+        con id diverso e senza le reazioni ricevute dall’originale. I file non vengono ricaricati —
+        sono già su Blossom, identificati dal loro hash.
+      </BaseAlert>
+
       <BaseAlert v-if="identita.motivoNonFirmabile" tono="avviso">
         {{ identita.motivoNonFirmabile }}
         <NuxtLink to="/impostazioni" class="underline">Vai alle impostazioni</NuxtLink>

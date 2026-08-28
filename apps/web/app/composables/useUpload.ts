@@ -90,8 +90,13 @@ export function useUpload() {
   const server = computed(() => config.value.blossomServers)
   const inCorso = computed(() => stato.value.fase !== 'inattivo' && stato.value.fase !== 'fatto')
 
+  /** Revoca solo le anteprime create localmente: quelle remote non hanno nulla da liberare. */
+  function liberaAnteprima(url: string): void {
+    if (url.startsWith('blob:')) URL.revokeObjectURL(url)
+  }
+
   function azzera(): void {
-    for (const m of caricati.value) URL.revokeObjectURL(m.anteprima)
+    for (const m of caricati.value) liberaAnteprima(m.anteprima)
     caricati.value = []
     errore.value = null
     stato.value = { fase: 'inattivo' }
@@ -99,7 +104,7 @@ export function useUpload() {
 
   function rimuovi(indice: number): void {
     const [tolto] = caricati.value.splice(indice, 1)
-    if (tolto) URL.revokeObjectURL(tolto.anteprima)
+    if (tolto) liberaAnteprima(tolto.anteprima)
   }
 
   /**
@@ -189,6 +194,22 @@ export function useUpload() {
     return true
   }
 
+  /**
+   * Adotta file gia' presenti su Blossom, senza ricaricarli.
+   *
+   * Serve a ricomporre un evento partendo da uno pubblicato: i file sono gia'
+   * la', identificati dal loro hash, e l'`imeta` dell'evento vecchio contiene
+   * tutto quello che serve. Riscaricarli per rimandarli sarebbe traffico
+   * inutile e produrrebbe comunque lo stesso hash.
+   *
+   * L'anteprima punta all'URL remoto e non a un blob locale: non c'e' nessun
+   * `createObjectURL` da revocare, e infatti `azzera` li lascia stare.
+   */
+  function adotta(media: MediaCaricato[]): void {
+    caricati.value = media
+    stato.value = { fase: 'fatto' }
+  }
+
   /** Aggiorna la descrizione accessibile di un file gia' caricato. */
   function descrivi(indice: number, alt: string): void {
     const media = caricati.value[indice]
@@ -196,7 +217,7 @@ export function useUpload() {
   }
 
   onBeforeUnmount(() => {
-    for (const m of caricati.value) URL.revokeObjectURL(m.anteprima)
+    for (const m of caricati.value) liberaAnteprima(m.anteprima)
   })
 
   return {
@@ -207,6 +228,7 @@ export function useUpload() {
     inCorso,
     carica,
     caricaTutti,
+    adotta,
     rimuovi,
     descrivi,
     azzera,

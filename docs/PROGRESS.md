@@ -153,17 +153,19 @@ in un calendario interessa quando l'evento accade, non quando e' stato scritto.
 
 ### Sezioni disponibili
 
-| Rotta             | Kind             | Cosa fa                                                    |
-| ----------------- | ---------------- | ---------------------------------------------------------- |
-| `/`               | tutti            | i tuoi eventi, con filtro per tipo                         |
-| `/scrivi`         | 1                | composer, firma e pubblica                                 |
-| `/media`          | 20, 21, 22, 1063 | i tuoi media                                               |
-| `/media/nuovo`    | idem             | upload Blossom, anteprima, `imeta`, pubblicazione          |
-| `/articoli`       | 30023, 30024     | i tuoi articoli, con le bozze locali                       |
-| `/articoli/nuovo` | 30023            | editor Markdown con anteprima sanificata                   |
-| `/calendario`     | 31922, 31923     | i tuoi eventi, divisi in programma / gia' svolti           |
-| `/impostazioni`   | —                | accesso, endpoint modificabili, strategia di pubblicazione |
-| `/diagnostica`    | —                | verifica di relay e server Blossom                         |
+| Rotta              | Kind             | Cosa fa                                                    |
+| ------------------ | ---------------- | ---------------------------------------------------------- |
+| `/`                | tutti            | i tuoi eventi, con filtro per tipo                         |
+| `/scrivi`          | 1                | composer, firma e pubblica                                 |
+| `/media`           | 20, 21, 22, 1063 | i tuoi media                                               |
+| `/media/nuovo`     | idem             | upload Blossom, anteprima, `imeta`, pubblicazione          |
+| `/articoli`        | 30023, 30024     | i tuoi articoli, con le bozze locali                       |
+| `/articoli/nuovo`  | 30023            | editor Markdown con anteprima sanificata                   |
+| `/calendario`      | 31922, 31923     | i tuoi eventi, divisi in programma / gia' svolti           |
+| `/calendario/rsvp` | 31925            | rispondi a un invito o cambia la risposta                  |
+| `/profilo`         | 0                | il tuo profilo, caricato dai relay prima di sostituirlo    |
+| `/impostazioni`    | —                | accesso, endpoint modificabili, strategia di pubblicazione |
+| `/diagnostica`     | —                | verifica di relay e server Blossom                         |
 
 La schermata `/` mostra **ogni kind che il client sa pubblicare**, con i filtri
 per tipo e i relativi conteggi. L'elenco arriva da `publishableKinds()` e non da
@@ -177,6 +179,47 @@ Blossom e' l'esempio — viene firmato e spedito, ma dentro un header HTTP.
 Il filtro lavora su quanto e' gia' stato letto, senza tornare ai relay: gli
 eventi sono gia' tutti in pagina, e una seconda interrogazione aggiungerebbe
 attesa per mostrarne un sottoinsieme.
+
+### Riaprire in modifica un evento pubblicato
+
+Ogni scheda in elenco porta in fondo l'azione giusta per il suo kind, e la
+distinzione non e' "quale kind" ma la **classe** NIP-01, che il registry
+conosce gia':
+
+| Classe                      | Kind                      | Azione offerta                          |
+| --------------------------- | ------------------------- | --------------------------------------- |
+| `replaceable`/`addressable` | 0, 30023, 31922/23, 31925 | **Modifica**: sostituisce davvero       |
+| `regular` con media         | 20, 21, 22, 1063          | **Ripubblica come nuovo**, con avviso   |
+| `regular`                   | 1                         | nessuna, con la spiegazione del perche' |
+
+Il punto che il piano vieta di confondere: sui `regular` **non esiste
+modifica**. Non e' una limitazione di questo client — il protocollo non prevede
+la sostituzione, e l'unica cosa possibile e' un evento nuovo, con id diverso e
+senza le reazioni ricevute. Per i media pero' i file non si ricaricano: sono
+gia' su Blossom, identificati dall'hash, e l'`imeta` dell'evento vecchio
+contiene tutto il necessario.
+
+Tre dettagli che i test proteggono:
+
+1. **L'identificatore non si rigenera.** E' il tag `d`, ed e' cio' che fa della
+   ripubblicazione una sostituzione. Rigenerarlo lascerebbe in giro
+   l'originale e ne creerebbe un secondo.
+2. **Il fuso si ricostruisce da quello dell'evento, non da quello di chi
+   modifica.** Riaprendo da Roma una riunione fissata a Tokyo, i campi mostrano
+   l'orario che l'organizzatore aveva scritto.
+3. **Il profilo (kind 0) va caricato prima di ripubblicarlo.** E' replaceable e
+   sostituisce per intero: un campo lasciato vuoto non resta com'era, sparisce.
+   La schermata lo dice a chiare lettere.
+
+L'azione compare solo sui propri eventi — ogni coordinata comprende la pubkey
+dell'autore, quindi "modificare" quello di un altro produrrebbe un evento nuovo
+a proprio nome. Fa eccezione «Rispondi all'invito» sugli eventi calendario, che
+riguarda proprio quelli altrui.
+
+**Difetto corretto di conseguenza:** «Modifica» su un articolo pubblicato non
+faceva nulla se non esisteva una bozza locale con quell'identificatore. Ora la
+bozza locale ha la precedenza — e' il lavoro non ancora pubblicato — e in sua
+assenza si scarica la versione dai relay.
 
 **Tutti gli elenchi mostrano solo gli eventi dell'identita' attiva.** E' una
 scelta, non una limitazione temporanea travestita: senza la lista dei follow

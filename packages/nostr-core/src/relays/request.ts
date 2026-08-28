@@ -115,3 +115,46 @@ export async function loadTimeline(
 ): Promise<NostrEvent[]> {
   return ordinaPerData(ultimaVersione(await requestEvents(pool, relays, filtri, opzioni)))
 }
+
+/**
+ * Carica **una** versione sostituibile: quella corrente.
+ *
+ * Serve per riaprire in modifica un evento gia' pubblicato. Il filtro chiede
+ * per coordinata — kind, autore e tag `d` — perche' e' quella l'identita' di un
+ * evento addressable: l'id cambia a ogni riscrittura, la coordinata no.
+ *
+ * Interroga piu' relay e tiene la versione piu' recente. Non e' pedanteria:
+ * riaprire una versione vecchia e ripubblicarla sovrascriverebbe quella nuova,
+ * cancellando in silenzio una modifica fatta altrove.
+ */
+export async function loadReplaceable(
+  pool: RelayPool,
+  relays: readonly string[],
+  coordinata: { kind: number; pubkey: string; identifier?: string },
+  opzioni: OpzioniLettura = {},
+): Promise<NostrEvent | null> {
+  const filtro: Filtro = {
+    kinds: [coordinata.kind],
+    authors: [coordinata.pubkey],
+    limit: 20,
+  }
+  // I replaceable puri (kind 0, 10000-19999) non hanno tag `d`: filtrarci
+  // sopra non troverebbe nulla.
+  if (coordinata.identifier !== undefined && coordinata.identifier !== '') {
+    filtro['#d'] = [coordinata.identifier]
+  }
+
+  const trovati = ultimaVersione(await requestEvents(pool, relays, filtro, opzioni))
+  return ordinaPerData(trovati)[0] ?? null
+}
+
+/** Carica un evento dal suo id. Vale per qualunque kind, anche i regolari. */
+export async function loadEventById(
+  pool: RelayPool,
+  relays: readonly string[],
+  id: string,
+  opzioni: OpzioniLettura = {},
+): Promise<NostrEvent | null> {
+  const trovati = await requestEvents(pool, relays, { ids: [id], limit: 1 }, opzioni)
+  return trovati[0] ?? null
+}

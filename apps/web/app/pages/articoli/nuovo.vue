@@ -6,6 +6,7 @@ useHead({ title: 'Scrivi un articolo · NostrMediaClient' })
 const identita = useIdentity()
 const bozza = useEventDraft()
 const bozzeLocali = useBozzeLocali()
+const esistente = useEventoEsistente()
 const rotta = useRoute()
 
 const titolo = ref('')
@@ -98,10 +99,50 @@ function apriBozza(identifier: string): void {
   bozza.azzera()
 }
 
+/**
+ * Riapre un articolo gia' pubblicato, leggendolo dai relay.
+ *
+ * La bozza locale ha la precedenza: se esiste, e' piu' recente di quanto sia
+ * uscito, ed e' proprio il lavoro non ancora pubblicato che non va perso.
+ * Senza bozza si scarica la versione pubblicata — prima questo caso non era
+ * coperto e "Modifica" su un articolo pubblicato non faceva nulla.
+ */
+async function riapri(d: string): Promise<void> {
+  if (bozzeLocali.bozze.value.some((b) => b.identifier === d)) {
+    apriBozza(d)
+    return
+  }
+
+  const trovato = await esistente.perCoordinata(30023, d)
+  if (!trovato) return
+
+  const definizione = getKindDefinition(30023)
+  if (!definizione) return
+
+  try {
+    const dati = definizione.parse(trovato)
+    titolo.value = dati.title ?? ''
+    sommario.value = dati.summary ?? ''
+    immagine.value = dati.image ?? ''
+    hashtag.value = dati.hashtags.join(' ')
+    contenuto.value = dati.content
+    identificatore.value = dati.identifier
+    // Da qui in avanti l'identificatore non deve piu' seguire il titolo:
+    // cambiarlo creerebbe un articolo nuovo invece di sostituire questo.
+    identificatoreManuale.value = true
+    // La prima pubblicazione si conserva: e' cio' che distingue una correzione
+    // da una ripubblicazione, e senza, l'articolo risalirebbe i feed altrui.
+    primaPubblicazione.value = dati.publishedAt ?? trovato.created_at
+    bozza.azzera()
+  } catch (e) {
+    esistente.errore.value = `L’articolo pubblicato non è interpretabile: ${e instanceof Error ? e.message : String(e)}`
+  }
+}
+
 // Arrivando da "modifica" nell'elenco, i campi si precompilano dalla query.
 onMounted(() => {
   const d = rotta.query.d
-  if (typeof d === 'string' && d) apriBozza(d)
+  if (typeof d === 'string' && d) void riapri(d)
 })
 </script>
 
@@ -118,6 +159,14 @@ onMounted(() => {
     </div>
 
     <ClientOnly>
+      <div
+        v-if="esistente.caricamento.value"
+        class="superficie h-16 animate-pulse rounded-xl border"
+      />
+      <BaseAlert v-if="esistente.errore.value" tono="pericolo">
+        {{ esistente.errore.value }}
+      </BaseAlert>
+
       <BaseAlert v-if="identita.motivoNonFirmabile" tono="avviso">
         {{ identita.motivoNonFirmabile }}
         <NuxtLink to="/impostazioni" class="underline">Vai alle impostazioni</NuxtLink>

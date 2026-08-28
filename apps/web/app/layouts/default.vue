@@ -10,6 +10,7 @@ const voci = [
   { to: '/media', label: 'Media' },
   { to: '/articoli', label: 'Articoli' },
   { to: '/calendario', label: 'Calendario' },
+  { to: '/profilo', label: 'Profilo' },
   { to: '/diagnostica', label: 'Diagnostica' },
   { to: '/impostazioni', label: 'Impostazioni' },
 ]

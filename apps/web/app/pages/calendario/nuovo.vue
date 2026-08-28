@@ -9,10 +9,17 @@ import {
   zonedToUnix,
 } from '@nmc/nostr-core'
 
-useHead({ title: 'Nuovo evento · NostrMediaClient' })
-
 const identita = useIdentity()
 const bozza = useEventDraft()
+const esistente = useEventoEsistente()
+const rotta = useRoute()
+
+/** Vero quando si sta riaprendo un evento gia' pubblicato. */
+const modifica = ref(false)
+
+useHead({
+  title: () => (modifica.value ? 'Modifica evento' : 'Nuovo evento') + ' · NostrMediaClient',
+})
 
 /** Tutto il giorno → kind 31922, con orario → kind 31923. */
 const tuttoIlGiorno = ref(false)
@@ -33,14 +40,74 @@ const oraFine = ref('10:00')
 const fuso = ref('UTC')
 const conFine = ref(true)
 
-onMounted(() => {
+onMounted(async () => {
   // Il fuso del dispositivo si legge solo nel browser: in SSR darebbe quello
   // del server, che non c'entra nulla con l'utente.
   fuso.value = localTimezone()
   const oggi = new Date().toISOString().slice(0, 10)
   dataInizio.value = oggi
   dataFine.value = oggi
+
+  const d = rotta.query.d
+  const kindRichiesto = Number(rotta.query.kind)
+  if (typeof d === 'string' && d && (kindRichiesto === 31922 || kindRichiesto === 31923)) {
+    await riapri(kindRichiesto, d)
+  }
 })
+
+/**
+ * Riapre un evento pubblicato.
+ *
+ * L'identificatore **non** viene rigenerato: e' il tag `d`, ed e' cio' che fa
+ * di questa una sostituzione invece che di un evento nuovo. Cambiarlo qui
+ * lascerebbe in giro l'originale e ne creerebbe un secondo.
+ */
+async function riapri(kind: number, d: string): Promise<void> {
+  const trovato = await esistente.perCoordinata(kind, d)
+  if (!trovato) return
+
+  const definizione = getKindDefinition(kind)
+  if (!definizione) return
+
+  try {
+    const dati = definizione.parse(trovato)
+    modifica.value = true
+    tuttoIlGiorno.value = kind === 31922
+    identificatore.value = dati.identifier
+    titolo.value = dati.title
+    descrizione.value = dati.description
+    sommario.value = dati.summary ?? ''
+    luogo.value = dati.locations.join(', ')
+    immagine.value = dati.image ?? ''
+    partecipanti.value = dati.participants.map((p: { pubkey: string }) => p.pubkey).join(' ')
+    hashtag.value = dati.hashtags.join(' ')
+
+    if (kind === 31922) {
+      dataInizio.value = dati.start
+      conFine.value = dati.end !== undefined
+      if (dati.end) dataFine.value = dati.end
+      return
+    }
+
+    // Il timestamp e' un istante assoluto: per rimetterlo nei campi data e ora
+    // va riportato nel fuso dichiarato dall'evento, non in quello di chi
+    // modifica. Altrimenti riaprendo da Roma una riunione fissata a Tokyo si
+    // vedrebbe un orario diverso da quello che l'organizzatore aveva scritto.
+    fuso.value = dati.startTzid ?? localTimezone()
+    const inizio = unixToZoned(dati.start, fuso.value)
+    dataInizio.value = inizio.date
+    oraInizio.value = inizio.time
+
+    conFine.value = dati.end !== undefined
+    if (dati.end !== undefined) {
+      const fine = unixToZoned(dati.end, dati.endTzid ?? fuso.value)
+      dataFine.value = fine.date
+      oraFine.value = fine.time
+    }
+  } catch (e) {
+    esistente.errore.value = `L’evento pubblicato non è interpretabile: ${e instanceof Error ? e.message : String(e)}`
+  }
+}
 
 /** Giorno successivo a una data ISO, restando su UTC per non slittare. */
 function giornoDopo(iso: string): string {
@@ -144,6 +211,8 @@ function componi(): void {
 }
 
 function nuovo(): void {
+  modifica.value = false
+  esistente.errore.value = null
   identificatore.value = newCalendarIdentifier()
   titolo.value = ''
   descrizione.value = ''
@@ -158,14 +227,32 @@ function nuovo(): void {
 
 <template>
   <div class="flex flex-col gap-6">
-    <div>
-      <h1 class="text-xl font-semibold tracking-tight">Nuovo evento</h1>
-      <p class="mt-1 text-sm text-[var(--testo-tenue)]">
-        Kind {{ tuttoIlGiorno ? '31922 — su data' : '31923 — con orario' }} (NIP-52).
-      </p>
+    <div class="flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <h1 class="text-xl font-semibold tracking-tight">
+          {{ modifica ? 'Modifica evento' : 'Nuovo evento' }}
+        </h1>
+        <p class="mt-1 text-sm text-[var(--testo-tenue)]">
+          Kind {{ tuttoIlGiorno ? '31922 — su data' : '31923 — con orario' }} (NIP-52).
+        </p>
+      </div>
+      <BaseButton to="/calendario" variant="fantasma">← Torna al calendario</BaseButton>
     </div>
 
     <ClientOnly>
+      <div
+        v-if="esistente.caricamento.value"
+        class="superficie h-16 animate-pulse rounded-xl border"
+      />
+      <BaseAlert v-if="esistente.errore.value" tono="pericolo">
+        {{ esistente.errore.value }}
+      </BaseAlert>
+      <BaseAlert v-if="modifica" tono="info">
+        Stai modificando un evento già pubblicato. Ripubblicandolo con lo stesso identificatore
+        <code class="font-mono text-xs">{{ identificatore.slice(0, 8) }}…</code>
+        il relay sostituisce la versione precedente: è così che funziona la modifica sugli eventi
+        addressable.
+      </BaseAlert>
       <BaseAlert v-if="identita.motivoNonFirmabile" tono="avviso">
         {{ identita.motivoNonFirmabile }}
         <NuxtLink to="/impostazioni" class="underline">Vai alle impostazioni</NuxtLink>
