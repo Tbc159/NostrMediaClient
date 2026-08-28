@@ -4,3 +4,8 @@ dist/
 .nuxt/
 coverage/
 pnpm-lock.yaml
+
+# Testo di licenza: va tenuto identico all'originale ufficiale, byte per byte.
+# Prettier collassa i doppi spazi dopo il punto e renderebbe il file diverso
+# dal testo canonico, dando appiglio a chi volesse contestarlo.
+LICENSE.md

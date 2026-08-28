@@ -2,6 +2,7 @@
   "name": "nostr-media-client",
   "version": "0.0.0",
   "private": true,
+  "license": "SEE LICENSE IN LICENSE.md",
   "type": "module",
   "description": "Client web Nostr con vocazione media — monorepo",
   "packageManager": "pnpm@11.23.0",
