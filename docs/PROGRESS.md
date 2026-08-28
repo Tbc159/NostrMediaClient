@@ -4,8 +4,6 @@ File di ripresa: dice dove siamo, cosa manca e come rimettere in piedi
 l'ambiente. Va aggiornato alla fine di ogni blocco di lavoro, non alla fine
 della fase — serve proprio a sopravvivere alle interruzioni a meta'.
 
-Piano di riferimento: `~/.claude/plans/vorrei-sviluppare-un-client-virtual-pascal.md`
-
 ---
 
 ## Ripristino ambiente (da rifare a ogni nuova shell)
@@ -188,7 +186,7 @@ ogni ricarica. I propri eventi sono un insieme che l'utente riconosce.
 
 ### Il guasto con le estensioni NIP-07 (nos2x, Alby)
 
-Segnalato dall'utente: firmando con nos2x arrivava
+Sintomo osservato firmando con nos2x:
 
 ```
 Failed to execute 'postMessage' on 'Window': #<Object> could not be cloned.
@@ -290,7 +288,7 @@ rimanda a NIP-37 (kind 31234, cifrato NIP-44 verso se stessi). Il 30024
 finirebbe sul relay _in chiaro_: chiamarlo bozza e' fuorviante. Il 30024 resta
 registrato in sola lettura, per non far sparire testi scritti con altri client.
 NIP-37 e' il passo successivo ed e' **rimandato a un branch feature dedicato**,
-per decisione dell'utente del 27 agosto 2026: il costo non e' il kind in se' ma
+deciso il 27 agosto 2026: il costo non e' il kind in se' ma
 la cifratura NIP-44, da esporre in tutte e tre le modalita' di firma.
 
 ### Identita' — come si comporta
@@ -303,7 +301,7 @@ finire nel payload SSR.
 Conseguenza voluta e verificata: navigando fra le pagine la chiave resta
 sbloccata, **una ricarica completa la richiude** e chiede di nuovo la password.
 
-### Revisione su NIP-52 (segnalazione dell'utente)
+### Revisione su NIP-52
 
 Rilettura della specifica corrente. Quattro scostamenti corretti:
 
@@ -414,16 +412,16 @@ una scheda lasciata aperta mostra risultati vecchi indistinguibili da quelli
 freschi, e dopo un `restart` sembra che un endpoint sia caduto quando invece
 e' solo la pagina a essere scaduta.
 
-| Endpoint                             | Ruolo              | Note                                                       |
-| ------------------------------------ | ------------------ | ---------------------------------------------------------- |
-| `wss://relay.damus.io`               | lettura, scrittura | **intermittente**, rate limit per IP                       |
-| `wss://nos.lol`                      | lettura, scrittura | stabile, ~200 ms                                           |
-| `wss://relay.primal.net`             | lettura            | dichiara NIP-22                                            |
-| `wss://purplepag.es`                 | indicizzatore      | dichiara NIP-42                                            |
-| `wss://user.kindpag.es`              | indicizzatore      | dichiara NIP-22                                            |
-| `https://blossom.yakihonne.com`      | media (primario)   | BUD-01 ok; `HEAD /upload` → **403**                        |
-| `https://nostr.download`             | media (mirror)     | BUD-01 ok; `HEAD /upload` → 401                            |
-| `wss://21milionidinostr.duckdns.org` | bozze (30024)      | strfry, cert Let's Encrypt valido; 6/6 sonde ok, 59-195 ms |
+| Endpoint                        | Ruolo              | Note                                         |
+| ------------------------------- | ------------------ | -------------------------------------------- |
+| `wss://relay.damus.io`          | lettura, scrittura | **intermittente**, rate limit per IP         |
+| `wss://nos.lol`                 | lettura, scrittura | stabile, ~200 ms                             |
+| `wss://relay.primal.net`        | lettura            | dichiara NIP-22                              |
+| `wss://purplepag.es`            | indicizzatore      | dichiara NIP-42                              |
+| `wss://user.kindpag.es`         | indicizzatore      | dichiara NIP-22                              |
+| `https://blossom.yakihonne.com` | media (primario)   | BUD-01 ok; `HEAD /upload` → **403**          |
+| `https://nostr.download`        | media (mirror)     | BUD-01 ok; `HEAD /upload` → 401              |
+| _(relay privato, da `.env`)_    | bozze (30024)      | strfry, cert valido; 6/6 sonde ok, 59-195 ms |
 
 ### Cosa e' emerso, e conta per le fasi successive
 
@@ -448,12 +446,16 @@ e' solo la pagina a essere scaduta.
 
 ---
 
-## Punti aperti che aspettano l'utente
+## Punti aperti
 
-- **Endpoint privati** di relay e server Blossom: non ancora forniti. I default
-  attuali sono relay pubblici verificati; quando arriveranno i tuoi, basta
-  sostituirli in `.env` e rilanciare `pnpm check:endpoints`.
-- **`NUXT_PUBLIC_DRAFT_RELAY` vuoto**: il salvataggio bozze (kind 30024) resta
-  disabilitato di proposito, invece di mandarle su un relay pubblico (ADR 0003).
-  Serve un relay privato o autenticato.
-- **Primo commit git**: non ancora fatto, in attesa di conferma esplicita.
+- **Endpoint privati**: configurati in `.env`, che resta fuori dal repository.
+  `.env.example` porta solo default pubblici — un puntamento privato li' finisce
+  su GitHub, ed e' successo una volta.
+- **`NUXT_PUBLIC_DRAFT_RELAY`**: se vuoto, il salvataggio bozze resta
+  disabilitato di proposito invece di ripiegare su un relay pubblico (ADR 0003).
+  Nota che il kind 30024 e' comunque deprecato: la strada e' NIP-37.
+- **NIP-37** (bozze cifrate, kind 31234): rimandato a un branch dedicato.
+- **Outbox NIP-65 e lista follow (kind 3)**: finche' mancano, gli elenchi
+  mostrano i soli eventi propri. Vedi «Sezioni disponibili».
+- **Cache locale (Dexie)**: ogni cambio pagina rilegge dai relay. Funziona, ma
+  e' traffico sprecato.
