@@ -9,27 +9,27 @@ kind, on relays you chose, and being able to find it and correct it afterwards.
 Every screen lists **only what you published**, and every publish reports what
 each relay actually did with it.
 
-> **Status: work in progress.** The publishing, media and long-form paths work
-> end to end and are covered by tests. Reading other people's content, the
-> outbox model (NIP-65), follow lists and direct messages are not implemented
-> yet. See [docs/PROGRESS.md](docs/PROGRESS.md) for the honest state of things.
+> **Status: work in progress.** Everything in the table below works end to end
+> and is covered by tests, against real relays and a Blossom server. What is
+> _not_ there yet: reading other people's content, the outbox model (NIP-65),
+> follow lists (kind 3), deletion requests (kind 5), direct messages, and any
+> local caching — every page reload re-reads from the relays.
+> [docs/PROGRESS.md](docs/PROGRESS.md) keeps the honest state of things,
+> including the mistakes worth remembering.
 
 ## What it does today
 
-| Area      | Kinds               | What you can do                                                                    |
-| --------- | ------------------- | ---------------------------------------------------------------------------------- |
-| Notes     | 1                   | write, sign, publish                                                               |
-| Media     | 20, 21, 22, 1063    | upload to Blossom, preview, publish galleries, video and file cards                |
-| Long-form | 30023               | Markdown editor with preview, edit published articles in place                     |
-| Drafts    | 31234, 10013        | encrypted drafts that follow you across devices (NIP-37)¹, plus browser-local ones |
-| Calendar  | 31922, 31923, 31925 | date and time events with real timezone handling, RSVPs                            |
-| Profile   | 0                   | edit your profile, loaded from relays before it is replaced                        |
+| Area      | Kinds               | What you can do                                                                   |
+| --------- | ------------------- | --------------------------------------------------------------------------------- |
+| Notes     | 1                   | write, sign, publish                                                              |
+| Media     | 20, 21, 22, 1063    | upload to Blossom, preview, publish galleries, video and file cards               |
+| Long-form | 30023               | Markdown editor with preview, edit published articles in place                    |
+| Drafts    | 31234, 10013        | encrypted drafts that follow you across devices (NIP-37), plus browser-local ones |
+| Calendar  | 31922, 31923, 31925 | date and time events with real timezone handling, RSVPs                           |
+| Profile   | 0                   | edit your profile, loaded from relays before it is replaced                       |
 
 Anything the client can publish, it can also list and — where the protocol
 allows it — reopen and correct.
-
-¹ Encrypted drafts currently live on the `feature/nip37-bozze` branch, not
-yet merged.
 
 ### Three things it deliberately does not hide from you
 
@@ -131,6 +131,10 @@ The integration tests start a **real minimal relay in-process** rather than
 mocking the pool, so rejections, silences and addressable replacement are
 exercised over an actual WebSocket. Nothing is ever published to public relays
 by the test suite.
+
+Where a claim is about privacy — encrypted drafts, for instance — the test
+inspects what the relay actually stored, rather than trusting that the encrypt
+call was made.
 
 ## How the code is arranged
 
