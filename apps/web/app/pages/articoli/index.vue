@@ -8,6 +8,7 @@ useHead({ title: 'Articoli · NostrMediaClient' })
  */
 const elenco = useEventiPropri([30023, 30024], { limite: 100 })
 const bozzeLocali = useBozzeLocali()
+const bozzeRemote = useBozzeRemote()
 
 const pubblicati = computed(() => elenco.eventi.value.filter((e) => e.kind === 30023))
 const legacy = computed(() => elenco.eventi.value.filter((e) => e.kind === 30024))
@@ -42,6 +43,32 @@ function identificatoreDi(tags: string[][]): string {
     <BaseAlert v-if="elenco.errore.value" tono="pericolo">{{ elenco.errore.value }}</BaseAlert>
 
     <ClientOnly>
+      <BaseCard
+        v-if="bozzeRemote.bozze.value.length"
+        title="Bozze cifrate sui relay"
+        subtitle="Kind 31234 — illeggibili sul relay, ti seguono su un altro dispositivo."
+      >
+        <ul class="flex flex-col gap-2">
+          <li
+            v-for="b in bozzeRemote.bozze.value"
+            :key="b.involucro"
+            class="flex flex-wrap items-center gap-2 text-sm"
+          >
+            <span class="flex-1 truncate">{{ b.titolo }}</span>
+            <span class="text-xs text-[var(--testo-tenue)]">
+              {{ tempoRelativo(new Date(b.aggiornataAl * 1000)) }}
+            </span>
+            <BaseButton
+              v-if="b.identificatore"
+              size="sm"
+              :to="`/articoli/nuovo?d=${encodeURIComponent(b.identificatore)}`"
+            >
+              Riprendi
+            </BaseButton>
+          </li>
+        </ul>
+      </BaseCard>
+
       <BaseCard v-if="bozzeLocali.bozze.value.length" title="Bozze in questo browser">
         <ul class="flex flex-col gap-2">
           <li

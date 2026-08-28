@@ -6,6 +6,7 @@ useHead({ title: 'Scrivi un articolo · NostrMediaClient' })
 const identita = useIdentity()
 const bozza = useEventDraft()
 const bozzeLocali = useBozzeLocali()
+const bozzeRemote = useBozzeRemote()
 const esistente = useEventoEsistente()
 const rotta = useRoute()
 
@@ -85,6 +86,78 @@ function salvaBozza(): void {
   setTimeout(() => (salvato.value = false), 2500)
 }
 
+/**
+ * Salva la bozza cifrata sul relay privato (NIP-37).
+ *
+ * A differenza della bozza locale, questa segue su un altro dispositivo. Il
+ * contenuto viene cifrato verso se stessi, quindi sul relay resta illeggibile:
+ * e' la differenza sostanziale con il vecchio kind 30024, che ci finiva in
+ * chiaro.
+ */
+const salvataggioRemoto = ref(false)
+async function salvaBozzaRemota(): Promise<void> {
+  if (!identificatore.value) {
+    bozza.errore.value = 'Serve almeno un titolo, da cui ricavare l’identificatore.'
+    return
+  }
+  salvataggioRemoto.value = true
+  try {
+    const definizione = getKindDefinition(30023)
+    if (!definizione) return
+    // Si costruisce il template dell'articolo ma non lo si firma: quello che
+    // si sta salvando e' lavoro in corso, non un evento definitivo.
+    const template = definizione.build(
+      {
+        content: contenuto.value,
+        identifier: identificatore.value,
+        title: titolo.value.trim(),
+        ...(sommario.value.trim() ? { summary: sommario.value.trim() } : {}),
+        ...(immagine.value.trim() ? { image: immagine.value.trim() } : {}),
+        ...(listaHashtag.value.length ? { hashtags: listaHashtag.value } : {}),
+        ...(primaPubblicazione.value !== null ? { publishedAt: primaPubblicazione.value } : {}),
+      },
+      { pubkey: identita.pubkey ?? '', now: Math.floor(Date.now() / 1000) },
+    )
+    await bozzeRemote.salva(identificatore.value, template)
+  } catch (e) {
+    bozza.errore.value = e instanceof Error ? e.message : String(e)
+  } finally {
+    salvataggioRemoto.value = false
+  }
+}
+
+/** Riapre una bozza cifrata, decifrandola e rimettendone i campi nel form. */
+function apriBozzaRemota(identificatore_: string): void {
+  const b = bozzeRemote.bozze.value.find((x) => x.identificatore === identificatore_)
+  if (!b) return
+  const template = bozzeRemote.apri(b)
+  if (!template) return
+
+  const definizione = getKindDefinition(template.kind)
+  if (!definizione) return
+  try {
+    // Il template non e' firmato: si costruisce un evento fittizio per poterlo
+    // far interpretare dalla definizione, che lavora su eventi completi.
+    const dati = definizione.parse({
+      ...template,
+      id: '',
+      pubkey: identita.pubkey ?? '',
+      sig: '',
+    } as never)
+    titolo.value = dati.title ?? ''
+    sommario.value = dati.summary ?? ''
+    immagine.value = dati.image ?? ''
+    hashtag.value = (dati.hashtags ?? []).join(' ')
+    contenuto.value = dati.content
+    identificatore.value = dati.identifier || identificatore_
+    identificatoreManuale.value = true
+    primaPubblicazione.value = dati.publishedAt ?? null
+    bozza.azzera()
+  } catch (e) {
+    bozzeRemote.errore.value = e instanceof Error ? e.message : String(e)
+  }
+}
+
 function apriBozza(identifier: string): void {
   const b = bozzeLocali.bozze.value.find((x) => x.identifier === identifier)
   if (!b) return
@@ -110,6 +183,13 @@ function apriBozza(identifier: string): void {
 async function riapri(d: string): Promise<void> {
   if (bozzeLocali.bozze.value.some((b) => b.identifier === d)) {
     apriBozza(d)
+    return
+  }
+  // Le bozze cifrate arrivano da un caricamento asincrono: si aspetta che sia
+  // finito, altrimenti una bozza che sta arrivando risulterebbe inesistente.
+  await bozzeRemote.pronte
+  if (bozzeRemote.bozze.value.some((b) => b.identificatore === d)) {
+    apriBozzaRemota(d)
     return
   }
 
@@ -171,6 +251,54 @@ onMounted(() => {
         {{ identita.motivoNonFirmabile }}
         <NuxtLink to="/impostazioni" class="underline">Vai alle impostazioni</NuxtLink>
         . Puoi comunque scrivere e salvare la bozza in locale.
+      </BaseAlert>
+
+      <BaseCard
+        v-if="bozzeRemote.bozze.value.length"
+        title="Bozze cifrate sui relay"
+        subtitle="Ti seguono su un altro dispositivo. Sul relay sono illeggibili."
+      >
+        <ul class="flex flex-col gap-2">
+          <li
+            v-for="b in bozzeRemote.bozze.value"
+            :key="b.involucro"
+            class="flex flex-wrap items-center gap-2 text-sm"
+          >
+            <span class="flex-1 truncate">{{ b.titolo }}</span>
+            <span class="text-xs text-[var(--testo-tenue)]">
+              {{ tempoRelativo(new Date(b.aggiornataAl * 1000)) }}
+              <template v-if="b.scadenza">
+                · scade {{ tempoRelativo(new Date(b.scadenza * 1000)) }}
+              </template>
+            </span>
+            <BaseButton
+              v-if="b.identificatore"
+              size="sm"
+              variant="fantasma"
+              @click="apriBozzaRemota(b.identificatore)"
+            >
+              Apri
+            </BaseButton>
+            <BaseButton size="sm" variant="fantasma" @click="bozzeRemote.elimina(b)">
+              Elimina
+            </BaseButton>
+          </li>
+        </ul>
+        <BaseAlert v-if="bozzeRemote.errore.value" tono="pericolo" class="mt-3">
+          {{ bozzeRemote.errore.value }}
+        </BaseAlert>
+      </BaseCard>
+
+      <BaseAlert v-else-if="bozzeRemote.senzaDestinazione.value" tono="info">
+        Le bozze cifrate hanno bisogno di un
+        <strong>relay privato</strong>
+        : impostane uno alla voce «Relay per le bozze» nelle
+        <NuxtLink to="/impostazioni" class="underline">impostazioni</NuxtLink>
+        . Senza, restano solo quelle salvate in questo browser.
+      </BaseAlert>
+
+      <BaseAlert v-else-if="!bozzeRemote.disponibili.value && identita.autenticato" tono="info">
+        {{ identita.motivoNonCifrabile }}
       </BaseAlert>
 
       <BaseCard v-if="bozzeLocali.bozze.value.length" title="Bozze salvate in questo browser">
@@ -285,6 +413,21 @@ onMounted(() => {
           </BaseButton>
           <ClientOnly>
             <BaseButton
+              variant="secondario"
+              :loading="salvataggioRemoto || bozzeRemote.invio.inCorso.value"
+              :disabled="!bozzeRemote.disponibili.value || bozzeRemote.senzaDestinazione.value"
+              :title="
+                bozzeRemote.senzaDestinazione.value
+                  ? 'Serve un relay per le bozze, dalle impostazioni'
+                  : (identita.motivoNonCifrabile ?? undefined)
+              "
+              @click="salvaBozzaRemota"
+            >
+              Salva bozza cifrata sul relay
+            </BaseButton>
+          </ClientOnly>
+          <ClientOnly>
+            <BaseButton
               v-if="bozza.template.value"
               variant="primario"
               :loading="bozza.inCorso.value || bozza.invio.inCorso.value"
@@ -311,13 +454,15 @@ onMounted(() => {
     </BaseCard>
 
     <BaseAlert tono="info">
-      Le bozze restano
+      Due tipi di bozza, con compromessi diversi. Quella
       <strong>in questo browser</strong>
-      e non seguono su un altro dispositivo. È una scelta: NIP-23 dichiara deprecato il kind 30024,
-      che finiva sul relay
+      non esce di qui, ma non ti segue altrove. Quella
+      <strong>cifrata</strong>
+      (NIP-37, kind 31234) sta su un relay privato illeggibile a chi vi accede, e ti segue: in
+      cambio serve una chiave capace di cifrare, e sul relay resta comunque traccia di quando
+      scrivi. Il vecchio kind 30024 ci finiva
       <em>in chiaro</em>
-      — chiamarlo bozza era fuorviante. La via standard è NIP-37, che la cifra verso te stesso, e
-      non è ancora implementata qui.
+      , ed è per questo che NIP-23 lo dichiara deprecato.
     </BaseAlert>
   </div>
 </template>

@@ -1,5 +1,6 @@
 import { blossomAuthDefinition, type VerboBlossom } from '../kinds/definitions/blossom-auth.js'
 import type { EventTemplate, NostrEvent } from '../kinds/types.js'
+import { sha256Hex } from '../utils/hash.js'
 
 /**
  * Client Blossom (BUD-01/02/04/11).
@@ -41,12 +42,7 @@ export class BlossomError extends Error {
   }
 }
 
-/** Calcola lo SHA-256 esadecimale di un blob. */
-export async function sha256Hex(dati: ArrayBuffer | Uint8Array): Promise<string> {
-  const buffer = dati instanceof Uint8Array ? (dati.slice().buffer as ArrayBuffer) : dati
-  const digest = await globalThis.crypto.subtle.digest('SHA-256', buffer)
-  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('')
-}
+export { sha256Hex }
 
 /**
  * Codifica il token per l'header `Authorization`.

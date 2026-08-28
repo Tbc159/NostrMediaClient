@@ -4,10 +4,12 @@ import {
   parsePublicKeyInput,
   parseSecretKeyInput,
   plainEventTemplate,
+  selfCipher,
   publicKeyFrom,
   signWithSecretKey,
   toNpub,
   wipeSecretKey,
+  type CifrarioNip44,
   type EventTemplate,
   type NostrEvent,
   type SecretKey,
@@ -51,6 +53,17 @@ interface Nip07 {
   getPublicKey(): Promise<string>
   signEvent(event: EventTemplate): Promise<NostrEvent>
   getRelays?(): Promise<Record<string, { read: boolean; write: boolean }>>
+  /**
+   * Cifratura NIP-44, usata da NIP-37 per le bozze.
+   *
+   * Facoltativa: non tutte le estensioni la espongono, e chiamarla senza
+   * verificarne la presenza produrrebbe un errore illeggibile invece di un
+   * messaggio che dice cosa fare.
+   */
+  nip44?: {
+    encrypt(pubkey: string, plaintext: string): Promise<string>
+    decrypt(pubkey: string, ciphertext: string): Promise<string>
+  }
 }
 
 declare global {
@@ -217,6 +230,48 @@ export const useIdentity = defineStore('identity', () => {
     scriviPersistito(null)
   }
 
+  /**
+   * Cifrario NIP-44 verso se stessi, per le bozze (NIP-37).
+   *
+   * `null` quando non e' disponibile, con tre cause distinte che l'interfaccia
+   * deve saper distinguere: sola lettura, chiave bloccata, oppure
+   * un'estensione che non espone NIP-44. Vedi `motivoNonCifrabile`.
+   */
+  const cifrario = computed<CifrarioNip44 | null>(() => {
+    if (modo.value === 'nip07') {
+      if (!import.meta.client || !window.nostr?.nip44 || !pubkey.value) return null
+      const nip44 = window.nostr.nip44
+      const pk = pubkey.value
+      // Verso se stessi: in NIP-44 la chiave di conversazione si deriva da una
+      // privata e una pubblica, e usando la propria si ottiene un canale con
+      // se stessi.
+      return {
+        encrypt: (testo) => nip44.encrypt(pk, testo),
+        decrypt: (cifrato) => nip44.decrypt(pk, cifrato),
+      }
+    }
+
+    if (modo.value === 'locale' && sbloccato.value && chiaveInMemoria) {
+      return selfCipher(chiaveInMemoria)
+    }
+
+    return null
+  })
+
+  /** Perche' non si possono usare le bozze cifrate, da mostrare in UI. */
+  const motivoNonCifrabile = computed(() => {
+    if (cifrario.value) return null
+    if (!autenticato.value) return 'Devi prima accedere.'
+    if (modo.value === 'readonly') {
+      return 'Sei in sola lettura: le bozze cifrate richiedono una chiave.'
+    }
+    if (modo.value === 'locale' && !sbloccato.value) return 'Sblocca la chiave con la password.'
+    if (modo.value === 'nip07') {
+      return 'La tua estensione non espone la cifratura NIP-44, che serve alle bozze. Le bozze restano salvate in questo browser.'
+    }
+    return 'Cifratura non disponibile in questa modalita’.'
+  })
+
   /** Firma un template con la modalita' attiva. */
   async function firma(template: EventTemplate): Promise<NostrEvent> {
     // Il template arriva quasi sempre da un `ref`, e Vue avvolge in un Proxy
@@ -249,6 +304,8 @@ export const useIdentity = defineStore('identity', () => {
     puoFirmare,
     motivoNonFirmabile,
     estensioneDisponibile,
+    cifrario,
+    motivoNonCifrabile,
     rilevaEstensione,
     ripristina,
     accediConEstensione,

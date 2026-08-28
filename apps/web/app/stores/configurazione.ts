@@ -73,7 +73,7 @@ export const campiEndpoint: CampoEndpoint[] = [
     chiave: 'NUXT_PUBLIC_DRAFT_RELAY',
     etichetta: 'Relay per le bozze',
     descrizione:
-      'Uno solo, e privato. Lasciandolo vuoto il salvataggio delle bozze resta disabilitato: non esiste ripiego su un relay pubblico, perché una bozza finita là è a tutti gli effetti pubblicata.',
+      'Uno solo, e privato. Le bozze ci finiscono cifrate (NIP-37), quindi illeggibili a chi vi accede — ma il relay vede comunque quando e quanto scrivi. Lasciandolo vuoto restano solo le bozze salvate in questo browser: non esiste ripiego su un relay pubblico.',
     multiplo: false,
     schema: 'wss',
   },

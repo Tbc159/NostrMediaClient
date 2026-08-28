@@ -159,7 +159,7 @@ in un calendario interessa quando l'evento accade, non quando e' stato scritto.
 | `/scrivi`          | 1                | composer, firma e pubblica                                 |
 | `/media`           | 20, 21, 22, 1063 | i tuoi media                                               |
 | `/media/nuovo`     | idem             | upload Blossom, anteprima, `imeta`, pubblicazione          |
-| `/articoli`        | 30023, 30024     | i tuoi articoli, con le bozze locali                       |
+| `/articoli`        | 30023, 30024     | i tuoi articoli, con le bozze locali e cifrate             |
 | `/articoli/nuovo`  | 30023            | editor Markdown con anteprima sanificata                   |
 | `/calendario`      | 31922, 31923     | i tuoi eventi, divisi in programma / gia' svolti           |
 | `/calendario/rsvp` | 31925            | rispondi a un invito o cambia la risposta                  |
@@ -259,6 +259,45 @@ l'avvio dell'applicazione, lasciando l'utente davanti a «nessuna estensione
 rilevata» che una ricarica smentisce. Ora e' un `ref` ricontrollato all'avvio,
 con qualche tentativo ravvicinato, e di nuovo all'apertura delle impostazioni.
 
+### Bozze cifrate (NIP-37)
+
+Kind 31234: un evento **non firmato** di un altro kind, serializzato e cifrato
+NIP-44 verso la propria stessa chiave. Il contenuto non si firma — e' lavoro in
+corso, e firmarlo produrrebbe un id definitivo per qualcosa che cambiera'
+ancora. La firma la porta l'involucro.
+
+La cifratura sta in `drafts/`, **fuori dalle definizioni dei kind**, per due
+motivi: `build()` e' sincrona per contratto mentre con NIP-07 la cifratura passa
+da una `Promise`, e il registry descrive formati e non possiede chiavi. Per la
+definizione il `content` e' una stringa opaca.
+
+Tre punti non ovvi:
+
+1. **Un `content` vuoto significa bozza cancellata**, non bozza vuota. Lo dice
+   la specifica, ed e' l'unico modo di cancellarne una senza sperare che il
+   relay onori una richiesta kind 5.
+2. **Il tag `d` non e' cifrato.** E' l'unico modo che il relay ha di sapere quale
+   versione sostituire, quindi derivarlo dal titolo vanificherebbe meta' del
+   lavoro: il contenuto resterebbe illeggibile ma chi accede al relay saprebbe
+   di cosa scrivi. E' un hash a 16 caratteri dell'identificatore vero —
+   deterministico, cosi' risalvare sostituisce, e opaco. L'identificatore vero
+   sta dentro il contenuto cifrato, e l'elenco mostra il titolo decifrandolo.
+3. **La scadenza NIP-40 autorizza il relay a cancellare.** Novanta giorni come
+   raccomanda la specifica, mostrati in interfaccia: una bozza che sparisce in
+   silenzio sarebbe peggio di una non salvata.
+
+Il cifrario copre le tre modalita' di accesso: `window.nostr.nip44` con
+l'estensione, derivazione locale con la chiave in memoria, niente in sola
+lettura. Un'estensione che non espone NIP-44 lo dice invece di fallire.
+
+Il kind **10013** dichiara i relay privati, anch'essi cifrati nel content e non
+nei tag: sapere dove una persona tiene le bozze e' gia' un'informazione. Se c'e'
+ha la precedenza sul relay configurato; non si ripiega **mai** sui relay di
+scrittura pubblici.
+
+Verificato interrogando il relay dopo il salvataggio: restano solo
+`["d","<hash>"]`, `["k","30023"]`, la scadenza e il testo cifrato.
+
 ### Endpoint modificabili dall'interfaccia
 
 Gli endpoint del `.env` restano quello che il piano dice che sono — default di
@@ -326,13 +365,17 @@ fa rispettare:
 L'anteprima passa comunque da DOMPurify. Il divieto di HTML vincola _chi
 scrive_, non chi legge: un evento arriva da un relay che non lo fa rispettare.
 
-**Le bozze restano nel browser.** NIP-23 dichiara **deprecato il kind 30024** e
-rimanda a NIP-37 (kind 31234, cifrato NIP-44 verso se stessi). Il 30024
-finirebbe sul relay _in chiaro_: chiamarlo bozza e' fuorviante. Il 30024 resta
-registrato in sola lettura, per non far sparire testi scritti con altri client.
-NIP-37 e' il passo successivo ed e' **rimandato a un branch feature dedicato**,
-deciso il 27 agosto 2026: il costo non e' il kind in se' ma
-la cifratura NIP-44, da esporre in tutte e tre le modalita' di firma.
+**Due tipi di bozza**, con compromessi diversi e dichiarati in interfaccia:
+
+- **in questo browser** (`localStorage`): non esce di li', ma non segue su un
+  altro dispositivo;
+- **cifrata sul relay** (NIP-37, kind 31234): segue ovunque e sul relay resta
+  illeggibile. In cambio serve una chiave capace di cifrare — la sola lettura
+  non basta — e il relay vede comunque _quando_ scrivi.
+
+Il kind 30024, che NIP-23 dichiara deprecato, finirebbe sul relay _in chiaro_:
+chiamarlo bozza era fuorviante. Resta registrato in sola lettura, per non far
+sparire testi scritti con altri client.
 
 ### Identita' — come si comporta
 
@@ -496,8 +539,7 @@ e' solo la pagina a essere scaduta.
   su GitHub, ed e' successo una volta.
 - **`NUXT_PUBLIC_DRAFT_RELAY`**: se vuoto, il salvataggio bozze resta
   disabilitato di proposito invece di ripiegare su un relay pubblico (ADR 0003).
-  Nota che il kind 30024 e' comunque deprecato: la strada e' NIP-37.
-- **NIP-37** (bozze cifrate, kind 31234): rimandato a un branch dedicato.
+  Le bozze cifrate NIP-37 hanno bisogno proprio di questo relay.
 - **Outbox NIP-65 e lista follow (kind 3)**: finche' mancano, gli elenchi
   mostrano i soli eventi propri. Vedi «Sezioni disponibili».
 - **Cache locale (Dexie)**: ogni cambio pagina rilegge dai relay. Funziona, ma

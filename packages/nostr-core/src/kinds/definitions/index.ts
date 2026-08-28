@@ -4,6 +4,7 @@ import { blossomAuthDefinition } from './blossom-auth.js'
 import { calendarDateEventDefinition } from './calendar-date.js'
 import { calendarRsvpDefinition } from './calendar-rsvp.js'
 import { calendarTimeEventDefinition } from './calendar-time.js'
+import { draftWrapDefinition, privateRelaysDefinition } from './draft.js'
 import { fileMetadataDefinition } from './file-metadata.js'
 import { metadataDefinition } from './metadata.js'
 import { noteDefinition } from './note.js'
@@ -13,6 +14,7 @@ import { shortVideoDefinition, videoDefinition } from './video.js'
 export * from './article.js'
 export * from './blossom-auth.js'
 export * from './calendar-common.js'
+export * from './draft.js'
 export * from './calendar-date.js'
 export * from './calendar-rsvp.js'
 export * from './calendar-time.js'
@@ -33,6 +35,8 @@ export const kindDefinitions = [
   blossomAuthDefinition,
   articleDefinition,
   articleDraftDefinition,
+  draftWrapDefinition,
+  privateRelaysDefinition,
   calendarDateEventDefinition,
   calendarTimeEventDefinition,
   calendarRsvpDefinition,
