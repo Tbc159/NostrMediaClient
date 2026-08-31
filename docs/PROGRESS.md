@@ -352,6 +352,32 @@ Invariante rispettata: **se il caricamento fallisce non si pubblica nulla**. Un
 `imeta` che punta al vuoto resta pubblicato per sempre, e il kind 20 e'
 regolare, quindi non correggibile.
 
+### Il flusso dei media, in tre momenti
+
+Rivisto: **scegliere non e' caricare, e caricare non e' pubblicare.** Prima il
+file partiva verso Blossom appena selezionato. Sembrava piu' rapido e non lo
+era: mandava su un server remoto un file che l'utente non aveva ancora
+guardato, e **da Blossom non si torna indietro davvero** — il blob e'
+identificato dal suo hash, e chi lo conosce puo' riscaricarlo anche dopo una
+cancellazione.
+
+1. **Scelta** — anteprima e misure, tutto nel browser. L'anteprima e' un
+   `blob:` locale, non un URL remoto: e' la prova visibile che non e' partito
+   nulla.
+2. **Opzioni** — chiuse per default. Descrizione accessibile per file, titolo,
+   descrizione, hashtag, kind, avviso di contenuto: tutto in un passaggio solo,
+   e solo se serve. Senza toccare nulla si pubblica una galleria senza titolo.
+3. **Caricamento** — su conferma esplicita, con scritto su quale server va.
+4. **Pubblicazione** — passo distinto e **facoltativo**: il file resta
+   raggiungibile dal suo indirizzo anche senza alcun evento, e la schermata lo
+   dice.
+
+Lo stato e' per file, non globale: se un caricamento su tre fallisce, gli altri
+due restano su Blossom e si ritentano solo i falliti.
+
+Verificato interrogando il server Blossom, non l'interfaccia: dopo la scelta il
+contatore dei tentativi di upload e' ancora a zero.
+
 ### Long-form (NIP-23)
 
 Editor Markdown con anteprima. Due cose che la specifica dice e che il codice

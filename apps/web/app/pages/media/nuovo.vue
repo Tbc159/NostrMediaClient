@@ -9,9 +9,19 @@ const bozza = useEventDraft()
 const esistente = useEventoEsistente()
 const rotta = useRoute()
 
-/** Vero quando si sta ricomponendo un evento a partire da uno gia' pubblicato. */
+/** Vero quando si sta ricomponendo un evento a partire da uno già pubblicato. */
 const daPrecedente = ref(false)
 
+/*
+ * Il flusso ha tre momenti, e la pagina li tiene separati perché sono
+ * decisioni diverse: scegliere un file non è caricarlo, e caricarlo non è
+ * pubblicarlo. Da Blossom non si torna indietro davvero — il blob è
+ * identificato dal suo hash e chi lo conosce può riscaricarlo — quindi il
+ * caricamento chiede una conferma, invece di partire alla scelta del file.
+ */
+
+// ─── Opzioni, tutte facoltative ───────────────────────────────────────────
+const avanzate = ref(false)
 const titolo = ref('')
 const descrizione = ref('')
 const hashtag = ref('')
@@ -21,8 +31,8 @@ const conAvviso = ref(false)
 /**
  * Kind con cui pubblicare.
  *
- * Non e' una preferenza estetica: cambia chi vedra' il post. Un client
- * picture-first filtra per kind 20 e non mostrera' mai un 1063, e viceversa un
+ * Non è una preferenza estetica: cambia chi vedrà il post. Un client
+ * picture-first filtra per kind 20 e non mostrerà mai un 1063, e viceversa un
  * client di file non impagina gallerie.
  */
 type Formato = 'immagini' | 'video' | 'video-corto' | 'file'
@@ -35,23 +45,18 @@ const formati: { id: Formato; kind: number; etichetta: string; nota: string }[] 
     etichetta: 'Galleria di immagini',
     nota: 'Kind 20. Le immagini sono il contenuto, non un allegato al testo.',
   },
-  {
-    id: 'video',
-    kind: 21,
-    etichetta: 'Video',
-    nota: 'Kind 21. Per video orizzontali e di durata piena.',
-  },
+  { id: 'video', kind: 21, etichetta: 'Video', nota: 'Kind 21. Orizzontale, di durata piena.' },
   {
     id: 'video-corto',
     kind: 22,
     etichetta: 'Video corto',
-    nota: 'Kind 22. Per gli short verticali. La distinzione è di formato, non tecnica.',
+    nota: 'Kind 22. Short verticali. La distinzione è di formato, non tecnica.',
   },
   {
     id: 'file',
     kind: 1063,
     etichetta: 'Scheda file',
-    nota: 'Kind 1063. Una scheda per ciascun file, interrogabile per hash.',
+    nota: 'Kind 1063. Una scheda per file, interrogabile per hash.',
   },
 ]
 
@@ -64,39 +69,44 @@ const listaHashtag = computed(() =>
     .filter(Boolean),
 )
 
-const nessunFile = computed(() => upload.caricati.value.length === 0)
-
-/** Suggerisce il formato in base a cosa e' stato caricato per primo. */
+/** Il formato si adegua a quello che è stato scelto, restando modificabile. */
 watch(
-  () => upload.caricati.value.length,
+  () => upload.media.value.length,
   () => {
-    const primo = upload.caricati.value[0]
+    const primo = upload.media.value[0]
     if (!primo) return
-    const mime = primo.imeta.mime ?? ''
-    if (mime.startsWith('image/')) formato.value = 'immagini'
-    else if (mime.startsWith('video/')) formato.value = 'video'
+    if (primo.mime.startsWith('image/')) formato.value = 'immagini'
+    else if (primo.mime.startsWith('video/')) formato.value = 'video'
     else formato.value = 'file'
   },
 )
 
+// ─── Scelta dei file ──────────────────────────────────────────────────────
 const inputFile = ref<HTMLInputElement | null>(null)
+const trascinamento = ref(false)
 
 async function scegliFile(evento: Event): Promise<void> {
   const target = evento.target as HTMLInputElement
   if (!target.files?.length) return
-  await upload.caricaTutti(target.files)
-  // Azzerare il campo permette di ricaricare due volte lo stesso file, che
-  // altrimenti non genererebbe alcun evento `change`.
+  await upload.seleziona(target.files)
+  // Azzerare il campo permette di riscegliere lo stesso file, che altrimenti
+  // non genererebbe alcun evento `change`.
   target.value = ''
 }
 
-const trascinamento = ref(false)
 async function rilascia(evento: DragEvent): Promise<void> {
   trascinamento.value = false
   const files = evento.dataTransfer?.files
-  if (files?.length) await upload.caricaTutti(files)
+  if (files?.length) await upload.seleziona(files)
 }
 
+function pesoLeggibile(byte: number): string {
+  if (byte < 1024) return `${byte} B`
+  if (byte < 1024 * 1024) return `${(byte / 1024).toFixed(1)} kB`
+  return `${(byte / (1024 * 1024)).toFixed(1)} MB`
+}
+
+// ─── Evento ───────────────────────────────────────────────────────────────
 function componi(): void {
   const definizione = getKindDefinition(kindScelto.value)
   if (!definizione) {
@@ -104,7 +114,7 @@ function componi(): void {
     return
   }
 
-  const media = upload.caricati.value
+  const allegati = upload.imeta.value
   const comune = {
     ...(listaHashtag.value.length ? { hashtags: listaHashtag.value } : {}),
     ...(conAvviso.value && avvisoContenuto.value.trim()
@@ -116,7 +126,7 @@ function componi(): void {
     bozza.costruisci(definizione, {
       content: descrizione.value.trim(),
       ...(titolo.value.trim() ? { title: titolo.value.trim() } : {}),
-      images: media.map((m) => m.imeta),
+      images: allegati,
       ...comune,
     })
     return
@@ -126,7 +136,7 @@ function componi(): void {
     bozza.costruisci(definizione, {
       content: descrizione.value.trim(),
       title: titolo.value.trim(),
-      variants: media.map((m) => m.imeta),
+      variants: allegati,
       ...comune,
     })
     return
@@ -134,24 +144,31 @@ function componi(): void {
 
   // 1063: una scheda per file. Si compone la prima e si dice quante restano,
   // invece di fingere che un solo evento le contenga tutte.
-  const primo = media[0]
+  const primo = allegati[0]
   if (!primo) return
-  bozza.costruisci(definizione, {
-    content: descrizione.value.trim(),
-    ...primo.imeta,
-    ...(primo.imeta.alt ? { alt: primo.imeta.alt } : {}),
-  })
+  bozza.costruisci(definizione, { content: descrizione.value.trim(), ...primo })
 }
 
+function ricomincia(): void {
+  upload.azzera()
+  bozza.azzera()
+  daPrecedente.value = false
+  esistente.errore.value = null
+  titolo.value = ''
+  descrizione.value = ''
+  hashtag.value = ''
+  avvisoContenuto.value = ''
+  conAvviso.value = false
+  avanzate.value = false
+}
+
+// ─── Ripresa di un evento già pubblicato ──────────────────────────────────
 /**
- * Ricompone un evento media partendo da uno gia' pubblicato.
+ * Ricompone un evento media partendo da uno già pubblicato.
  *
- * Non e' una modifica e il form lo dice: i kind media sono **regolari**, quindi
- * immutabili come una nota. Quello che si ottiene e' un evento nuovo, con id
- * nuovo e senza le reazioni ricevute dall'originale.
- *
- * I file pero' non si ricaricano: sono gia' su Blossom, identificati dal loro
- * hash, e l'`imeta` dell'evento vecchio contiene tutto quello che serve.
+ * Non è una modifica e il form lo dice: i kind media sono **regolari**, quindi
+ * immutabili come una nota. I file però non si ricaricano — sono già su
+ * Blossom, identificati dal loro hash.
  */
 async function riprendi(id: string): Promise<void> {
   const trovato = await esistente.perId(id)
@@ -166,6 +183,7 @@ async function riprendi(id: string): Promise<void> {
   try {
     const dati = definizione.parse(trovato)
     daPrecedente.value = true
+    avanzate.value = true
 
     descrizione.value = dati.content ?? ''
     titolo.value = dati.title ?? ''
@@ -184,8 +202,6 @@ async function riprendi(id: string): Promise<void> {
             ? 'video-corto'
             : 'file'
 
-    // Gli allegati stanno in `imeta` per i kind 20/21/22 e nei tag piatti per
-    // il 1063: si normalizzano qui nella stessa forma che usa l'uploader.
     const allegati =
       trovato.kind === 1063
         ? [
@@ -208,7 +224,6 @@ async function riprendi(id: string): Promise<void> {
             .pop() || 'file',
         imeta: a,
         copie: [String(a.url ?? '')],
-        anteprima: String(a.url ?? ''),
         descrittore: {
           url: String(a.url ?? ''),
           sha256: String(a.sha256 ?? ''),
@@ -227,18 +242,6 @@ onMounted(() => {
   const da = rotta.query.da
   if (typeof da === 'string' && da) void riprendi(da)
 })
-
-function ricomincia(): void {
-  daPrecedente.value = false
-  esistente.errore.value = null
-  upload.azzera()
-  bozza.azzera()
-  titolo.value = ''
-  descrizione.value = ''
-  hashtag.value = ''
-  avvisoContenuto.value = ''
-  conAvviso.value = false
-}
 </script>
 
 <template>
@@ -246,7 +249,8 @@ function ricomincia(): void {
     <div>
       <h1 class="text-xl font-semibold tracking-tight">Carica media</h1>
       <p class="mt-1 text-sm text-[var(--testo-tenue)]">
-        Il file va su un server Blossom, poi l’evento Nostr ne dichiara l’indirizzo e l’impronta.
+        Il file va su un server Blossom. Solo dopo, e solo se vuoi, un evento Nostr ne dichiara
+        l’indirizzo.
       </p>
     </div>
 
@@ -264,7 +268,7 @@ function ricomincia(): void {
         <strong>Non è una modifica</strong>
         : i kind media sono eventi regolari, immutabili come una nota, quindi ne uscirà uno nuovo
         con id diverso e senza le reazioni ricevute dall’originale. I file non vengono ricaricati —
-        sono già su Blossom, identificati dal loro hash.
+        sono già su Blossom.
       </BaseAlert>
 
       <BaseAlert v-if="identita.motivoNonFirmabile" tono="avviso">
@@ -281,7 +285,8 @@ function ricomincia(): void {
       </BaseAlert>
     </ClientOnly>
 
-    <BaseCard title="File">
+    <!-- ─────────── 1. Scelta, tutta in locale ─────────── -->
+    <BaseCard title="1 · Scegli i file" subtitle="Restano nel browser: qui non parte nulla.">
       <div class="flex flex-col gap-4">
         <div
           class="rounded-xl border-2 border-dashed p-6 text-center transition-colors"
@@ -313,144 +318,258 @@ function ricomincia(): void {
         </div>
 
         <ClientOnly>
-          <div
-            v-if="upload.inCorso.value"
-            class="flex items-center gap-3 text-sm text-[var(--testo-tenue)]"
-          >
-            <span class="h-2 w-2 animate-pulse rounded-full bg-[var(--accento)]" />
-            <span v-if="upload.stato.value.fase === 'analisi'">
-              Misuro {{ upload.stato.value.nome }}…
-            </span>
-            <span v-else-if="upload.stato.value.fase === 'invio'">
-              Carico {{ upload.stato.value.nome }} su {{ upload.stato.value.server }}…
-            </span>
-            <span v-else-if="upload.stato.value.fase === 'replica'">
-              Replico su {{ upload.stato.value.server }}…
-            </span>
-          </div>
+          <p v-if="upload.fase.value.fase === 'analisi'" class="text-sm text-[var(--testo-tenue)]">
+            Misuro {{ upload.fase.value.nome }}…
+          </p>
 
-          <BaseAlert v-if="upload.errore.value" tono="pericolo">
-            {{ upload.errore.value }}
-          </BaseAlert>
-
-          <ul v-if="upload.caricati.value.length" class="flex flex-col gap-3">
+          <ul v-if="!upload.nessunoSelezionato.value" class="flex flex-col gap-3">
             <li
-              v-for="(m, i) in upload.caricati.value"
-              :key="m.descrittore.sha256"
+              v-for="m in upload.media.value"
+              :key="m.id"
               class="superficie flex flex-col gap-3 rounded-lg border p-3 sm:flex-row"
             >
               <img
-                v-if="(m.imeta.mime ?? '').startsWith('image/')"
+                v-if="m.mime.startsWith('image/')"
                 :src="m.anteprima"
-                :alt="m.imeta.alt ?? ''"
-                class="h-24 w-24 shrink-0 rounded-md object-cover"
+                :alt="m.alt"
+                class="h-28 w-28 shrink-0 rounded-md border object-cover"
               />
               <video
-                v-else-if="(m.imeta.mime ?? '').startsWith('video/')"
+                v-else-if="m.mime.startsWith('video/')"
                 :src="m.anteprima"
-                class="h-24 w-24 shrink-0 rounded-md object-cover"
+                class="h-28 w-28 shrink-0 rounded-md border object-cover"
+                controls
                 muted
               />
               <div
                 v-else
-                class="flex h-24 w-24 shrink-0 items-center justify-center rounded-md bg-[var(--sfondo-alt)] text-xs"
+                class="flex h-28 w-28 shrink-0 items-center justify-center rounded-md bg-[var(--sfondo-alt)] text-xs"
               >
-                file
+                {{ m.mime.split('/')[1] ?? 'file' }}
               </div>
 
-              <div class="flex min-w-0 flex-1 flex-col gap-2">
-                <p class="truncate text-sm font-medium">{{ m.nome }}</p>
+              <div class="flex min-w-0 flex-1 flex-col gap-1">
+                <div class="flex flex-wrap items-center gap-2">
+                  <p class="truncate text-sm font-medium">{{ m.nome }}</p>
+                  <BaseBadge v-if="m.stato === 'in-attesa'">da caricare</BaseBadge>
+                  <BaseBadge v-else-if="m.stato === 'in-corso'" tono="avviso">in corso</BaseBadge>
+                  <BaseBadge v-else-if="m.stato === 'caricato'" tono="successo">
+                    su Blossom
+                  </BaseBadge>
+                  <BaseBadge v-else tono="avviso">non caricato</BaseBadge>
+                </div>
+
                 <dl class="flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-[var(--testo-tenue)]">
                   <div class="flex gap-1">
+                    <dt>tipo</dt>
+                    <dd>{{ m.mime }}</dd>
+                  </div>
+                  <div class="flex gap-1">
+                    <dt>peso</dt>
+                    <dd>{{ pesoLeggibile(m.dimensioneByte) }}</dd>
+                  </div>
+                  <div v-if="m.dim" class="flex gap-1">
+                    <dt>dimensioni</dt>
+                    <dd>{{ m.dim }}</dd>
+                  </div>
+                  <div v-if="m.descrittore" class="flex gap-1">
                     <dt>impronta</dt>
                     <dd>
                       <code>{{ m.descrittore.sha256.slice(0, 12) }}…</code>
                     </dd>
                   </div>
-                  <div v-if="m.imeta.dim" class="flex gap-1">
-                    <dt>dimensioni</dt>
-                    <dd>{{ m.imeta.dim }}</dd>
-                  </div>
-                  <div class="flex gap-1">
+                  <div v-if="m.copie.length" class="flex gap-1">
                     <dt>copie</dt>
                     <dd>{{ m.copie.length }}</dd>
                   </div>
                 </dl>
-                <input
-                  class="w-full rounded-md border bg-transparent px-2 py-1 text-xs"
-                  placeholder="Descrizione per chi non vede l’immagine (alt)"
-                  :value="m.imeta.alt ?? ''"
-                  @input="upload.descrivi(i, ($event.target as HTMLInputElement).value)"
-                />
+
+                <p v-if="m.errore" class="text-xs text-[var(--pericolo)]">{{ m.errore }}</p>
+                <p v-else-if="m.alt" class="truncate text-xs text-[var(--testo-tenue)]">
+                  «{{ m.alt }}»
+                </p>
               </div>
 
-              <BaseButton size="sm" variant="fantasma" @click="upload.rimuovi(i)">Togli</BaseButton>
+              <BaseButton
+                size="sm"
+                variant="fantasma"
+                :disabled="upload.inCorso.value"
+                @click="upload.rimuovi(m.id)"
+              >
+                Togli
+              </BaseButton>
             </li>
           </ul>
         </ClientOnly>
       </div>
     </BaseCard>
 
-    <BaseCard v-if="!nessunFile" title="Evento">
-      <form class="flex flex-col gap-4" @submit.prevent="componi">
-        <fieldset class="flex flex-col gap-2">
-          <legend class="mb-1 text-sm font-medium">Pubblica come</legend>
-          <label
-            v-for="f in formati"
-            :key="f.id"
-            class="superficie flex cursor-pointer gap-3 rounded-lg border p-3"
-            :class="formato === f.id ? 'border-[var(--accento)]' : ''"
-          >
-            <input v-model="formato" type="radio" :value="f.id" class="mt-1" />
-            <span class="flex flex-col">
-              <span class="text-sm font-medium">{{ f.etichetta }}</span>
-              <span class="text-xs text-[var(--testo-tenue)]">{{ f.nota }}</span>
+    <!-- ─────────── 2. Opzioni, solo se servono ─────────── -->
+    <ClientOnly>
+      <BaseCard v-if="!upload.nessunoSelezionato.value">
+        <details :open="avanzate" @toggle="avanzate = ($event.target as HTMLDetailsElement).open">
+          <summary class="cursor-pointer text-sm font-medium">
+            2 · Descrizione e formato
+            <span class="font-normal text-[var(--testo-tenue)]">
+              — facoltativo, tutto in una volta
             </span>
-          </label>
-        </fieldset>
+          </summary>
 
-        <BaseField
-          v-slot="{ id, describedBy }"
-          label="Titolo"
-          :required="formato === 'video' || formato === 'video-corto'"
-          :hint="
-            formato === 'video' || formato === 'video-corto'
-              ? 'Obbligatorio per i video: lo richiede NIP-71.'
-              : undefined
-          "
-        >
-          <BaseInput :id="id" v-model="titolo" :described-by="describedBy" />
-        </BaseField>
+          <div class="mt-4 flex flex-col gap-4">
+            <p class="text-sm text-[var(--testo-tenue)]">
+              Senza toccare nulla si pubblica una galleria senza titolo né descrizione. Quello che
+              conta davvero è la descrizione per chi non vede il file.
+            </p>
 
-        <BaseField v-slot="{ id, describedBy }" label="Descrizione">
-          <BaseTextarea :id="id" v-model="descrizione" :rows="3" :described-by="describedBy" />
-        </BaseField>
+            <div v-for="m in upload.media.value" :key="`alt-${m.id}`" class="flex flex-col gap-1">
+              <label :for="`alt-campo-${m.id}`" class="truncate text-xs font-medium">
+                Descrizione di «{{ m.nome }}»
+              </label>
+              <input
+                :id="`alt-campo-${m.id}`"
+                class="superficie w-full rounded-md border px-3 py-2 text-sm"
+                placeholder="Cosa si vede, per chi non può vederlo"
+                :value="m.alt"
+                @input="upload.descrivi(m.id, ($event.target as HTMLInputElement).value)"
+              />
+            </div>
 
-        <BaseField
-          v-slot="{ id, describedBy }"
-          label="Hashtag"
-          hint="Separati da spazio o virgola."
-        >
-          <BaseInput :id="id" v-model="hashtag" :described-by="describedBy" />
-        </BaseField>
+            <fieldset class="flex flex-col gap-2">
+              <legend class="mb-1 text-sm font-medium">Pubblica come</legend>
+              <label
+                v-for="f in formati"
+                :key="f.id"
+                class="superficie flex cursor-pointer gap-3 rounded-lg border p-3"
+                :class="formato === f.id ? 'border-[var(--accento)]' : ''"
+              >
+                <input v-model="formato" type="radio" :value="f.id" class="mt-1" />
+                <span class="flex flex-col">
+                  <span class="text-sm font-medium">{{ f.etichetta }}</span>
+                  <span class="text-xs text-[var(--testo-tenue)]">{{ f.nota }}</span>
+                </span>
+              </label>
+            </fieldset>
 
-        <div class="flex flex-col gap-2">
-          <label class="flex items-center gap-2 text-sm">
-            <input v-model="conAvviso" type="checkbox" />
-            Contenuto sensibile
-          </label>
-          <BaseInput v-if="conAvviso" v-model="avvisoContenuto" placeholder="Motivo dell’avviso" />
+            <BaseField
+              v-slot="{ id, describedBy }"
+              label="Titolo"
+              :required="formato === 'video' || formato === 'video-corto'"
+              :hint="
+                formato === 'video' || formato === 'video-corto'
+                  ? 'Obbligatorio per i video: lo richiede NIP-71.'
+                  : undefined
+              "
+            >
+              <BaseInput :id="id" v-model="titolo" :described-by="describedBy" />
+            </BaseField>
+
+            <BaseField v-slot="{ id, describedBy }" label="Descrizione">
+              <BaseTextarea :id="id" v-model="descrizione" :rows="3" :described-by="describedBy" />
+            </BaseField>
+
+            <BaseField
+              v-slot="{ id, describedBy }"
+              label="Hashtag"
+              hint="Separati da spazio o virgola."
+            >
+              <BaseInput :id="id" v-model="hashtag" :described-by="describedBy" />
+            </BaseField>
+
+            <div class="flex flex-col gap-2">
+              <label class="flex items-center gap-2 text-sm">
+                <input v-model="conAvviso" type="checkbox" />
+                Contenuto sensibile
+              </label>
+              <BaseInput
+                v-if="conAvviso"
+                v-model="avvisoContenuto"
+                placeholder="Motivo dell’avviso"
+              />
+            </div>
+          </div>
+        </details>
+      </BaseCard>
+    </ClientOnly>
+
+    <!-- ─────────── 3. Caricamento su Blossom ─────────── -->
+    <ClientOnly>
+      <BaseCard
+        v-if="!upload.nessunoSelezionato.value"
+        title="3 · Carica su Blossom"
+        subtitle="Da qui in poi il file esce dal browser."
+      >
+        <div class="flex flex-col gap-3">
+          <p v-if="upload.inCorso.value" class="flex items-center gap-2 text-sm">
+            <span class="h-2 w-2 animate-pulse rounded-full bg-[var(--accento)]" />
+            <span v-if="upload.fase.value.fase === 'invio'">
+              Carico {{ upload.fase.value.nome }} su {{ upload.fase.value.server }}…
+            </span>
+            <span v-else-if="upload.fase.value.fase === 'replica'">
+              Replico su {{ upload.fase.value.server }}…
+            </span>
+          </p>
+
+          <BaseAlert v-if="upload.errore.value" tono="pericolo">
+            {{ upload.errore.value }}
+          </BaseAlert>
+
+          <BaseAlert v-if="upload.tuttoCaricato.value" tono="successo">
+            {{ upload.caricati.value.length }}
+            {{ upload.caricati.value.length === 1 ? 'file è' : 'file sono' }}
+            su Blossom.
+            <strong>Puoi fermarti qui</strong>
+            : il file è raggiungibile dal suo indirizzo anche senza pubblicare alcun evento.
+          </BaseAlert>
+
+          <div class="flex flex-wrap gap-2">
+            <BaseButton
+              v-if="upload.daCaricare.value.length"
+              variant="primario"
+              :loading="upload.inCorso.value"
+              :disabled="!identita.puoFirmare || !upload.server.value.length"
+              @click="upload.caricaSelezionati()"
+            >
+              Carica {{ upload.daCaricare.value.length }}
+              {{ upload.daCaricare.value.length === 1 ? 'file' : 'file' }} su
+              {{ upload.server.value[0] }}
+            </BaseButton>
+            <BaseButton variant="fantasma" :disabled="upload.inCorso.value" @click="ricomincia">
+              Ricomincia
+            </BaseButton>
+          </div>
+
+          <ul v-if="upload.caricati.value.length" class="flex flex-col gap-1 text-xs">
+            <li v-for="m in upload.caricati.value" :key="`url-${m.id}`" class="truncate">
+              <a
+                :href="m.descrittore?.url"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="underline"
+              >
+                {{ m.descrittore?.url }}
+              </a>
+            </li>
+          </ul>
         </div>
+      </BaseCard>
+    </ClientOnly>
 
-        <BaseAlert v-if="formato === 'file' && upload.caricati.value.length > 1" tono="info">
-          Il kind 1063 descrive un file per evento: viene composto quello del primo file. Gli altri
-          {{ upload.caricati.value.length - 1 }} restano caricati e li puoi pubblicare uno alla
-          volta.
-        </BaseAlert>
+    <!-- ─────────── 4. Evento Nostr, facoltativo ─────────── -->
+    <ClientOnly>
+      <BaseCard
+        v-if="upload.caricati.value.length"
+        title="4 · Pubblica un evento"
+        subtitle="Un evento Nostr che punta ai file. Facoltativo e separato dal caricamento."
+      >
+        <form class="flex flex-col gap-4" @submit.prevent="componi">
+          <BaseAlert v-if="formato === 'file' && upload.caricati.value.length > 1" tono="info">
+            Il kind 1063 descrive un file per evento: viene composto quello del primo. Gli altri
+            {{ upload.caricati.value.length - 1 }} restano su Blossom e li puoi pubblicare uno alla
+            volta.
+          </BaseAlert>
 
-        <div class="flex flex-wrap gap-2">
-          <BaseButton type="submit" variant="primario">Componi evento</BaseButton>
-          <ClientOnly>
+          <div class="flex flex-wrap gap-2">
+            <BaseButton type="submit" variant="primario">Componi evento</BaseButton>
             <BaseButton
               v-if="bozza.template.value"
               variant="primario"
@@ -460,25 +579,22 @@ function ricomincia(): void {
             >
               {{ bozza.firmato.value ? 'Pubblica' : 'Firma e pubblica' }}
             </BaseButton>
-          </ClientOnly>
-          <BaseButton v-if="bozza.template.value" variant="fantasma" @click="ricomincia">
-            Ricomincia
-          </BaseButton>
-        </div>
+          </div>
 
-        <PublishProgress :invio="bozza.invio" />
+          <PublishProgress :invio="bozza.invio" />
 
-        <BaseAlert v-if="bozza.errore.value" tono="pericolo">{{ bozza.errore.value }}</BaseAlert>
-      </form>
-    </BaseCard>
+          <BaseAlert v-if="bozza.errore.value" tono="pericolo">{{ bozza.errore.value }}</BaseAlert>
+        </form>
+      </BaseCard>
 
-    <BaseCard v-if="bozza.invio.esito.value" title="Esito della pubblicazione">
-      <PublishResult :esito="bozza.invio.esito.value" />
-    </BaseCard>
+      <BaseCard v-if="bozza.invio.esito.value" title="Esito della pubblicazione">
+        <PublishResult :esito="bozza.invio.esito.value" />
+      </BaseCard>
 
-    <BaseCard v-if="bozza.template.value" title="Evento">
-      <EventPreview :template="bozza.template.value" :firmato="bozza.firmato.value" />
-    </BaseCard>
+      <BaseCard v-if="bozza.template.value" title="Evento">
+        <EventPreview :template="bozza.template.value" :firmato="bozza.firmato.value" />
+      </BaseCard>
+    </ClientOnly>
 
     <BaseAlert tono="info">
       L’evento porta l’impronta SHA-256 di ogni file: chi lo legge può verificare che quello che
