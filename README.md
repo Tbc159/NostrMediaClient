@@ -118,6 +118,33 @@ also loads Node from nvm if it is not on your `PATH`:
 
 The client is then at <http://localhost:3000>.
 
+### Publishing it as a static site
+
+The client is entirely client-side, so it runs on any static host. A GitHub
+Pages workflow is included and publishes `main` automatically.
+
+```bash
+NUXT_APP_BASE_URL=/YourRepoName/ pnpm build:pages
+```
+
+The output lands in `apps/web/.output/public`. Two details make the difference
+between a build that works and one that looks broken:
+
+- **The base URL must match the subfolder** the site is served from. GitHub
+  Pages project sites live under `/<repo>/`, and an absolute `/` would ask for
+  the bundles at the domain root.
+- **`404.html` is the SPA fallback.** GitHub Pages serves it for any unknown
+  path, which is how a direct link to a subpage keeps working. The
+  `github-pages` Nitro preset generates it, along with `.nojekyll`.
+
+Without a `.env` the client falls back to public relays and Blossom servers, so
+a fresh deployment is usable immediately. The draft relay stays empty on
+purpose — encrypted drafts need a relay you control.
+
+One thing a static host cannot do: **server-rendered Open Graph previews**.
+Sharing a link to a specific event will not produce a rich preview. That needs
+a Node host, and it is the only reason to prefer one.
+
 ### Development scripts
 
 ```bash

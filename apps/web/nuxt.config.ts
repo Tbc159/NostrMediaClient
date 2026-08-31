@@ -1,9 +1,27 @@
 import tailwindcss from '@tailwindcss/vite'
 
+/*
+ * Percorso di base della pubblicazione.
+ *
+ * Su GitHub Pages il sito vive in una sottocartella, e serve gia' qui — non a
+ * runtime — perche' l'icona deve stare nell'HTML **generato**: il browser
+ * chiede la favicon prima che il JavaScript parta, e un `useHead` arriverebbe
+ * troppo tardi, lasciando un 404 a ogni caricamento.
+ */
+const base = process.env.NUXT_APP_BASE_URL ?? '/'
+
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
   compatibilityDate: '2026-08-24',
   devtools: { enabled: true },
+
+  app: {
+    head: {
+      link: [
+        { rel: 'icon', type: 'image/svg+xml', href: `${base}favicon.svg`.replace(/\/{2,}/g, '/') },
+      ],
+    },
+  },
 
   modules: ['@pinia/nuxt'],
 
@@ -46,7 +64,14 @@ export default defineNuxtConfig({
     '/articoli/**': { ssr: false },
     '/calendario': { ssr: false },
     '/profilo': { ssr: false },
-    // Route pubbliche: SSR attivo per le anteprime Open Graph.
+    /*
+     * Route pubbliche: SSR attivo per le anteprime Open Graph.
+     *
+     * Su un host statico — GitHub Pages — l'SSR non esiste e queste regole non
+     * hanno effetto: le anteprime dei link richiedono un host Node. La build
+     * statica resta comunque completa, perche' tutto il resto e' gia'
+     * client-only per scelta di sicurezza.
+     */
     '/a/**': { ssr: true },
     '/e/**': { ssr: true },
     '/p/**': { ssr: true },
@@ -54,13 +79,23 @@ export default defineNuxtConfig({
 
   runtimeConfig: {
     public: {
-      // Popolate dalle variabili NUXT_PUBLIC_* — vedi .env.example.
-      // I valori qui sono solo i fallback di sviluppo.
-      defaultReadRelays: '',
-      defaultWriteRelays: '',
-      indexerRelays: '',
+      /*
+       * Popolate dalle variabili NUXT_PUBLIC_* — vedi .env.example.
+       *
+       * I valori qui sono **default di primo avvio su endpoint pubblici**, non
+       * scelte di progetto: servono a far partire il client senza `.env`, che
+       * e' il caso di chi lo prova appena clonato e di una build statica
+       * pubblicata. Restano tutti sostituibili dalle impostazioni.
+       *
+       * Il relay per le bozze resta **vuoto di proposito**: un default pubblico
+       * la' significherebbe mandare le bozze di chi non ha configurato nulla su
+       * un relay altrui.
+       */
+      defaultReadRelays: 'wss://relay.damus.io,wss://nos.lol,wss://relay.primal.net',
+      defaultWriteRelays: 'wss://nos.lol,wss://relay.primal.net',
+      indexerRelays: 'wss://purplepag.es,wss://user.kindpag.es',
       draftRelay: '',
-      defaultBlossomServers: '',
+      defaultBlossomServers: 'https://blossom.yakihonne.com,https://nostr.download',
       siteUrl: 'http://localhost:3000',
       njumpUrl: 'https://njump.me',
     },

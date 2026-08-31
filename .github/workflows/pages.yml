@@ -1,0 +1,58 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Un solo deploy alla volta, e senza interrompere quello in corso: interromperlo
+# lascerebbe il sito a metà pubblicazione.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # Preso da .nvmrc, così non diverge dal vincolo del repository.
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # La build statica è pubblica: se non passa la verifica non va online.
+      - run: pnpm verify
+
+      - name: Build
+        env:
+          # Il sito vive in una sottocartella con il nome del repository.
+          NUXT_APP_BASE_URL: /${{ github.event.repository.name }}/
+          # Serve ai link canonici: senza, resterebbe localhost.
+          NUXT_PUBLIC_SITE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
+        run: pnpm build:pages
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: apps/web/.output/public
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

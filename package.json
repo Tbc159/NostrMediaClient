@@ -18,6 +18,7 @@
     "status": "./scripts/client.sh status",
     "logs": "./scripts/client.sh logs",
     "build": "pnpm -r --filter './packages/**' build && pnpm --filter @nmc/web build",
+    "build:pages": "pnpm -r --filter './packages/**' build && NITRO_PRESET=github-pages NUXT_APP_BASE_URL=${NUXT_APP_BASE_URL:-/NostrMediaClient/} pnpm --filter @nmc/web exec nuxt generate",
     "typecheck": "pnpm -r typecheck",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
