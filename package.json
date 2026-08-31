@@ -17,8 +17,9 @@
     "restart": "./scripts/client.sh restart",
     "status": "./scripts/client.sh status",
     "logs": "./scripts/client.sh logs",
-    "build": "pnpm -r --filter './packages/**' build && pnpm --filter @nmc/web build",
-    "build:pages": "pnpm -r --filter './packages/**' build && NITRO_PRESET=github-pages NUXT_APP_BASE_URL=${NUXT_APP_BASE_URL:-/NostrMediaClient/} pnpm --filter @nmc/web exec nuxt generate",
+    "build:packages": "pnpm -r --filter './packages/**' build",
+    "build": "pnpm build:packages && pnpm --filter @nmc/web build",
+    "build:pages": "pnpm build:packages && NITRO_PRESET=github-pages NUXT_APP_BASE_URL=${NUXT_APP_BASE_URL:-/NostrMediaClient/} pnpm --filter @nmc/web exec nuxt generate",
     "typecheck": "pnpm -r typecheck",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
@@ -27,7 +28,7 @@
     "test": "pnpm -r test",
     "guard:deps": "node scripts/guard-deps.mjs",
     "check:endpoints": "pnpm --filter @nmc/nostr-core build && node --env-file=.env scripts/check-endpoints.mjs",
-    "verify": "pnpm guard:deps && pnpm format:check && pnpm lint && pnpm typecheck && pnpm test"
+    "verify": "pnpm guard:deps && pnpm build:packages && pnpm format:check && pnpm lint && pnpm typecheck && pnpm test"
   },
   "devDependencies": {
     "@eslint/js": "^9.18.0",

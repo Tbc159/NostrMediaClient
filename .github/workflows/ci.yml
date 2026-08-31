@@ -33,6 +33,12 @@ jobs:
       - name: Guardia sulle dipendenze critiche
         run: pnpm guard:deps
 
+      # L'app fa typecheck contro il `dist` dei pacchetti: su un checkout pulito
+      # non esiste, e il typecheck fallirebbe per un motivo che non c'entra con
+      # il codice. In locale non si notava perche' i pacchetti erano gia' compilati.
+      - name: Compila i pacchetti
+        run: pnpm build:packages
+
       - name: Formattazione
         run: pnpm format:check
 
