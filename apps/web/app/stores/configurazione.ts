@@ -1,6 +1,11 @@
 import {
+  clientEsterniPredefiniti,
   resolveClientConfig,
+  risolviClient,
+  validaTemplate,
   type ClientConfig,
+  type ClientEsterno,
+  type PiattaformaClient,
   type RawEnv,
   type StrategiaPubblicazione,
 } from '@nmc/nostr-core'
@@ -35,6 +40,10 @@ export type OverrideEndpoint = Pick<
 interface Persistito {
   override: OverrideEndpoint
   strategia?: StrategiaPubblicazione
+  /** Client esterno scelto per ciascuna piattaforma. */
+  visualizzatori?: Partial<Record<PiattaformaClient, string>>
+  /** Client aggiunti a mano dall'utente. */
+  visualizzatoriPersonali?: ClientEsterno[]
 }
 
 /** Campi mostrati in interfaccia, con la spiegazione di cosa cambiano. */
@@ -103,6 +112,81 @@ export const useConfigurazione = defineStore('configurazione', () => {
   const override = ref<OverrideEndpoint>({})
   const strategia = ref<StrategiaPubblicazione>('sequenziale')
 
+  /**
+   * Client esterni con cui aprire un evento gia' pubblicato.
+   *
+   * Due scelte distinte e non una sola, perche' il client giusto cambia con il
+   * dispositivo: sulla scrivania si apre una scheda del browser, sul telefono
+   * ha senso l'app installata. La preferenza viene applicata in base a come si
+   * sta interagendo, non a un'impostazione da ricordare.
+   */
+  const visualizzatori = ref<Partial<Record<PiattaformaClient, string>>>({})
+  const visualizzatoriPersonali = ref<ClientEsterno[]>([])
+
+  /** Preset piu' quelli aggiunti a mano. */
+  const visualizzatoriDisponibili = computed<ClientEsterno[]>(() => [
+    ...clientEsterniPredefiniti,
+    ...visualizzatoriPersonali.value,
+  ])
+
+  /** Client in vigore per una piattaforma, con ripiego sul predefinito. */
+  function visualizzatorePer(piattaforma: PiattaformaClient): ClientEsterno {
+    return risolviClient(
+      visualizzatori.value[piattaforma],
+      piattaforma,
+      visualizzatoriPersonali.value,
+    )
+  }
+
+  function impostaVisualizzatore(piattaforma: PiattaformaClient, id: string): void {
+    visualizzatori.value = { ...visualizzatori.value, [piattaforma]: id }
+    salva()
+  }
+
+  /**
+   * Aggiunge o sostituisce un client scritto a mano.
+   *
+   * Il modello viene validato prima di entrare: finisce dentro un `href`, e
+   * uno schema eseguibile diventerebbe codice cliccabile in pagina.
+   */
+  function aggiungiVisualizzatore(
+    nome: string,
+    template: string,
+  ): { ok: true; id: string } | { ok: false; errore: string } {
+    const problema = validaTemplate(template)
+    if (problema) return { ok: false, errore: problema }
+    if (nome.trim() === '') return { ok: false, errore: 'Dai un nome al client.' }
+
+    const id = `mio-${nome
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')}`
+    const nuovo: ClientEsterno = {
+      id,
+      nome: nome.trim(),
+      template: template.trim(),
+      piattaforme: ['desktop', 'app'],
+    }
+    visualizzatoriPersonali.value = [
+      ...visualizzatoriPersonali.value.filter((c) => c.id !== id),
+      nuovo,
+    ]
+    salva()
+    return { ok: true, id }
+  }
+
+  function rimuoviVisualizzatore(id: string): void {
+    visualizzatoriPersonali.value = visualizzatoriPersonali.value.filter((c) => c.id !== id)
+    // Una piattaforma che puntava a questo client torna al predefinito, invece
+    // di restare con un pulsante che non apre nulla.
+    const ripulito = { ...visualizzatori.value }
+    for (const [p, scelto] of Object.entries(ripulito)) {
+      if (scelto === id) delete ripulito[p as PiattaformaClient]
+    }
+    visualizzatori.value = ripulito
+    salva()
+  }
+
   /** Vero se l'utente ha sostituito almeno un endpoint. */
   const personalizzata = computed(() =>
     Object.values(override.value).some((v) => v !== undefined && v !== null),
@@ -134,6 +218,8 @@ export const useConfigurazione = defineStore('configurazione', () => {
     if (salvato) {
       override.value = salvato.override ?? {}
       strategia.value = salvato.strategia ?? 'sequenziale'
+      visualizzatori.value = salvato.visualizzatori ?? {}
+      visualizzatoriPersonali.value = salvato.visualizzatoriPersonali ?? []
     }
   }
 
@@ -206,6 +292,13 @@ export const useConfigurazione = defineStore('configurazione', () => {
   return {
     override,
     strategia,
+    visualizzatori,
+    visualizzatoriPersonali,
+    visualizzatoriDisponibili,
+    visualizzatorePer,
+    impostaVisualizzatore,
+    aggiungiVisualizzatore,
+    rimuoviVisualizzatore,
     config,
     errore,
     personalizzata,

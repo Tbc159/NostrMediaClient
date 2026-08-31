@@ -27,6 +27,7 @@ each relay actually did with it.
 | Drafts    | 31234, 10013        | encrypted drafts that follow you across devices (NIP-37), plus browser-local ones |
 | Calendar  | 31922, 31923, 31925 | date and time events with real timezone handling, RSVPs                           |
 | Profile   | 0                   | edit your profile, loaded from relays before it is replaced                       |
+| Viewing   | —                   | open any event in an external reading client, chosen per device                   |
 
 Anything the client can publish, it can also list and — where the protocol
 allows it — reopen and correct.
@@ -39,6 +40,11 @@ allows it — reopen and correct.
 - **Not everything can be edited.** Notes and media are _regular_ events and are
   immutable by protocol. The client says so and offers to compose a new event,
   rather than pretending to edit one.
+- **This is not a reading client.** To see a publication the way the rest of the
+  network sees it, every card has an "Open in…" button pointing at a real
+  reading client — noStrudel on a desktop, Primal on a phone, or anything else
+  you paste a URL template for. The choice follows how you are interacting,
+  not a setting you have to remember.
 - **Your key never leaves your control.** A browser extension (NIP-07) signs
   without the key entering the page. A pasted private key is encrypted at rest
   with NIP-49 and lives in memory only until you reload.

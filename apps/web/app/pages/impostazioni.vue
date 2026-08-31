@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { passwordStrength } from '@nmc/nostr-core'
 import { campiEndpoint, useConfigurazione, type CampoEndpoint } from '~/stores/configurazione'
+import { linkEventoEsterno, type PiattaformaClient } from '@nmc/nostr-core'
 
 useHead({ title: 'Impostazioni · NostrMediaClient' })
 
@@ -55,6 +56,61 @@ function salvaEndpoint(): void {
     salvato.value = true
   } else {
     erroreEndpoint.value = esito.errore
+  }
+}
+
+// --- Client di lettura esterni ---------------------------------------------
+
+const { piattaforma } = useDispositivo()
+
+const piattaforme: { id: PiattaformaClient; etichetta: string; nota: string }[] = [
+  {
+    id: 'desktop',
+    etichetta: 'Da scrivania',
+    nota: 'Usato quando c’è un puntatore fine: si apre una scheda del browser.',
+  },
+  {
+    id: 'app',
+    etichetta: 'Da telefono',
+    nota: 'Usato su schermi touch senza passaggio del mouse: qui ha senso l’app installata.',
+  },
+]
+
+/** Evento finto, solo per mostrare che forma prende il link. */
+const eventoDiEsempio = {
+  id: 'ff'.repeat(32),
+  pubkey: 'ab'.repeat(32),
+  created_at: 1_800_000_000,
+  kind: 1,
+  tags: [],
+  content: '',
+  sig: '00'.repeat(64),
+}
+
+function anteprimaLink(piattaformaScelta: PiattaformaClient): string {
+  try {
+    return linkEventoEsterno(
+      configurazione.visualizzatorePer(piattaformaScelta).template,
+      eventoDiEsempio,
+      config.value.valore?.writeRelays ?? [],
+    )
+  } catch {
+    return 'modello non valido'
+  }
+}
+
+const nuovoNome = ref('')
+const nuovoTemplate = ref('')
+const erroreVisualizzatore = ref<string | null>(null)
+
+function aggiungiVisualizzatore(): void {
+  const esito = configurazione.aggiungiVisualizzatore(nuovoNome.value, nuovoTemplate.value)
+  if (esito.ok) {
+    erroreVisualizzatore.value = null
+    nuovoNome.value = ''
+    nuovoTemplate.value = ''
+  } else {
+    erroreVisualizzatore.value = esito.errore
   }
 }
 
@@ -435,6 +491,99 @@ const etichettaModo: Record<string, string> = {
             <BaseButton to="/diagnostica" variant="fantasma">Verifica gli endpoint →</BaseButton>
           </div>
         </form>
+      </BaseCard>
+
+      <!-- ─────────── Client di lettura esterni ─────────── -->
+      <BaseCard
+        title="Con cosa aprire le tue pubblicazioni"
+        subtitle="Questo client serve a gestire i tuoi contenuti. Per vederli come li vede il resto della rete serve un client di lettura."
+      >
+        <div class="flex flex-col gap-5">
+          <p class="text-sm text-[var(--testo-tenue)]">
+            Ogni evento in elenco porta un pulsante «Apri in…». Quale client si apre dipende da come
+            stai usando il client adesso: in questo momento risulti
+            <BaseBadge tono="accento">
+              {{ piattaforma === 'app' ? 'da telefono' : 'da scrivania' }}
+            </BaseBadge>
+            .
+          </p>
+
+          <div v-for="p in piattaforme" :key="p.id" class="flex flex-col gap-2">
+            <BaseField
+              v-slot="{ id, describedBy }"
+              :label="p.etichetta"
+              :hint="p.nota"
+              :class="piattaforma === p.id ? '' : 'opacity-80'"
+            >
+              <BaseSelect
+                :id="id"
+                :model-value="configurazione.visualizzatorePer(p.id).id"
+                :options="
+                  configurazione.visualizzatoriDisponibili
+                    .filter((c) => c.piattaforme.includes(p.id) || c.id.startsWith('mio-'))
+                    .map((c) => ({ value: c.id, label: c.nome }))
+                "
+                :described-by="describedBy"
+                @update:model-value="configurazione.impostaVisualizzatore(p.id, String($event))"
+              />
+            </BaseField>
+            <p
+              v-if="configurazione.visualizzatorePer(p.id).nota"
+              class="text-xs text-[var(--testo-tenue)]"
+            >
+              {{ configurazione.visualizzatorePer(p.id).nota }}
+            </p>
+            <p class="break-all font-mono text-xs text-[var(--testo-tenue)]">
+              {{ anteprimaLink(p.id) }}
+            </p>
+          </div>
+
+          <details>
+            <summary class="cursor-pointer text-sm">Aggiungi un altro client</summary>
+            <div class="mt-3 flex flex-col gap-3">
+              <BaseField v-slot="{ id, describedBy }" label="Nome">
+                <BaseInput :id="id" v-model="nuovoNome" :described-by="describedBy" />
+              </BaseField>
+              <BaseField
+                v-slot="{ id, describedBy }"
+                label="Modello dell’indirizzo"
+                hint="Metti {pointer} dove va l’identificatore dell’evento. Sono ammessi https:// e nostr:."
+              >
+                <BaseInput
+                  :id="id"
+                  v-model="nuovoTemplate"
+                  placeholder="https://ilmioclient.tld/e/{pointer}"
+                  :described-by="describedBy"
+                />
+              </BaseField>
+              <BaseAlert v-if="erroreVisualizzatore" tono="pericolo">
+                {{ erroreVisualizzatore }}
+              </BaseAlert>
+              <BaseButton class="w-fit" @click="aggiungiVisualizzatore">Aggiungi</BaseButton>
+
+              <ul
+                v-if="configurazione.visualizzatoriPersonali.length"
+                class="flex flex-col gap-2 text-sm"
+              >
+                <li
+                  v-for="c in configurazione.visualizzatoriPersonali"
+                  :key="c.id"
+                  class="flex flex-wrap items-center gap-2"
+                >
+                  <span class="flex-1 truncate">{{ c.nome }}</span>
+                  <code class="truncate text-xs text-[var(--testo-tenue)]">{{ c.template }}</code>
+                  <BaseButton
+                    size="sm"
+                    variant="fantasma"
+                    @click="configurazione.rimuoviVisualizzatore(c.id)"
+                  >
+                    Togli
+                  </BaseButton>
+                </li>
+              </ul>
+            </div>
+          </details>
+        </div>
       </BaseCard>
 
       <!-- ─────────── Strategia di pubblicazione ─────────── -->

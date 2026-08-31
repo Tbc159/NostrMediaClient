@@ -37,13 +37,10 @@ const azione = computed(() => azionePerEvento(props.evento))
 const propria = computed(() => identita.pubkey === props.evento.pubkey)
 const mostraAzione = computed(() => props.azioni && propria.value)
 
-const slots = useSlots()
 /*
- * Il pie' di pagina compare anche sugli eventi altrui quando il kind offre
- * un'azione propria: rispondere a un invito riguarda proprio gli eventi che
- * non sono tuoi.
+ * Il pie' di pagina c'e' sempre: «Apri in…» vale per qualunque evento, anche
+ * altrui, mentre le azioni di modifica restano riservate ai propri.
  */
-const mostraPiede = computed(() => mostraAzione.value || Boolean(slots.azioni))
 
 const spiegazione = ref(false)
 // Il tipo 'modifica' non porta un avviso: il template non puo' restringere
@@ -64,11 +61,20 @@ const avviso = computed(() => ('avviso' in azione.value ? azione.value.avviso : 
     <slot />
 
     <ClientOnly>
-      <footer
-        v-if="mostraPiede"
-        class="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 border-t pt-2 text-xs"
-      >
+      <footer class="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 border-t pt-2 text-xs">
         <slot name="azioni" />
+
+        <!--
+          Sempre presente, anche sugli eventi altrui: guardare come appare una
+          pubblicazione in un altro client e' utile a prescindere da chi l'ha
+          scritta.
+        -->
+        <!--
+          Il nome comprende il prefisso della cartella: Nuxt ricava il nome del
+          componente dal percorso, e `<ApriEsterno>` verrebbe reso come un
+          elemento sconosciuto, senza errori e senza funzionare.
+        -->
+        <EventApriEsterno :evento="evento" />
 
         <NuxtLink
           v-if="mostraAzione && azione.tipo === 'modifica'"
