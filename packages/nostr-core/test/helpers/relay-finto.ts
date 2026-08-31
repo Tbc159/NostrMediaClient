@@ -33,7 +33,32 @@ export async function avviaRelayFinto(modo: ModoRelay = { tipo: 'accetta' }): Pr
   await new Promise<void>((risolvi) => wss.once('listening', risolvi))
   const porta = (wss.address() as { port: number }).port
 
+  /*
+   * Sottoscrizioni aperte, per consegnare in tempo reale.
+   *
+   * Un relay che risponde solo con cio' che ha gia' in archivio basta a
+   * provare la pubblicazione, ma non un dialogo: NIP-46 e' fatto di richieste
+   * e risposte che si incrociano su un relay mentre entrambe le parti stanno
+   * ascoltando. Senza consegna immediata il banco di firma non vedrebbe mai
+   * arrivare nulla.
+   */
+  const sottoscrizioni: { ws: WebSocket; id: string; filtri: Filtro[] }[] = []
+
+  const consegna = (evento: NostrEvent): void => {
+    for (const s of sottoscrizioni) {
+      if (s.ws.readyState !== s.ws.OPEN) continue
+      if (!s.filtri.some((f) => corrisponde(evento, f))) continue
+      s.ws.send(JSON.stringify(['EVENT', s.id, evento]))
+    }
+  }
+
   wss.on('connection', (ws: WebSocket) => {
+    ws.on('close', () => {
+      for (let i = sottoscrizioni.length - 1; i >= 0; i--) {
+        if (sottoscrizioni[i]?.ws === ws) sottoscrizioni.splice(i, 1)
+      }
+    })
+
     ws.on('message', (grezzo) => {
       let messaggio: unknown
       try {
@@ -53,6 +78,8 @@ export async function avviaRelayFinto(modo: ModoRelay = { tipo: 'accetta' }): Pr
         }
         const nota = memorizza(eventi, evento)
         ws.send(JSON.stringify(['OK', evento.id, true, nota]))
+        // Un duplicato non si ridistribuisce: chi ascolta lo ha gia' avuto.
+        if (nota === '') consegna(evento)
         return
       }
 
@@ -64,10 +91,18 @@ export async function avviaRelayFinto(modo: ModoRelay = { tipo: 'accetta' }): Pr
           .sort((a, b) => b.created_at - a.created_at)
         for (const e of trovati) ws.send(JSON.stringify(['EVENT', id, e]))
         ws.send(JSON.stringify(['EOSE', id]))
+        // Registrata **dopo** l'EOSE: la sottoscrizione resta aperta e ricevera'
+        // quello che arriva da qui in avanti.
+        sottoscrizioni.push({ ws, id, filtri })
         return
       }
 
-      if (tipo === 'CLOSE') ws.send(JSON.stringify(['CLOSED', messaggio[1], '']))
+      if (tipo === 'CLOSE') {
+        const id = messaggio[1] as string
+        const i = sottoscrizioni.findIndex((s) => s.ws === ws && s.id === id)
+        if (i >= 0) sottoscrizioni.splice(i, 1)
+        ws.send(JSON.stringify(['CLOSED', id, '']))
+      }
     })
   })
 

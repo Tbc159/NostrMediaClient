@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { getKindDefinition } from '@nmc/nostr-core'
+import { getKindDefinition, type Firmatario } from '@nmc/nostr-core'
+import { useDeleghe } from '~/stores/deleghe'
 
 useHead({ title: 'Carica media · NostrMediaClient' })
 
 const identita = useIdentity()
+const deleghe = useDeleghe()
 const upload = useUpload()
 const bozza = useEventDraft()
 const esistente = useEventoEsistente()
@@ -85,6 +87,42 @@ const formati = computed<{ id: Formato; kind: number; etichetta: string; nota: s
 })
 
 const kindScelto = computed(() => formati.value.find((f) => f.id === formato.value)?.kind ?? 1)
+
+/*
+ * Chi firmera' l'evento: la propria chiave, oppure una delega NIP-46.
+ *
+ * Non e' una preferenza: con una delega l'evento esce con la `pubkey` di un
+ * altro, e per Nostr l'autore e' quello. Serve al caso per cui NIP-F4 lascia
+ * scoperti tutti gli altri — il podcast *e'* una chiave, quindi chi prepara
+ * gli episodi senza possederla non ha altro modo di pubblicarli a suo nome.
+ */
+const firmaCon = ref('')
+
+onMounted(() => deleghe.carica())
+
+const delegaScelta = computed(() =>
+  firmaCon.value ? deleghe.elenco.find((d) => d.pubkey === firmaCon.value) : undefined,
+)
+
+const scelteFirma = computed(() => [
+  { value: '', label: 'La mia chiave' },
+  ...deleghe.elenco.map((d) => ({ value: d.pubkey, label: d.etichetta })),
+])
+
+const firmatario = computed<Firmatario | undefined>(() => {
+  const pubkey = firmaCon.value
+  if (!pubkey) return undefined
+  return {
+    pubkey: () => Promise.resolve(pubkey),
+    firma: (template) => deleghe.firma(pubkey, template),
+  }
+})
+
+// Cambiando firmatario la firma gia' ottenuta non vale piu': e' di un'altra
+// identita'. Tenerla porterebbe a pubblicare a nome di chi non si era scelto.
+watch(firmaCon, () => {
+  bozza.firmato.value = null
+})
 
 const listaHashtag = computed(() =>
   hashtag.value
@@ -646,6 +684,23 @@ onMounted(() => {
             volta.
           </BaseAlert>
 
+          <BaseField
+            v-if="deleghe.elenco.length"
+            label="Chi firma"
+            hint="Con una delega l’evento esce a nome dell’altra identità: dall’altra parte una persona deve approvarlo."
+          >
+            <template #default="{ id }">
+              <BaseSelect :id="id" v-model="firmaCon" :options="scelteFirma" />
+            </template>
+          </BaseField>
+
+          <BaseAlert v-if="delegaScelta" tono="avviso">
+            L’evento risulterà pubblicato da
+            <strong>{{ delegaScelta.etichetta }}</strong>
+            e non comparirà fra i tuoi: per Nostr non è tuo. Se il banco è chiuso o la richiesta
+            viene rifiutata, la firma non arriva e non si pubblica nulla.
+          </BaseAlert>
+
           <div class="flex flex-wrap gap-2">
             <BaseButton type="submit" variant="primario">Componi evento</BaseButton>
             <BaseButton
@@ -653,9 +708,11 @@ onMounted(() => {
               variant="primario"
               :loading="bozza.inCorso.value || bozza.invio.inCorso.value"
               :disabled="!identita.puoFirmare"
-              @click="bozza.firmaEPubblica()"
+              @click="bozza.firmaEPubblica(firmatario)"
             >
-              {{ bozza.firmato.value ? 'Pubblica' : 'Firma e pubblica' }}
+              <template v-if="bozza.firmato.value">Pubblica</template>
+              <template v-else-if="delegaScelta">Chiedi la firma e pubblica</template>
+              <template v-else>Firma e pubblica</template>
             </BaseButton>
           </div>
 
