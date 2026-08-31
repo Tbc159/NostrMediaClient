@@ -1,5 +1,7 @@
 # NostrMediaClient
 
+**Live: <https://tbc159.github.io/NostrMediaClient/>**
+
 A web client for **managing your own content on Nostr** — your media, your
 articles, your calendar events — rather than for scrolling other people's.
 
