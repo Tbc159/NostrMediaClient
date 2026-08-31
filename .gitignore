@@ -1,5 +1,8 @@
 node_modules/
-dist/
+# Senza slash: `nuxt generate` lascia un symlink `dist` verso .output/public, e
+# `dist/` con lo slash vale solo per le cartelle. Un symlink assoluto committato
+# punterebbe al disco di chi ha fatto la build.
+dist
 .output/
 .nuxt/
 .nitro/
