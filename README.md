@@ -21,15 +21,15 @@ each relay actually did with it.
 
 ## What it does today
 
-| Area      | Kinds               | What you can do                                                                   |
-| --------- | ------------------- | --------------------------------------------------------------------------------- |
-| Notes     | 1                   | write, sign, publish                                                              |
-| Media     | 20, 21, 22, 1063    | upload to Blossom, preview, publish galleries, video and file cards               |
-| Long-form | 30023               | Markdown editor with preview, edit published articles in place                    |
-| Drafts    | 31234, 10013        | encrypted drafts that follow you across devices (NIP-37), plus browser-local ones |
-| Calendar  | 31922, 31923, 31925 | date and time events with real timezone handling, RSVPs                           |
-| Profile   | 0                   | edit your profile, loaded from relays before it is replaced                       |
-| Viewing   | —                   | open any event in an external reading client, chosen per device                   |
+| Area      | Kinds                   | What you can do                                                                                                        |
+| --------- | ----------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Notes     | 1                       | write, sign, publish                                                                                                   |
+| Media     | 1, 20, 21, 22, 54, 1063 | upload to Blossom, then publish as a note with attachment, an image, a video, a podcast episode, or a catalogue record |
+| Long-form | 30023                   | Markdown editor with preview, edit published articles in place                                                         |
+| Drafts    | 31234, 10013            | encrypted drafts that follow you across devices (NIP-37), plus browser-local ones                                      |
+| Calendar  | 31922, 31923, 31925     | date and time events with real timezone handling, RSVPs                                                                |
+| Profile   | 0                       | edit your profile, loaded from relays before it is replaced                                                            |
+| Viewing   | —                       | open any event in an external reading client, chosen per device                                                        |
 
 Anything the client can publish, it can also list and — where the protocol
 allows it — reopen and correct.

@@ -35,32 +35,56 @@ const conAvviso = ref(false)
  * picture-first filtra per kind 20 e non mostrerà mai un 1063, e viceversa un
  * client di file non impagina gallerie.
  */
-type Formato = 'immagini' | 'video' | 'video-corto' | 'file'
-const formato = ref<Formato>('immagini')
+type Formato = 'nota' | 'immagini' | 'video' | 'video-corto' | 'podcast' | 'file'
+const formato = ref<Formato>('nota')
 
-const formati: { id: Formato; kind: number; etichetta: string; nota: string }[] = [
-  {
-    id: 'immagini',
-    kind: 20,
-    etichetta: 'Galleria di immagini',
-    nota: 'Kind 20. Le immagini sono il contenuto, non un allegato al testo.',
-  },
-  { id: 'video', kind: 21, etichetta: 'Video', nota: 'Kind 21. Orizzontale, di durata piena.' },
-  {
-    id: 'video-corto',
-    kind: 22,
-    etichetta: 'Video corto',
-    nota: 'Kind 22. Short verticali. La distinzione è di formato, non tecnica.',
-  },
-  {
-    id: 'file',
-    kind: 1063,
-    etichetta: 'Scheda file',
-    nota: 'Kind 1063. Una scheda per file, interrogabile per hash.',
-  },
-]
+/**
+ * Con quale kind pubblicare.
+ *
+ * Non è una preferenza estetica: **cambia chi vedrà il post**. I kind media
+ * dedicati sono più precisi, ma li mostra solo chi li filtra; una nota con
+ * allegato la rende qualunque client sociale. Per questo l'elenco parte da lì.
+ */
+const formati = computed<{ id: Formato; kind: number; etichetta: string; nota: string }[]>(() => {
+  const quanti = upload.media.value.length
+  const uno = quanti <= 1
 
-const kindScelto = computed(() => formati.find((f) => f.id === formato.value)?.kind ?? 20)
+  return [
+    {
+      id: 'nota',
+      kind: 1,
+      etichetta: uno ? 'Nota con allegato' : `Nota con ${quanti} allegati`,
+      nota: 'Kind 1. La mostra qualunque client sociale: è il modo più sicuro perché il file venga visto. L’indirizzo finisce anche nel testo, come vuole NIP-92.',
+    },
+    {
+      id: 'immagini',
+      kind: 20,
+      etichetta: uno ? 'Immagine' : `Galleria di ${quanti} immagini`,
+      nota: 'Kind 20. L’immagine è il contenuto, non un allegato al testo. La leggono i client dedicati alle immagini.',
+    },
+    { id: 'video', kind: 21, etichetta: 'Video', nota: 'Kind 21. Orizzontale, di durata piena.' },
+    {
+      id: 'video-corto',
+      kind: 22,
+      etichetta: 'Video corto',
+      nota: 'Kind 22. Short verticali. La distinzione è di formato, non tecnica.',
+    },
+    {
+      id: 'podcast',
+      kind: 54,
+      etichetta: 'Episodio di podcast',
+      nota: 'Kind 54 (NIP-F4). L’unico kind audio standardizzato. Attenzione: per NIP-F4 il podcast è la chiave stessa, quindi la tua identità diventa il podcast.',
+    },
+    {
+      id: 'file',
+      kind: 1063,
+      etichetta: 'Solo scheda del file',
+      nota: 'Kind 1063. Una voce di catalogo interrogabile per hash, non un post: NIP-94 dice che i client sociali non sono tenuti a mostrarla. Utile per indicizzare un file, non per farlo vedere.',
+    },
+  ]
+})
+
+const kindScelto = computed(() => formati.value.find((f) => f.id === formato.value)?.kind ?? 1)
 
 const listaHashtag = computed(() =>
   hashtag.value
@@ -69,7 +93,13 @@ const listaHashtag = computed(() =>
     .filter(Boolean),
 )
 
-/** Il formato si adegua a quello che è stato scelto, restando modificabile. */
+/*
+ * Il formato si adegua al tipo di file, restando modificabile.
+ *
+ * Per audio e per tutto il resto il valore predefinito è la nota con allegato,
+ * non il kind dedicato: e' l'unico che si vede ovunque, e un default che
+ * pubblica qualcosa che nessuno mostra sarebbe una trappola.
+ */
 watch(
   () => upload.media.value.length,
   () => {
@@ -77,7 +107,7 @@ watch(
     if (!primo) return
     if (primo.mime.startsWith('image/')) formato.value = 'immagini'
     else if (primo.mime.startsWith('video/')) formato.value = 'video'
-    else formato.value = 'file'
+    else formato.value = 'nota'
   },
 )
 
@@ -120,6 +150,25 @@ function componi(): void {
     ...(conAvviso.value && avvisoContenuto.value.trim()
       ? { contentWarning: avvisoContenuto.value.trim() }
       : {}),
+  }
+
+  if (kindScelto.value === 1) {
+    bozza.costruisci(definizione, {
+      content: descrizione.value.trim(),
+      attachments: allegati,
+      ...(listaHashtag.value.length ? { hashtags: listaHashtag.value } : {}),
+    })
+    return
+  }
+
+  if (kindScelto.value === 54) {
+    bozza.costruisci(definizione, {
+      title: titolo.value.trim(),
+      content: descrizione.value.trim(),
+      ...(descrizione.value.trim() ? { description: descrizione.value.trim() } : {}),
+      audio: allegati.map((a) => ({ url: a.url, ...(a.mime ? { mime: a.mime } : {}) })),
+    })
+    return
   }
 
   if (kindScelto.value === 20) {
@@ -450,20 +499,49 @@ onMounted(() => {
               </label>
             </fieldset>
 
+            <BaseAlert v-if="formato === 'nota'" tono="info">
+              Una nota non ha titolo: quello che scrivi in «descrizione» è il testo della nota, e
+              l’indirizzo del file viene aggiunto in coda perché i client lo trasformino in
+              anteprima.
+            </BaseAlert>
+
+            <BaseAlert v-else-if="formato === 'podcast'" tono="avviso">
+              Per NIP-F4
+              <strong>il podcast è la chiave stessa</strong>
+              : pubblicando un episodio con questa identità, questa identità
+              <em>diventa</em>
+              il podcast. I lettori si aspettano anche una descrizione dello show, che si compone
+              dal
+              <NuxtLink to="/profilo" class="underline">profilo</NuxtLink>
+              .
+            </BaseAlert>
+
+            <BaseAlert v-else-if="formato === 'file'" tono="avviso">
+              NIP-94 dice che i client sociali non sono tenuti a mostrare il kind 1063: serve a
+              indicizzare un file, non a farlo vedere. Se vuoi che qualcuno lo veda, scegli «nota
+              con allegato».
+            </BaseAlert>
+
             <BaseField
+              v-if="formato !== 'nota'"
               v-slot="{ id, describedBy }"
               label="Titolo"
-              :required="formato === 'video' || formato === 'video-corto'"
+              :required="['video', 'video-corto', 'podcast'].includes(formato)"
               :hint="
-                formato === 'video' || formato === 'video-corto'
-                  ? 'Obbligatorio per i video: lo richiede NIP-71.'
-                  : undefined
+                formato === 'podcast'
+                  ? 'Obbligatorio: è come si trova l’episodio in un lettore di podcast.'
+                  : formato === 'video' || formato === 'video-corto'
+                    ? 'Obbligatorio per i video: lo richiede NIP-71.'
+                    : undefined
               "
             >
               <BaseInput :id="id" v-model="titolo" :described-by="describedBy" />
             </BaseField>
 
-            <BaseField v-slot="{ id, describedBy }" label="Descrizione">
+            <BaseField
+              v-slot="{ id, describedBy }"
+              :label="formato === 'nota' ? 'Testo della nota' : 'Descrizione'"
+            >
               <BaseTextarea :id="id" v-model="descrizione" :rows="3" :described-by="describedBy" />
             </BaseField>
 

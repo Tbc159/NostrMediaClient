@@ -53,7 +53,10 @@ async function carica(): Promise<void> {
 }
 
 onMounted(() => {
-  if (identita.pubkey) void carica()
+  if (identita.pubkey) {
+    void carica()
+    void caricaPodcast()
+  }
 })
 watch(
   () => identita.pubkey,
@@ -79,6 +82,55 @@ function componi(): void {
     nip05: nip05.value.trim() || undefined,
     lud16: lud16.value.trim() || undefined,
     bot: bot.value || undefined,
+  })
+}
+
+// ─── Podcast (NIP-F4) ──────────────────────────────────────────────────────
+/*
+ * Sta qui e non nella sezione media perche' NIP-F4 modella ogni podcast come
+ * una *chiave a se'*: la scheda dello show appartiene all'identita', non a un
+ * singolo episodio. I lettori di podcast leggono questa e possono ignorare del
+ * tutto il kind 0.
+ */
+const bozzaPodcast = useEventDraft()
+const podcastEsistente = useEventoEsistente()
+
+const podcastTitolo = ref('')
+const podcastDescrizione = ref('')
+const podcastImmagine = ref('')
+const podcastSito = ref('')
+const haPodcast = ref(false)
+const mostraPodcast = ref(false)
+
+async function caricaPodcast(): Promise<void> {
+  const trovato = await podcastEsistente.perCoordinata(10154)
+  if (!trovato) return
+  const definizione = getKindDefinition(10154)
+  if (!definizione) return
+  try {
+    const dati = definizione.parse(trovato)
+    podcastTitolo.value = dati.title
+    podcastDescrizione.value = dati.description ?? ''
+    podcastImmagine.value = dati.image ?? ''
+    podcastSito.value = dati.websites[0] ?? ''
+    haPodcast.value = true
+    mostraPodcast.value = true
+  } catch {
+    // Scheda malformata: si lascia il form vuoto invece di bloccare il profilo.
+  }
+}
+
+function componiPodcast(): void {
+  const definizione = getKindDefinition(10154)
+  if (!definizione) {
+    bozzaPodcast.errore.value = 'Kind 10154 non registrato.'
+    return
+  }
+  bozzaPodcast.costruisci(definizione, {
+    title: podcastTitolo.value.trim(),
+    ...(podcastDescrizione.value.trim() ? { description: podcastDescrizione.value.trim() } : {}),
+    ...(podcastImmagine.value.trim() ? { image: podcastImmagine.value.trim() } : {}),
+    ...(podcastSito.value.trim() ? { websites: [podcastSito.value.trim()] } : {}),
   })
 }
 
@@ -180,6 +232,92 @@ const valori = { nome, nomeVisualizzato, immagine, copertina, sito, nip05, lud16
 
         <BaseCard v-if="bozza.invio.esito.value" title="Esito della pubblicazione">
           <PublishResult :esito="bozza.invio.esito.value" />
+        </BaseCard>
+
+        <!-- ─────────── Podcast (NIP-F4) ─────────── -->
+        <BaseCard
+          title="Podcast"
+          subtitle="Kind 10154. Serve solo se pubblichi episodi: i lettori di podcast leggono questa scheda e ignorano il profilo."
+        >
+          <details
+            :open="mostraPodcast"
+            @toggle="mostraPodcast = ($event.target as HTMLDetailsElement).open"
+          >
+            <summary class="cursor-pointer text-sm">
+              {{
+                haPodcast
+                  ? 'Modifica la scheda del podcast'
+                  : 'Dichiara un podcast su questa chiave'
+              }}
+            </summary>
+
+            <form class="mt-4 flex flex-col gap-4" @submit.prevent="componiPodcast">
+              <BaseAlert tono="avviso">
+                Per NIP-F4
+                <strong>il podcast è la chiave stessa</strong>
+                : questa scheda dice che
+                <em>questa identità</em>
+                è un podcast. Se preferisci tenerlo separato dalla tua identità personale, crea una
+                chiave dedicata e usa quella.
+              </BaseAlert>
+
+              <BaseField v-slot="{ id, describedBy }" label="Titolo del podcast" required>
+                <BaseInput :id="id" v-model="podcastTitolo" :described-by="describedBy" />
+              </BaseField>
+
+              <BaseField v-slot="{ id, describedBy }" label="Descrizione">
+                <BaseTextarea
+                  :id="id"
+                  v-model="podcastDescrizione"
+                  :rows="3"
+                  :described-by="describedBy"
+                />
+              </BaseField>
+
+              <BaseField
+                v-slot="{ id, describedBy }"
+                label="Copertina"
+                hint="URL. Puoi caricarla dalla sezione media."
+              >
+                <BaseInput
+                  :id="id"
+                  v-model="podcastImmagine"
+                  placeholder="https://…"
+                  :described-by="describedBy"
+                />
+              </BaseField>
+
+              <BaseField v-slot="{ id, describedBy }" label="Sito">
+                <BaseInput :id="id" v-model="podcastSito" :described-by="describedBy" />
+              </BaseField>
+
+              <div class="flex flex-wrap gap-2">
+                <BaseButton type="submit" variant="primario" :disabled="!podcastTitolo.trim()">
+                  Componi evento
+                </BaseButton>
+                <BaseButton
+                  v-if="bozzaPodcast.template.value"
+                  variant="primario"
+                  :loading="bozzaPodcast.inCorso.value || bozzaPodcast.invio.inCorso.value"
+                  :disabled="!identita.puoFirmare"
+                  @click="bozzaPodcast.firmaEPubblica()"
+                >
+                  {{ bozzaPodcast.firmato.value ? 'Pubblica' : 'Firma e pubblica' }}
+                </BaseButton>
+              </div>
+
+              <PublishProgress :invio="bozzaPodcast.invio" />
+
+              <BaseAlert v-if="bozzaPodcast.errore.value" tono="pericolo">
+                {{ bozzaPodcast.errore.value }}
+              </BaseAlert>
+
+              <PublishResult
+                v-if="bozzaPodcast.invio.esito.value"
+                :esito="bozzaPodcast.invio.esito.value"
+              />
+            </form>
+          </details>
         </BaseCard>
 
         <BaseCard v-if="bozza.template.value" title="Evento">

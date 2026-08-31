@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { buildImetaTag, imetaOf, imetaSchema, type ImetaInput } from '../imeta.js'
 import { defineKind } from '../registry.js'
 import { normalizeHashtag, repeatedTags, tagValues, tagsNamed } from '../tags.js'
 import type { NostrEvent } from '../types.js'
@@ -25,6 +26,8 @@ export const noteParsedSchema = z.object({
   quotes: z.array(z.string()),
   /** Hashtag (tag `t`), gia' normalizzati. */
   hashtags: z.array(z.string()),
+  /** Allegati dichiarati con `imeta` (NIP-92). */
+  attachments: z.array(imetaSchema),
 })
 
 export type NoteParsed = z.infer<typeof noteParsedSchema>
@@ -43,6 +46,14 @@ export interface NoteInput {
   hashtags?: string[]
   /** Pubkey da menzionare oltre a quelle ereditate dal thread. */
   mentions?: string[]
+  /**
+   * Allegati (NIP-92).
+   *
+   * Una nota con un allegato e' l'unico modo di pubblicare un file che
+   * *qualunque* client sociale mostra: i kind media dedicati (20, 21, 22) sono
+   * piu' precisi ma vengono letti solo da chi li filtra.
+   */
+  attachments?: ImetaInput[]
 }
 
 export interface NoteReplyTarget {
@@ -112,6 +123,7 @@ export const noteDefinition = defineKind<NoteParsed, NoteInput>({
       mentions: tagValues(event, 'p'),
       quotes: tagValues(event, 'q'),
       hashtags: tagValues(event, 't').map(normalizeHashtag),
+      attachments: imetaOf(event),
     })
   },
 
@@ -139,13 +151,27 @@ export const noteDefinition = defineKind<NoteParsed, NoteInput>({
 
     if (input.quoteId) tags.push(['q', input.quoteId])
 
+    /*
+     * NIP-92: «Each imeta tag SHOULD match a URL in the event content».
+     * Un allegato dichiarato solo nel tag non verrebbe mostrato da nessuno: i
+     * client cercano l'URL nel testo e lo sostituiscono con l'anteprima. Le
+     * url mancanti si aggiungono in coda invece di lasciare la nota muta.
+     */
+    let contenuto = input.content
+    for (const allegato of input.attachments ?? []) {
+      tags.push(buildImetaTag(allegato))
+      if (!contenuto.includes(allegato.url)) {
+        contenuto = contenuto.trim() === '' ? allegato.url : `${contenuto}\n\n${allegato.url}`
+      }
+    }
+
     if (input.hashtags?.length) {
       tags.push(...repeatedTags('t', input.hashtags.map(normalizeHashtag)))
     }
 
     return {
       kind: 1,
-      content: input.content,
+      content: contenuto,
       tags,
       created_at: ctx.now,
     }

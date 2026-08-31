@@ -72,6 +72,16 @@ const renderer = computed(() => {
     :evento="evento"
     :dati="(analisi as { dati: any }).dati"
   />
+  <EventPodcastCard
+    v-else-if="renderer === 'podcast'"
+    :evento="evento"
+    :dati="(analisi as { dati: any }).dati"
+  />
+  <EventPodcastShowCard
+    v-else-if="renderer === 'podcast-show'"
+    :evento="evento"
+    :dati="(analisi as { dati: any }).dati"
+  />
   <EventRawCard
     v-else
     :evento="evento"

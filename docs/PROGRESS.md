@@ -153,19 +153,19 @@ in un calendario interessa quando l'evento accade, non quando e' stato scritto.
 
 ### Sezioni disponibili
 
-| Rotta              | Kind             | Cosa fa                                                    |
-| ------------------ | ---------------- | ---------------------------------------------------------- |
-| `/`                | tutti            | i tuoi eventi, con filtro per tipo                         |
-| `/scrivi`          | 1                | composer, firma e pubblica                                 |
-| `/media`           | 20, 21, 22, 1063 | i tuoi media                                               |
-| `/media/nuovo`     | idem             | upload Blossom, anteprima, `imeta`, pubblicazione          |
-| `/articoli`        | 30023, 30024     | i tuoi articoli, con le bozze locali e cifrate             |
-| `/articoli/nuovo`  | 30023            | editor Markdown con anteprima sanificata                   |
-| `/calendario`      | 31922, 31923     | i tuoi eventi, divisi in programma / gia' svolti           |
-| `/calendario/rsvp` | 31925            | rispondi a un invito o cambia la risposta                  |
-| `/profilo`         | 0                | il tuo profilo, caricato dai relay prima di sostituirlo    |
-| `/impostazioni`    | —                | accesso, endpoint modificabili, strategia di pubblicazione |
-| `/diagnostica`     | —                | verifica di relay e server Blossom                         |
+| Rotta              | Kind                    | Cosa fa                                                    |
+| ------------------ | ----------------------- | ---------------------------------------------------------- |
+| `/`                | tutti                   | i tuoi eventi, con filtro per tipo                         |
+| `/scrivi`          | 1                       | composer, firma e pubblica                                 |
+| `/media`           | 1, 20, 21, 22, 54, 1063 | i tuoi media                                               |
+| `/media/nuovo`     | idem                    | upload Blossom, anteprima, `imeta`, pubblicazione          |
+| `/articoli`        | 30023, 30024            | i tuoi articoli, con le bozze locali e cifrate             |
+| `/articoli/nuovo`  | 30023                   | editor Markdown con anteprima sanificata                   |
+| `/calendario`      | 31922, 31923            | i tuoi eventi, divisi in programma / gia' svolti           |
+| `/calendario/rsvp` | 31925                   | rispondi a un invito o cambia la risposta                  |
+| `/profilo`         | 0                       | il tuo profilo, caricato dai relay prima di sostituirlo    |
+| `/impostazioni`    | —                       | accesso, endpoint modificabili, strategia di pubblicazione |
+| `/diagnostica`     | —                       | verifica di relay e server Blossom                         |
 
 La schermata `/` mostra **ogni kind che il client sa pubblicare**, con i filtri
 per tipo e i relativi conteggi. L'elenco arriva da `publishableKinds()` e non da
@@ -351,6 +351,46 @@ server _secondario_ non risponde.
 Invariante rispettata: **se il caricamento fallisce non si pubblica nulla**. Un
 `imeta` che punta al vuoto resta pubblicato per sempre, e il kind 20 e'
 regolare, quindi non correggibile.
+
+### Con quale kind pubblicare un media
+
+Sei modi, e la scelta **cambia chi vedra' il post**, non l'aspetto. E' il punto
+meno intuitivo di tutta la sezione:
+
+| Modo                 | Kind   | Chi lo mostra                                                                   |
+| -------------------- | ------ | ------------------------------------------------------------------------------- |
+| Nota con allegato    | 1      | **qualunque client sociale** (NIP-92 `imeta`)                                   |
+| Immagine / galleria  | 20     | client dedicati alle immagini (NIP-68)                                          |
+| Video / video corto  | 21, 22 | client video (NIP-71)                                                           |
+| Episodio di podcast  | 54     | lettori di podcast (NIP-F4)                                                     |
+| Solo scheda del file | 1063   | **quasi nessuno**: NIP-94 dice che i client sociali non sono tenuti a mostrarla |
+
+Il predefinito e' la **nota con allegato** per audio e per tutto cio' che non e'
+immagine o video. Un default che pubblica qualcosa che nessuno mostra sarebbe
+una trappola, ed e' esattamente quello che faceva prima ricadendo sul 1063.
+
+Etichette corrette di conseguenza: «Galleria di immagini» diventa «Immagine»
+quando il file e' uno solo, e «Scheda file» diventa «Solo scheda del file» con
+scritto a cosa serve davvero — indicizzare, non far vedere.
+
+**Audio.** Nell'indice dei NIP non esiste un kind generico per un brano o un
+file audio: l'unico standardizzato e' il **kind 54 di NIP-F4**, l'episodio di
+podcast. Chi vuole solo condividere un audio usa la nota con allegato.
+
+Due particolarita' di NIP-F4 che l'interfaccia dichiara:
+
+1. **Il podcast e' la chiave stessa.** Gli episodi sono firmati direttamente
+   dalla chiave del podcast, senza un livello intermedio: pubblicando un kind 54
+   con la propria identita' personale, quell'identita' _diventa_ il podcast. La
+   scheda dello show (kind 10154) si compone dal profilo, per la stessa ragione.
+2. **L'audio si dichiara con un tag `audio`, non con `imeta`.** Niente hash e
+   niente dimensione: chi ascolta non puo' verificare che il file sia quello
+   pubblicato. E' la specifica a volerlo cosi'.
+
+La nota con allegato mette l'URL **anche nel content**, perche' NIP-92 dice che
+ogni `imeta` dovrebbe corrispondere a un URL nel testo: i client cercano
+l'indirizzo li' e lo sostituiscono con l'anteprima. Un allegato dichiarato solo
+nel tag non lo mostrerebbe nessuno.
 
 ### Il flusso dei media, in tre momenti
 

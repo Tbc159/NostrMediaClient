@@ -12,10 +12,12 @@ import { getKindDefinition } from '@nmc/nostr-core'
 const etichette: Record<number, string> = {
   0: 'profilo',
   1: 'note',
+  54: 'episodi podcast',
   20: 'gallerie',
   21: 'video',
   22: 'video corti',
   1063: 'schede file',
+  10154: 'descrizione podcast',
   30023: 'articoli',
   30024: 'bozze legacy',
   31922: 'eventi su data',
