@@ -8,7 +8,9 @@ import {
   linkEventoEsterno,
   nip19PointerFor,
   risolviClient,
+  tipoPuntatorePer,
   validaTemplate,
+  type ClientEsterno,
 } from '../src/clients/index.js'
 import type { NostrEvent } from '../src/kinds/types.js'
 
@@ -90,19 +92,65 @@ describe('composizione del link', () => {
     expect(() => componiLinkEsterno('https://esempio.tld/', 'nevent1abc')).toThrow(/\{pointer\}/)
   })
 
-  it('conserva l' + "'hash dei client a pagina singola", () => {
-    // noStrudel instrada dall'hash: perderlo manderebbe su una pagina vuota.
-    const link = linkEventoEsterno(
-      'https://nostrudel.ninja/#/n/{pointer}',
-      evento({ kind: 1 }),
-      RELAYS,
-    )
-    expect(link).toMatch(/^https:\/\/nostrudel\.ninja\/#\/n\/nevent1/)
+  it('conserva un modello passato come stringa, per l' + "'anteprima nelle impostazioni", () => {
+    const link = linkEventoEsterno('https://esempio.tld/x/{pointer}', evento({ kind: 1 }), RELAYS)
+    expect(link).toMatch(/^https:\/\/esempio\.tld\/x\/nevent1/)
   })
 
   it('compone lo schema nostr: di NIP-21', () => {
     const link = linkEventoEsterno('nostr:{pointer}', evento({ kind: 1 }))
     expect(link).toMatch(/^nostr:nevent1/)
+  })
+})
+
+describe('percorsi che dipendono dalla forma del puntatore', () => {
+  const preset = (id: string): ClientEsterno =>
+    clientEsterniPredefiniti.find((c) => c.id === id) as ClientEsterno
+
+  it('sceglie la forma giusta per ogni classe di evento', () => {
+    expect(tipoPuntatorePer(evento({ kind: 0 }))).toBe('nprofile')
+    expect(tipoPuntatorePer(evento({ kind: 30023, tags: [['d', 'x']] }))).toBe('naddr')
+    expect(tipoPuntatorePer(evento({ kind: 1 }))).toBe('nevent')
+    expect(tipoPuntatorePer(evento({ kind: 54 }))).toBe('nevent')
+  })
+
+  it('noStrudel usa /l/, che smista da solo le tre forme', () => {
+    // Il percorso /n/ e' la vista di una *nota*: con un naddr risponde
+    // «Unknown type naddr», e con un nprofile «Unknown type nprofile».
+    // Verificato caricando entrambi i percorsi in un browser.
+    for (const e of [
+      evento({ kind: 1 }),
+      evento({ kind: 0 }),
+      evento({ kind: 30023, tags: [['d', 'x']] }),
+    ]) {
+      expect(linkEventoEsterno(preset('nostrudel'), e, RELAYS)).toMatch(
+        /^https:\/\/nostrudel\.ninja\/l\//,
+      )
+    }
+  })
+
+  it('Primal manda i profili su /p/ e tutto il resto su /e/', () => {
+    // /e/ con un nprofile restituisce «404 Page not found».
+    expect(linkEventoEsterno(preset('primal'), evento({ kind: 0 }), RELAYS)).toMatch(
+      /^https:\/\/primal\.net\/p\/nprofile1/,
+    )
+    expect(linkEventoEsterno(preset('primal'), evento({ kind: 1 }), RELAYS)).toMatch(
+      /^https:\/\/primal\.net\/e\/nevent1/,
+    )
+    expect(
+      linkEventoEsterno(preset('primal'), evento({ kind: 30023, tags: [['d', 'x']] }), RELAYS),
+    ).toMatch(/^https:\/\/primal\.net\/e\/naddr1/)
+  })
+
+  it('un client senza forme a parte usa lo stesso modello per tutto', () => {
+    const generico: ClientEsterno = {
+      id: 'generico',
+      nome: 'Generico',
+      template: 'https://esempio.tld/{pointer}',
+      piattaforme: ['desktop'],
+    }
+    expect(linkEventoEsterno(generico, evento({ kind: 0 }), RELAYS)).toMatch(/\/nprofile1/)
+    expect(linkEventoEsterno(generico, evento({ kind: 1 }), RELAYS)).toMatch(/\/nevent1/)
   })
 })
 

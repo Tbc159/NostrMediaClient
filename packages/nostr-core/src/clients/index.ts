@@ -20,6 +20,15 @@ import type { NostrEvent } from '../kinds/types.js'
 /** Dove il client viene usato. Determina quale preferenza si applica. */
 export type PiattaformaClient = 'desktop' | 'app'
 
+/**
+ * Forma NIP-19 con cui ci si riferisce a un evento dall'esterno.
+ *
+ * Non e' un dettaglio interno: **alcuni client hanno un percorso diverso per
+ * ciascuna forma**, e usare quello sbagliato porta a una pagina d'errore. E'
+ * il caso di Primal, che apre gli eventi da `/e/` e i profili da `/p/`.
+ */
+export type TipoPuntatore = 'nevent' | 'naddr' | 'nprofile'
+
 export interface ClientEsterno {
   id: string
   nome: string
@@ -28,6 +37,14 @@ export interface ClientEsterno {
    * (`nevent`, `naddr` o `nprofile`) dell'evento da aprire.
    */
   template: string
+  /**
+   * Modelli alternativi per le forme che il client tratta a parte.
+   *
+   * Vale la pena averlo perche' il caso esiste davvero: Primal risponde `404`
+   * a `/e/nprofile1…`. Chi non lo dichiara usa `template` per tutto, che e'
+   * quello che fa la maggioranza dei client.
+   */
+  templatePerTipo?: Partial<Record<TipoPuntatore, string>>
   /** Piattaforme per cui ha senso proporlo come predefinito. */
   piattaforme: PiattaformaClient[]
   nota?: string
@@ -36,24 +53,30 @@ export interface ClientEsterno {
 /**
  * Preset verificati contro i client veri, non ricavati dalla documentazione.
  *
- * noStrudel usa un router basato su hash — l'URL passa da `#/` — e Primal
- * risponde sia a `nevent` sia a `note`. Entrambi i formati sono stati provati
- * su un evento reale prima di finire qui.
+ * La verifica e' stata rifatta caricando ogni modello in un browser con
+ * puntatori reali di **tutte e tre** le forme, ed e' cosi' che sono emersi due
+ * difetti che la sola prova con un `nevent` non mostrava: noStrudel risponde
+ * «Unknown type naddr» sul percorso `/n/`, che e' la vista di una nota, e
+ * Primal risponde `404` a un `nprofile` sul percorso `/e/`.
+ *
+ * La lezione, per chi aggiungera' un preset: **provare tutte le forme**. Un
+ * link a una nota che funziona non dice nulla su un link a un articolo.
  */
 export const clientEsterniPredefiniti: readonly ClientEsterno[] = [
   {
     id: 'nostrudel',
     nome: 'noStrudel',
-    template: 'https://nostrudel.ninja/#/n/{pointer}',
+    template: 'https://nostrudel.ninja/l/{pointer}',
     piattaforme: ['desktop'],
-    nota: 'Client web completo. Il percorso passa dall’hash: è un’applicazione a pagina singola.',
+    nota: 'Client web completo. Il percorso /l/ smista da solo note, articoli e profili; /n/ è la sola vista delle note e rifiuta il resto.',
   },
   {
     id: 'primal',
     nome: 'Primal',
     template: 'https://primal.net/e/{pointer}',
+    templatePerTipo: { nprofile: 'https://primal.net/p/{pointer}' },
     piattaforme: ['app', 'desktop'],
-    nota: 'Ha app native: su telefono il link si apre nell’app se è installata.',
+    nota: 'Ha app native: su telefono il link si apre nell’app se è installata. I profili stanno su /p/, gli eventi su /e/.',
   },
   {
     id: 'njump',
@@ -104,6 +127,12 @@ export const CLIENT_PREDEFINITO: Record<PiattaformaClient, string> = {
  * client esterno cerca l'evento solo sui propri relay e spesso non lo trova.
  * E' la differenza pratica fra un link che funziona e uno che apre il vuoto.
  */
+export function tipoPuntatorePer(evento: NostrEvent): TipoPuntatore {
+  if (evento.kind === 0) return 'nprofile'
+  if (classifyKind(evento.kind) === 'addressable') return 'naddr'
+  return 'nevent'
+}
+
 export function nip19PointerFor(evento: NostrEvent, relays: readonly string[] = []): string {
   // Pochi suggerimenti e buoni: alcuni client li interrogano tutti, e un
   // identificatore lunghissimo e' anche sgradevole da condividere.
@@ -144,13 +173,25 @@ export function componiLinkEsterno(template: string, pointer: string): string {
   return modello.replace('{pointer}', pointer)
 }
 
-/** Link diretto a un evento per un client esterno. */
+/** Il modello giusto per questo evento, tenendo conto delle forme trattate a parte. */
+export function templatePerEvento(client: ClientEsterno, evento: NostrEvent): string {
+  return client.templatePerTipo?.[tipoPuntatorePer(evento)] ?? client.template
+}
+
+/**
+ * Link diretto a un evento per un client esterno.
+ *
+ * Accetta il client intero — che e' la forma da preferire, perche' e' l'unica
+ * che sa quali forme quel client tratta a parte — oppure un modello soltanto,
+ * per l'anteprima di un modello scritto a mano che ancora non e' un client.
+ */
 export function linkEventoEsterno(
-  template: string,
+  client: ClientEsterno | string,
   evento: NostrEvent,
   relays: readonly string[] = [],
 ): string {
-  return componiLinkEsterno(template, nip19PointerFor(evento, relays))
+  const modello = typeof client === 'string' ? client : templatePerEvento(client, evento)
+  return componiLinkEsterno(modello, nip19PointerFor(evento, relays))
 }
 
 /**

@@ -90,7 +90,7 @@ const eventoDiEsempio = {
 function anteprimaLink(piattaformaScelta: PiattaformaClient): string {
   try {
     return linkEventoEsterno(
-      configurazione.visualizzatorePer(piattaformaScelta).template,
+      configurazione.visualizzatorePer(piattaformaScelta),
       eventoDiEsempio,
       config.value.valore?.writeRelays ?? [],
     )

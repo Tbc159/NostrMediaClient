@@ -29,7 +29,7 @@ const suggerimenti = computed(() => config.value.valore?.writeRelays ?? [])
 
 const link = computed(() => {
   try {
-    return linkEventoEsterno(client.value.template, props.evento, suggerimenti.value)
+    return linkEventoEsterno(client.value, props.evento, suggerimenti.value)
   } catch {
     // Modello rotto: meglio nascondere il pulsante che offrirne uno inerte.
     return null
