@@ -45,6 +45,15 @@ export interface ClientEsterno {
    * quello che fa la maggioranza dei client.
    */
   templatePerTipo?: Partial<Record<TipoPuntatore, string>>
+  /**
+   * Kind che il client **non sa mostrare**, verificati caricandoli davvero.
+   *
+   * E' dichiarato in negativo di proposito: un kind assente significa «non
+   * risulta rotto», non «supportato». Elencare i kind supportati sarebbe una
+   * promessa che nessuno puo' mantenere — i client ne aggiungono di continuo —
+   * e trasformerebbe ogni novita' in un pulsante che sparisce.
+   */
+  kindsNonSupportati?: readonly number[]
   /** Piattaforme per cui ha senso proporlo come predefinito. */
   piattaforme: PiattaformaClient[]
   nota?: string
@@ -67,8 +76,12 @@ export const clientEsterniPredefiniti: readonly ClientEsterno[] = [
     id: 'nostrudel',
     nome: 'noStrudel',
     template: 'https://nostrudel.ninja/l/{pointer}',
+    // Mostra note, profili, immagini, articoli e schede file. Su video,
+    // podcast e calendario risponde «Unknown event kind»: resta il testo
+    // grezzo, senza lettore ne’ data ne’ luogo.
+    kindsNonSupportati: [21, 22, 54, 31922, 31923, 31925],
     piattaforme: ['desktop'],
-    nota: 'Client web completo. Il percorso /l/ smista da solo note, articoli e profili; /n/ è la sola vista delle note e rifiuta il resto.',
+    nota: 'Client web completo. Il percorso /l/ smista da solo note, articoli, immagini e profili; /n/ è la sola vista delle note e rifiuta il resto.',
   },
   {
     id: 'primal',
@@ -83,18 +96,25 @@ export const clientEsterniPredefiniti: readonly ClientEsterno[] = [
     nome: 'njump',
     template: 'https://njump.me/{pointer}',
     piattaforme: ['desktop', 'app'],
-    nota: 'Gateway che rende l’evento lato server: utile per condividere un link che mostri un’anteprima.',
+    nota: 'Gateway che rende l’evento lato server: utile per condividere un link che mostri un’anteprima. È l’unico che non ha mai restituito un errore, su nessun tipo provato.',
   },
   {
     id: 'coracle',
     nome: 'Coracle',
     template: 'https://coracle.social/{pointer}',
+    // Copre quello che manca a noStrudel: video, podcast e calendario. Degli
+    // eventi con orario mostra anche inizio, fine e luogo. Su scheda file e
+    // RSVP rende una pagina vuota.
+    kindsNonSupportati: [1063, 31925],
     piattaforme: ['desktop'],
+    nota: 'Mostra i tipi che noStrudel non conosce: video, episodi di podcast ed eventi da calendario, con data e luogo.',
   },
   {
     id: 'snort',
     nome: 'Snort',
     template: 'https://snort.social/{pointer}',
+    // Sugli eventi con orario dice esplicitamente di non capire il kind.
+    kindsNonSupportati: [31923],
     piattaforme: ['desktop'],
   },
   {
@@ -171,6 +191,49 @@ export function componiLinkEsterno(template: string, pointer: string): string {
     )
   }
   return modello.replace('{pointer}', pointer)
+}
+
+/**
+ * Ordine dei ripieghi, dal piu' completo al piu' generico.
+ *
+ * E' un elenco esplicito e non «il primo preset che va bene» perche' ripiegare
+ * su un client non provato sposterebbe soltanto il problema: si finirebbe su
+ * un'altra pagina rotta, con in piu' l'impressione che il client scelto fosse
+ * il colpevole. Questi due sono stati caricati con eventi veri di ogni tipo.
+ */
+const RIPIEGHI: readonly string[] = ['coracle', 'njump']
+
+/**
+ * Il client con cui aprire davvero questo evento.
+ *
+ * Un client di lettura conosce i kind che conosce, e nessuno li conosce tutti:
+ * noStrudel non mostra video, podcast ne' eventi da calendario, e li rende
+ * come testo grezzo sotto la scritta «Unknown event kind». Aprire li' un
+ * evento da calendario significa perdere proprio le informazioni per cui
+ * esiste — data, ora, luogo.
+ *
+ * Invece di lasciare all'utente un pulsante che porta a una pagina inerte, si
+ * ripiega su un client che quel kind lo mostra, e lo si dice: `sostituito`
+ * porta il client che era stato scelto, cosi' l'interfaccia puo' spiegare
+ * perche' il nome sul pulsante e' cambiato.
+ */
+export function clientPerEvento(
+  scelto: ClientEsterno,
+  evento: NostrEvent,
+  disponibili: readonly ClientEsterno[] = clientEsterniPredefiniti,
+): { client: ClientEsterno; sostituito: ClientEsterno | null } {
+  if (!scelto.kindsNonSupportati?.includes(evento.kind)) return { client: scelto, sostituito: null }
+
+  for (const id of RIPIEGHI) {
+    const ripiego = disponibili.find((c) => c.id === id)
+    if (!ripiego || ripiego.id === scelto.id) continue
+    if (ripiego.kindsNonSupportati?.includes(evento.kind)) continue
+    return { client: ripiego, sostituito: scelto }
+  }
+
+  // Nessun ripiego migliore: meglio il client scelto, che almeno mostra il
+  // testo grezzo, che nessun pulsante.
+  return { client: scelto, sostituito: null }
 }
 
 /** Il modello giusto per questo evento, tenendo conto delle forme trattate a parte. */

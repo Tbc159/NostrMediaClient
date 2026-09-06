@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import {
   CLIENT_PREDEFINITO,
   clientEsterniPredefiniti,
+  clientPerEvento,
   componiLinkEsterno,
   linkEventoEsterno,
   nip19PointerFor,
@@ -151,6 +152,60 @@ describe('percorsi che dipendono dalla forma del puntatore', () => {
     }
     expect(linkEventoEsterno(generico, evento({ kind: 0 }), RELAYS)).toMatch(/\/nprofile1/)
     expect(linkEventoEsterno(generico, evento({ kind: 1 }), RELAYS)).toMatch(/\/nevent1/)
+  })
+})
+
+describe('kind che il client scelto non sa mostrare', () => {
+  const preset = (id: string): ClientEsterno =>
+    clientEsterniPredefiniti.find((c) => c.id === id) as ClientEsterno
+
+  it('lascia il client scelto quando il kind lo sa mostrare', () => {
+    const r = clientPerEvento(preset('nostrudel'), evento({ kind: 1 }))
+    expect(r.client.id).toBe('nostrudel')
+    expect(r.sostituito).toBeNull()
+  })
+
+  it('ripiega su Coracle per gli eventi da calendario', () => {
+    // noStrudel li apre sotto «Unknown event kind», senza data ne' luogo:
+    // proprio le informazioni per cui l'evento esiste.
+    for (const kind of [31922, 31923]) {
+      const r = clientPerEvento(preset('nostrudel'), evento({ kind, tags: [['d', 'x']] }))
+      expect(r.client.id).toBe('coracle')
+      expect(r.sostituito?.id).toBe('nostrudel')
+    }
+  })
+
+  it('ripiega su Coracle anche per video e podcast', () => {
+    for (const kind of [21, 22, 54]) {
+      expect(clientPerEvento(preset('nostrudel'), evento({ kind })).client.id).toBe('coracle')
+    }
+  })
+
+  it('scavalca un ripiego che a sua volta non mostra il kind', () => {
+    // Coracle rende una pagina vuota per gli RSVP: si arriva a njump, che
+    // almeno una pagina la produce.
+    const r = clientPerEvento(preset('nostrudel'), evento({ kind: 31925, tags: [['d', 'x']] }))
+    expect(r.client.id).toBe('njump')
+  })
+
+  it('non ripiega su se stesso', () => {
+    const r = clientPerEvento(preset('coracle'), evento({ kind: 1063 }))
+    expect(r.client.id).toBe('njump')
+  })
+
+  it('tiene il client scelto se nessun ripiego fa meglio', () => {
+    const strano: ClientEsterno = {
+      id: 'strano',
+      nome: 'Strano',
+      template: 'https://esempio.tld/{pointer}',
+      kindsNonSupportati: [1],
+      piattaforme: ['desktop'],
+    }
+    // Con un elenco che non contiene ripieghi, meglio un pulsante che mostra
+    // il grezzo di nessun pulsante.
+    const r = clientPerEvento(strano, evento({ kind: 1 }), [strano])
+    expect(r.client.id).toBe('strano')
+    expect(r.sostituito).toBeNull()
   })
 })
 

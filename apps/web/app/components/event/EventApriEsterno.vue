@@ -1,5 +1,10 @@
 <script setup lang="ts">
-import { linkEventoEsterno, type NostrEvent } from '@nmc/nostr-core'
+import {
+  clientEsterniPredefiniti,
+  clientPerEvento,
+  linkEventoEsterno,
+  type NostrEvent,
+} from '@nmc/nostr-core'
 
 /**
  * Apre un evento nel client di lettura scelto dall'utente.
@@ -16,7 +21,23 @@ const configurazione = useConfigurazione()
 const config = useClientConfigSafe()
 const { piattaforma } = useDispositivo()
 
-const client = computed(() => configurazione.visualizzatorePer(piattaforma.value))
+const scelto = computed(() => configurazione.visualizzatorePer(piattaforma.value))
+
+/**
+ * Il client scelto, oppure un ripiego se quello scelto non mostra questo kind.
+ *
+ * Nessun client di lettura li conosce tutti, e la conseguenza non e' un
+ * dettaglio estetico: noStrudel apre un evento da calendario sotto la scritta
+ * «Unknown event kind», senza data ne' luogo. Portarci l'utente sarebbe
+ * peggio che non offrire il pulsante.
+ */
+const risolto = computed(() =>
+  clientPerEvento(scelto.value, props.evento, [
+    ...clientEsterniPredefiniti,
+    ...configurazione.visualizzatoriPersonali,
+  ]),
+)
+const client = computed(() => risolto.value.client)
 
 /**
  * Relay da suggerire dentro l'identificatore.
@@ -47,7 +68,11 @@ const schemaApp = computed(() => link.value?.startsWith('nostr:') ?? false)
     :target="schemaApp ? undefined : '_blank'"
     :rel="schemaApp ? undefined : 'noopener noreferrer'"
     class="underline"
-    :title="`Apre questo evento in ${client.nome}`"
+    :title="
+      risolto.sostituito
+        ? `${risolto.sostituito.nome} non mostra questo tipo di evento: si apre in ${client.nome}`
+        : `Apre questo evento in ${client.nome}`
+    "
   >
     Apri in {{ client.nome }}
     <span aria-hidden="true">{{ schemaApp ? '' : ' ↗' }}</span>
