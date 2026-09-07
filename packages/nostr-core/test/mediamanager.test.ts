@@ -3,13 +3,14 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import {
   ErroreMediaManager,
   creaClientMediaManager,
-  normalizzaBaseUrl,
   portaSulServizio,
   scaricaGenerata,
-  spiegaStato,
   tipoAccettato,
   type ClientMediaManager,
 } from '../src/mediamanager/index.js'
+// Traduzione degli stati e normalizzazione dell'indirizzo sono condivise fra i
+// due client di servizio: si provano dove vivono.
+import { normalizzaBaseUrl, spiegaStato } from '../src/servizi/http.js'
 import {
   CHIAVE_DI_PROVA,
   avviaMediaManagerFinto,

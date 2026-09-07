@@ -1,3 +1,9 @@
+import {
+  chiama as chiamaHttp,
+  esito as esitoHttp,
+  ErroreServizio,
+  normalizzaBaseUrl,
+} from '../servizi/http.js'
 import type { ElencoMedia, ImmagineGenerata, MediaItem, RichiestaImmagine } from './types.js'
 
 /**
@@ -24,61 +30,22 @@ export interface OpzioniClientMediaManager {
   timeoutMs?: number
 }
 
-export class ErroreMediaManager extends Error {
-  constructor(
-    message: string,
-    readonly stato: number | null,
-    readonly dettaglio?: string,
-  ) {
-    super(message)
+/**
+ * Errore del media-manager.
+ *
+ * Specializza quello condiviso invece di sostituirlo: chi filtra per
+ * `ErroreServizio` prende anche questi, chi vuole distinguere il servizio ha
+ * ancora un tipo suo.
+ */
+export class ErroreMediaManager extends ErroreServizio {
+  constructor(message: string, stato: number | null, dettaglio?: string) {
+    super(message, stato, dettaglio)
     this.name = 'ErroreMediaManager'
   }
 }
 
 /** Versione dell'API a cui questo client parla. */
 export const VERSIONE_API = 'v0'
-
-/** Normalizza la radice: via lo slash finale e via un `/v0` gia' scritto dall'utente. */
-export function normalizzaBaseUrl(url: string): string {
-  return url
-    .trim()
-    .replace(/\/+$/, '')
-    .replace(/\/v\d+$/, '')
-}
-
-/**
- * Traduce un esito HTTP in un messaggio che dice cosa fare.
- *
- * Gli stati che questo servizio usa hanno significati precisi, e riportarli
- * come «errore 409» lascerebbe l'utente senza appigli.
- */
-export function spiegaStato(stato: number, dettaglio?: string): string {
-  const coda = dettaglio ? ` (${dettaglio})` : ''
-  switch (stato) {
-    case 400:
-      return `Richiesta rifiutata: un parametro non va bene, oppure un asset indicato non esiste sul servizio${coda}.`
-    case 401:
-      return 'Chiave API mancante o non valida: impostala nelle impostazioni.'
-    case 403:
-      return `La chiave non e’ autorizzata a questa operazione${coda}.`
-    case 404:
-      return `Non trovato sul servizio${coda}.`
-    case 409:
-      return `Un media con lo stesso contenuto o titolo e’ gia’ presente${coda}.`
-    case 413:
-      return 'File troppo grande per il servizio.'
-    case 501:
-      return `Questa funzione e’ dichiarata nel contratto ma non ancora realizzata dal servizio${coda}.`
-    case 502:
-    case 503:
-    case 504:
-      return 'Il servizio non risponde: potrebbe essere spento o in aggiornamento.'
-    default:
-      return stato >= 500
-        ? `Errore interno del servizio (${stato})${coda}.`
-        : `Risposta ${stato}${coda}.`
-  }
-}
 
 export interface ClientMediaManager {
   readonly radice: string
@@ -107,60 +74,30 @@ export function creaClientMediaManager(opzioni: OpzioniClientMediaManager): Clie
   const radice = normalizzaBaseUrl(opzioni.baseUrl)
   if (radice === '') throw new Error('Indirizzo del servizio media-manager mancante.')
 
-  const eseguiFetch = opzioni.fetch ?? globalThis.fetch
-  const timeout = opzioni.timeoutMs ?? 120_000
+  const rete = {
+    ...(opzioni.fetch ? { fetch: opzioni.fetch } : {}),
+    ...(opzioni.timeoutMs !== undefined ? { timeoutMs: opzioni.timeoutMs } : {}),
+  }
 
   const intestazioni = (extra: Record<string, string> = {}): Record<string, string> => ({
     ...(opzioni.apiKey ? { 'X-API-Key': opzioni.apiKey } : {}),
     ...extra,
   })
 
-  async function chiama(percorso: string, init: RequestInit = {}): Promise<Response> {
-    const controllo = new AbortController()
-    const orologio = setTimeout(() => controllo.abort(), timeout)
-    try {
-      return await eseguiFetch(`${radice}/${VERSIONE_API}${percorso}`, {
-        ...init,
-        signal: controllo.signal,
-      })
-    } catch (e) {
-      // Dal browser, una richiesta bloccata da CORS o da contenuto misto
-      // fallisce **prima** di ricevere una risposta, e l'errore non dice
-      // perche'. Va spiegato qui, o l'utente cerca il guasto dalla parte
-      // sbagliata: la sua rete sembra a posto e il servizio risponde a mano.
-      if (e instanceof Error && e.name === 'AbortError') {
-        throw new ErroreMediaManager(
-          `Il servizio non ha risposto entro ${Math.round(timeout / 1000)}s.`,
-          null,
-        )
-      }
-      throw new ErroreMediaManager(
-        'Non e’ stato possibile raggiungere il servizio. Dal browser le cause piu’ frequenti ' +
-          'non sono la rete: il servizio non espone le intestazioni CORS, oppure questa pagina ' +
-          'e’ su https e il servizio su http (contenuto misto, che il browser blocca).',
-        null,
-        e instanceof Error ? e.message : String(e),
-      )
-    } finally {
-      clearTimeout(orologio)
-    }
-  }
+  // La traduzione degli errori — stati HTTP, scadenza, e il fallimento di rete
+  // che nel browser quasi sempre e' CORS o contenuto misto — vive in
+  // `servizi/http.ts`, condivisa con il client audio. Qui si aggiunge solo il
+  // prefisso di versione e si rietichetta l'errore col nome del servizio.
+  const chiama = (percorso: string, init: RequestInit = {}): Promise<Response> =>
+    chiamaHttp(`${radice}/${VERSIONE_API}${percorso}`, init, rete).catch(rietichetta)
 
-  async function esito<T>(risposta: Response): Promise<T> {
-    if (risposta.ok) return (await risposta.json()) as T
+  const esito = <T>(risposta: Response): Promise<T> => esitoHttp<T>(risposta).catch(rietichetta)
 
-    let dettaglio: string | undefined
-    try {
-      const corpo = (await risposta.json()) as { detail?: string; message?: string; title?: string }
-      dettaglio = corpo.detail ?? corpo.message ?? corpo.title
-    } catch {
-      // Corpo non JSON (una pagina d'errore di nginx, per dire): resta lo stato.
+  function rietichetta(e: unknown): never {
+    if (e instanceof ErroreServizio && !(e instanceof ErroreMediaManager)) {
+      throw new ErroreMediaManager(e.message, e.stato, e.dettaglio)
     }
-    throw new ErroreMediaManager(
-      spiegaStato(risposta.status, dettaglio),
-      risposta.status,
-      dettaglio,
-    )
+    throw e
   }
 
   return {
@@ -211,15 +148,9 @@ export function creaClientMediaManager(opzioni: OpzioniClientMediaManager): Clie
       const risposta = await chiama(percorso.startsWith('/') ? percorso : `/${percorso}`, {
         headers: intestazioni(),
       })
-      if (!risposta.ok) {
-        let dettaglio: string | undefined
-        try {
-          dettaglio = ((await risposta.json()) as { detail?: string }).detail
-        } catch {
-          // Corpo non JSON: resta lo stato.
-        }
-        throw new ErroreMediaManager(spiegaStato(risposta.status, dettaglio), risposta.status)
-      }
+      // `esito` qui non va: la risposta buona sono byte, non JSON. Si riusa
+      // solo per la traduzione dell'errore, che alla risposta buona non arriva.
+      if (!risposta.ok) await esito<never>(risposta)
       return risposta.blob()
     },
 

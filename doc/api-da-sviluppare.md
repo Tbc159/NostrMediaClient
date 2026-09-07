@@ -120,6 +120,37 @@ Da fare:
    il limite, duplicato.
 ```
 
+### Aggiornamento del 7 settembre 2026 — il servizio audio è già deployato
+
+Il dominio audio non esiste in `microservice-media-manager`, ma il servizio
+`ffmpeg` del repository precedente **è vivo** su
+`http://api-v0-bitcoinradio.duckdns.org`: un `GET` sulle rotte risponde `405`,
+cioè esistono e vogliono `POST`. E, a differenza del media-manager, **espone
+correttamente il CORS**: il preflight risponde `200` con
+`Access-Control-Allow-Origin`. È chiamabile da un browser oggi, purché la
+pagina sia su `http` (manca l'HTTPS anche lì).
+
+Il client lo usa già: vedi la sezione «Audio». Quello che ha dovuto assorbire,
+e che il Prompt C deve correggere alla radice:
+
+- **Le cartelle impongono l'ordine.** Un upload `mp3` finisce in
+  `uploads/mp3_media`; `remove_silence` legge **solo da lì** e scrive in
+  `uploads/clean`; `normalize` scrive in `uploads/normalized`. Quindi
+  normalizzare per primo rende il file irraggiungibile al taglio dei silenzi —
+  è quasi certamente il motivo per cui in `create_yt_media.py` quel passaggio è
+  commentato. L'ordine giusto è l'inverso, ed è anche quello giusto per la
+  qualità.
+- **Il taglio dei silenzi vale solo per gli mp3.** Un m4a va convertito prima
+  (`/media/m4a_to_mp3`); per un wav non esiste convertitore, e l'operazione è
+  semplicemente indisponibile.
+- **`remove_silence` non espone `stop_silence`**: le pause vengono azzerate, non
+  accorciate, e gli stacchi risultano bruschi. È il parametro che manca di più.
+- Cose che invece funzionano bene e vanno conservate nel port: `normalize`
+  accetta un **URL** come `source_file` e scarica da sé; il job restituisce
+  `output_file` e `download_link`, quindi il client non deve indovinare il nome
+  del risultato; `/voice/download` cerca ricorsivamente in tutte le cartelle,
+  ed è ciò che tiene insieme la catena.
+
 ### Prompt C — Il dominio audio (non esiste, e serve)
 
 ```

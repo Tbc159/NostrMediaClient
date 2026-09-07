@@ -28,6 +28,10 @@
     "./mediamanager": {
       "types": "./dist/mediamanager/index.d.ts",
       "import": "./dist/mediamanager/index.js"
+    },
+    "./audio": {
+      "types": "./dist/audio/index.d.ts",
+      "import": "./dist/audio/index.js"
     }
   },
   "main": "./dist/index.js",
