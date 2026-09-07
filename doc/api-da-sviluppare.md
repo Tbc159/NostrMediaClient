@@ -151,6 +151,76 @@ e che il Prompt C deve correggere alla radice:
   del risultato; `/voice/download` cerca ricorsivamente in tutte le cartelle,
   ed è ciò che tiene insieme la catena.
 
+### Prompt C-bis — Togliere alla radice i vincoli che il client oggi aggira
+
+Da svolgere **insieme** al Prompt C: sono le modifiche che rendono inutili gli
+espedienti che il client ha dovuto adottare. Ognuna nasce da una riga di codice
+letta, non da un'impressione.
+
+```
+Lavori sul dominio audio (Prompt C). Questo intervento riguarda il *modello*
+del servizio, non le singole operazioni: sono i vincoli che oggi un client deve
+aggirare, e che nel port non vanno riportati.
+
+1. RIFERIMENTI AI FILE, non cartelle per operazione. È la causa di tutto il
+   resto. Oggi `remove_silence` legge da CONVERTED_FOLDER (uploads/mp3_media) e
+   scrive in CLEANED_FOLDER; `normalize` scrive in NORMALIZED_FOLDER. Ne
+   discendono due limiti che non hanno alcuna ragione d'essere:
+   - **l'ordine delle operazioni è obbligato**: normalizzando prima, il file
+     finisce in una cartella che il taglio dei silenzi non guarda, e la catena
+     si spezza (è quasi certamente perché in create_yt_media.py quel passaggio
+     è commentato);
+   - **il taglio dei silenzi vale solo per gli mp3**, perché legge dalla
+     cartella degli mp3; un m4a va convertito prima, un wav non si può proprio.
+   Nel dominio nuovo ogni operazione deve accettare lo stesso tipo di
+   riferimento e risolverlo allo stesso modo — come già fa `normalize`, che
+   accetta un URL. Con questo, ordine libero e formati indifferenti.
+
+2. NON DISTRUGGERE L'INGRESSO. `remove_silence` fa `os.remove(input_file_path)`
+   e `m4a_to_mp3` pure. Conseguenza pratica, oggi visibile nel client: la
+   pagina espone un cursore per la soglia del silenzio, e **riprovare con una
+   soglia diversa è l'azione più normale del mondo** — ma il file di partenza
+   non c'è più e va ricaricato. Le operazioni devono produrre un nuovo oggetto
+   e lasciare intatto quello di partenza; la pulizia è una politica di
+   ritenzione, non un effetto collaterale.
+
+3. `stop_silence`. Oggi `silenceremove` è invocato con
+   `stop_periods=-1:stop_duration=…:stop_threshold=…` e basta: le pause
+   vengono **azzerate**, non accorciate, e gli stacchi risultano bruschi.
+   Esporre `stop_silence` (quanto silenzio lasciare, es. 0.3s) come parametro
+   dell'API, con un default che lasci una pausa udibile.
+
+4. NON RICOMPRIMERE A OGNI PASSAGGIO. La catena di oggi su un mp3 fa tre
+   generazioni lossy: l'originale, la ricodifica di `remove_silence` (che
+   riusa codec e bitrate della sorgente) e quella di `normalize`. Le fasi
+   intermedie devono lavorare su un formato senza perdita (wav o flac) e la
+   compressione deve avvenire **solo all'ultimo passaggio**, quello che produce
+   il file consegnato.
+
+5. `remove_silence` SIA UN JOB. Oggi è sincrona mentre `normalize` e
+   `m4a_to_mp3` sono asincrone. Su un file lungo la richiesta resta appesa
+   finché non scade qualcosa — un proxy, il browser — e il client non ha modo
+   di distinguere «sta lavorando» da «è morto». Stesso modello a job per tutte
+   le operazioni lunghe.
+
+6. I JOB SOPRAVVIVANO AL RIAVVIO. `jobs` è un dizionario in memoria di
+   processo: un riavvio perde tutti i lavori in corso, e più di un worker non
+   può funzionare. Serve uno stato condiviso e persistente.
+
+7. UN ENDPOINT DI MISURA — è quello che aiuta di più l'interfaccia.
+   `POST /audio/analyze` che restituisca, senza modificare nulla: loudness
+   integrata (LUFS), true peak, loudness range, **livello del rumore di
+   fondo**, e la distribuzione delle durate dei silenzi sopra alcune soglie.
+   Oggi il client propone -40dB e 1s come default ragionevoli, ma sono
+   ragionevoli *in generale*: con la misura potrebbe proporre la soglia giusta
+   **per quella registrazione**, che è la differenza fra un cursore che si
+   muove alla cieca e uno che parte dal punto giusto.
+
+8. `verify=False` nella `requests.get` di `normalize` disattiva la verifica del
+   certificato TLS. Se serve per un certificato interno, si aggiunga quella CA;
+   non si spenga il controllo.
+```
+
 ### Prompt C — Il dominio audio (non esiste, e serve)
 
 ```

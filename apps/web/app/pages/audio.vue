@@ -66,10 +66,15 @@ function annotaDurata(evento: Event): void {
 // ─── 2. Cosa fare ──────────────────────────────────────────────────────────
 const vuoiSilenzi = ref(true)
 const vuoiLivellare = ref(true)
-const soglia = ref('-40dB')
-// Testo e non numero: `BaseInput` modella una stringa, e forzarlo con
-// `v-model.number` non compila. La conversione avviene dove il valore serve.
-const durataMinimaS = ref('1')
+/**
+ * Soglia in decibel, come numero.
+ *
+ * L'unita' si compone al momento dell'invio: il servizio la pretende
+ * (`-40dB`), e senza interpreta il valore come ampiezza lineare — un `-40`
+ * scritto per sbaglio non taglierebbe nulla, in silenzio.
+ */
+const sogliaDb = ref(-40)
+const durataMinimaS = ref(1)
 const codecUscita = ref<CodecAudio>('mp3')
 
 /** Se e come il taglio dei silenzi è possibile per questo formato. */
@@ -153,8 +158,8 @@ async function elabora(): Promise<void> {
     if (vuoiSilenzi.value) {
       fase.value = 'Tolgo i silenzi…'
       nome = await s.togliSilenzi(nome, {
-        soglia: soglia.value,
-        durataMinimaS: Number(durataMinimaS.value) || 1,
+        soglia: `${sogliaDb.value}dB`,
+        durataMinimaS: durataMinimaS.value,
       })
     }
 
@@ -299,6 +304,48 @@ const pesoLeggibile = (b: number): string =>
             </span>
           </label>
 
+          <!--
+            I cursori stanno qui, non nella sezione avanzata: sono la
+            regolazione che cambia il risultato, e il valore giusto dipende
+            dalla registrazione. Un campo di testo li farebbe scegliere alla
+            cieca, perche' la scala dei decibel non e' d'uso comune.
+          -->
+          <div v-if="vuoiSilenzi" class="ml-6 flex flex-col gap-4 border-l pl-4">
+            <BaseField
+              v-slot="{ id }"
+              label="Quanto dev’essere silenzioso per essere tagliato"
+              hint="Più a destra taglia anche le pause con un po’ di fruscìo; troppo a destra mangia le code delle parole."
+            >
+              <BaseRange
+                :id="id"
+                v-model="sogliaDb"
+                :min="-60"
+                :max="-20"
+                :step="1"
+                unita="dB"
+                estremo-min="−60 · solo il silenzio vero"
+                estremo-max="−20 · taglia molto"
+              />
+            </BaseField>
+
+            <BaseField
+              v-slot="{ id }"
+              label="Quanto dev’essere lunga la pausa"
+              hint="Sotto il mezzo secondo si tagliano anche i respiri fra una frase e l’altra."
+            >
+              <BaseRange
+                :id="id"
+                v-model="durataMinimaS"
+                :min="0.2"
+                :max="5"
+                :step="0.1"
+                unita="s"
+                estremo-min="0,2s · anche i respiri"
+                estremo-max="5s · solo le pause lunghe"
+              />
+            </BaseField>
+          </div>
+
           <label class="flex items-start gap-2 text-sm">
             <input v-model="vuoiLivellare" type="checkbox" class="mt-1" />
             <span>
@@ -312,21 +359,6 @@ const pesoLeggibile = (b: number): string =>
           <details class="superficie rounded-md border p-3">
             <summary class="cursor-pointer text-sm font-medium">Parametri</summary>
             <div class="mt-3 grid gap-3 sm:grid-cols-2">
-              <BaseField
-                v-slot="{ id }"
-                label="Soglia del silenzio"
-                hint="Con l’unità. Il servizio userebbe −90dB, con cui non toglie quasi nulla."
-              >
-                <BaseInput :id="id" v-model="soglia" :disabled="!vuoiSilenzi" />
-              </BaseField>
-              <BaseField v-slot="{ id }" label="Durata minima (secondi)">
-                <BaseInput
-                  :id="id"
-                  v-model="durataMinimaS"
-                  type="number"
-                  :disabled="!vuoiSilenzi"
-                />
-              </BaseField>
               <BaseField v-slot="{ id }" label="Formato in uscita">
                 <BaseSelect
                   :id="id"
