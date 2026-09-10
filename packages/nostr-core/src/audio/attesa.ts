@@ -1,5 +1,5 @@
 import { ErroreServizio } from '../servizi/http.js'
-import type { ServizioAudio, StatoLavoro } from './tipi.js'
+import type { MediaProdotto, ServizioAudio, StatoLavoro } from './tipi.js'
 
 /**
  * Attesa di un lavoro asincrono, con l'avanzamento riportato a chi guarda.
@@ -26,18 +26,18 @@ export interface OpzioniAttesa {
 const riposo = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
 
 /**
- * Aspetta che un lavoro finisca e restituisce il nome del file prodotto.
+ * Aspetta che un lavoro finisca e restituisce i media prodotti.
  *
  * @throws se il lavoro fallisce, se scade il tempo, o se finisce «completato»
  *         senza dire cosa ha prodotto — che e' un esito da trattare come
- *         errore: proseguire con un nome inventato darebbe un 404 piu' avanti,
- *         lontano dalla causa.
+ *         errore: proseguire con un riferimento inventato darebbe un 400 piu'
+ *         avanti, lontano dalla causa.
  */
 export async function attendiLavoro(
   servizio: ServizioAudio,
   idLavoro: string,
   opzioni: OpzioniAttesa = {},
-): Promise<string> {
+): Promise<MediaProdotto[]> {
   const intervallo = opzioni.intervalloMs ?? 2000
   const scadenza = opzioni.scadenzaMs ?? 15 * 60 * 1000
   const attendi = opzioni.attendi ?? riposo
@@ -55,13 +55,13 @@ export async function attendiLavoro(
     opzioni.onStato?.(stato, trascorso)
 
     if (stato.stato === 'completato') {
-      if (!stato.risultato) {
+      if (!stato.media?.length) {
         throw new ErroreServizio(
           'Il servizio dice di aver finito ma non dice quale file ha prodotto.',
           null,
         )
       }
-      return stato.risultato
+      return stato.media
     }
 
     if (stato.stato === 'fallito') {

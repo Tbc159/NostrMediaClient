@@ -2,40 +2,44 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
 import {
   attendiLavoro,
-  codecDaNome,
-  creaServizioAudioLegacy,
-  nomeLivellato,
-  strategiaSilenzi,
+  creaServizioAudio,
+  estensioneDi,
+  formatoDaNome,
   type ServizioAudio,
 } from '../src/audio/index.js'
 import { ErroreServizio } from '../src/servizi/http.js'
-import { avviaAudioFinto, type AudioFinto } from './helpers/audio-finto.js'
+import {
+  CHIAVE_DI_PROVA,
+  avviaMediaManagerFinto,
+  type MediaManagerFinto,
+} from './helpers/mediamanager-finto.js'
 
 /**
- * Pre-elaborazione audio contro un servizio che si comporta come quello vero.
+ * Elaborazione audio contro un servizio che si comporta come quello vero.
  *
- * Le prove che contano non sono «la chiamata risponde 200», ma le due
- * conseguenze delle cartelle del servizio: l'ordine delle operazioni non e'
- * libero, e non tutti i formati ammettono il taglio dei silenzi.
+ * Cio' che va provato non e' «la chiamata risponde 200» ma le proprieta' su
+ * cui la pagina si appoggia e che prima non c'erano: l'ordine e' libero, i
+ * formati sono indifferenti, la sorgente sopravvive alle lavorazioni, e il
+ * riferimento e' il `filename` — non il titolo che abbiamo mandato noi.
  */
 
-const SILENZI = { soglia: '-40dB', durataMinimaS: 1 }
+const SILENZI = { sogliaDb: -40, pausaMinimaS: 1 }
 /** Nei test l'orologio non deve scorrere davvero. */
 const SUBITO = { intervalloMs: 1, attendi: () => Promise.resolve() }
 
-let finto: AudioFinto
+let finto: MediaManagerFinto
 let servizio: ServizioAudio
 
-const audio = (): Blob => new Blob([new Uint8Array(2048)], { type: 'audio/mpeg' })
+const audio = (tipo = 'audio/mpeg'): Blob => new Blob([new Uint8Array(2048)], { type: tipo })
 
 beforeAll(async () => {
-  finto = await avviaAudioFinto()
-  servizio = creaServizioAudioLegacy({ baseUrl: finto.url, timeoutMs: 5000 })
+  finto = await avviaMediaManagerFinto()
+  servizio = creaServizioAudio({ baseUrl: finto.url, apiKey: CHIAVE_DI_PROVA, timeoutMs: 5000 })
 })
 
 beforeEach(() => {
-  finto.archivio.clear()
-  finto.richieste.length = 0
+  finto.media.length = 0
+  finto.richiesteAudio.length = 0
   finto.giriPrimaDelFine = 1
   finto.faiFallire = false
 })
@@ -44,157 +48,200 @@ afterAll(async () => {
   await finto.chiudi()
 })
 
-describe('quale formato ammette cosa', () => {
-  it('dice in anticipo se il taglio dei silenzi e' + "' possibile", () => {
-    // Non e' una scelta nostra: `remove_silence` legge dalla cartella degli
-    // mp3. Saperlo prima evita di proporre un'operazione che fallira'.
-    expect(strategiaSilenzi('mp3')).toBe('diretta')
-    expect(strategiaSilenzi('m4a')).toBe('conversione')
-    expect(strategiaSilenzi('wav')).toBe('non-disponibile')
+describe('formati', () => {
+  it('riconosce il formato dal nome e usa il tipo MIME registrato', () => {
+    // `audio/mp3` non e' un tipo registrato: il servizio lo accetta come alias
+    // ma non c'e' ragione di propagare un nome sbagliato.
+    expect(formatoDaNome('Puntata 12.MP3')).toBe('audio/mpeg')
+    expect(formatoDaNome('registrazione.m4a')).toBe('audio/m4a')
+    expect(formatoDaNome('grezzo.wav')).toBe('audio/wav')
+    expect(formatoDaNome('copertina.png')).toBeNull()
   })
 
-  it('riconosce il codec dal nome, e rifiuta cio' + "' che non e' audio", () => {
-    expect(codecDaNome('Puntata 12.MP3')).toBe('mp3')
-    expect(codecDaNome('registrazione.m4a')).toBe('m4a')
-    expect(codecDaNome('copertina.png')).toBeNull()
-  })
-})
-
-describe('caricamento', () => {
-  it('corregge l' + "'estensione perche' il servizio la confronta col codec", async () => {
-    // Il servizio risponde 400 se estensione e codec non coincidono: meglio
-    // sistemare qui che farsi rifiutare.
-    const nome = await servizio.carica(audio(), 'senza-estensione', 'mp3')
-    expect(nome).toBe('senza-estensione.mp3')
-    expect(finto.archivio.get(nome)).toBe('mp3_media')
-  })
-
-  it('rifiuta un codec che il servizio non conosce', async () => {
-    await expect(servizio.carica(audio(), 'x.ogg', 'ogg' as unknown as 'mp3')).rejects.toThrow()
+  it('ricava l’estensione dal formato', () => {
+    expect(estensioneDi('audio/mpeg')).toBe('mp3')
+    expect(estensioneDi('audio/wav')).toBe('wav')
   })
 })
 
-describe('l’ordine delle operazioni non e' + "' libero", () => {
-  it('silenzi e poi livellamento: funziona', async () => {
-    const nome = await servizio.carica(audio(), 'puntata.mp3', 'mp3')
-    await servizio.togliSilenzi(nome, SILENZI)
-    const lavoro = await servizio.livella(nome, 'mp3')
-    const prodotto = await attendiLavoro(servizio, lavoro, SUBITO)
+describe('caricamento e riferimenti', () => {
+  it('il riferimento e’ il filename generato dal servizio, non il titolo', async () => {
+    const caricato = await servizio.carica(audio(), 'Puntata 12.mp3', 'audio/mpeg')
 
-    expect(prodotto).toBe('puntata_normalized.mp3')
-    const byte = new Uint8Array(await (await servizio.scarica(prodotto)).arrayBuffer())
-    expect([...byte.slice(0, 3)]).toEqual([0x49, 0x44, 0x33])
+    // La distinzione non e' teorica: e' il difetto che il client aveva.
+    expect(caricato.filename).not.toBe(caricato.title)
+    await expect(servizio.avviaSilenzi(caricato.filename, SILENZI)).resolves.toBeTruthy()
   })
 
-  it('livellamento e poi silenzi: il servizio non trova piu' + "' il file", async () => {
-    // E' il difetto vero del servizio: `normalize` scrive in `normalized/`
-    // mentre `remove_silence` guarda in `mp3_media/`. Quasi certamente il
-    // motivo per cui nello script originale quel passaggio e' commentato.
-    const nome = await servizio.carica(audio(), 'puntata.mp3', 'mp3')
-    const lavoro = await servizio.livella(nome, 'mp3')
-    const livellato = await attendiLavoro(servizio, lavoro, SUBITO)
+  it('riferirsi per titolo fallisce, e l’errore dice come ha cercato', async () => {
+    const caricato = await servizio.carica(audio(), 'Puntata 13.mp3', 'audio/mpeg')
 
-    await expect(servizio.togliSilenzi(livellato, SILENZI)).rejects.toThrow(/cartella degli mp3/)
-  })
-
-  it('un m4a passa dalla conversione prima di poter perdere i silenzi', async () => {
-    const nome = await servizio.carica(audio(), 'puntata.m4a', 'm4a')
-    await expect(servizio.togliSilenzi(nome, SILENZI)).rejects.toThrow(/mp3/)
-
-    const lavoro = await servizio.convertiInMp3(nome)
-    const convertito = await attendiLavoro(servizio, lavoro, SUBITO)
-    expect(convertito).toBe('puntata.mp3')
-
-    await expect(servizio.togliSilenzi(convertito, SILENZI)).resolves.toBe(convertito)
-  })
-})
-
-describe('parametri mandati al servizio', () => {
-  it('manda soglia e durata scelte da noi, non i default del servizio', async () => {
-    // Il default del servizio e' -90dB, con cui non viene tolto quasi nulla.
-    const nome = await servizio.carica(audio(), 'p.mp3', 'mp3')
-    await servizio.togliSilenzi(nome, { soglia: '-40dB', durataMinimaS: 1 })
-
-    const inviata = finto.richieste.find((r) => r.percorso === '/media/remove_silence')
-    expect(inviata?.corpo).toMatchObject({ silence_level: '-40dB', seconds_silence: 1 })
-  })
-
-  it('per il livellamento passa un URL, non un nome', async () => {
-    // Con il solo nome il servizio cercherebbe in una cartella sola; con un
-    // URL verso /voice/download cerca ovunque e lo trova.
-    const nome = await servizio.carica(audio(), 'p.mp3', 'mp3')
-    await servizio.livella(nome, 'mp3')
-
-    const inviata = finto.richieste.find((r) => r.percorso === '/media/normalize')
-    expect(String((inviata?.corpo as { source_file: string }).source_file)).toMatch(
-      /\/voice\/download\/p\.mp3$/,
+    await expect(servizio.avviaSilenzi(caricato.title, SILENZI)).rejects.toThrow(
+      /asset non trovato/,
     )
   })
+})
 
-  it('sa prevedere il nome del risultato, per riconoscerlo', () => {
-    expect(nomeLivellato('puntata 12.mp3', 'mp3')).toBe('puntata 12_normalized.mp3')
+describe('lo stesso file, due volte', () => {
+  it('non e' + "' un errore: si riusa il record che c'e' gia'", async () => {
+    // Rielaborare la stessa registrazione e' normale — un'altra soglia, il
+    // giorno dopo — e il servizio risponde 409. Trattarlo come guasto
+    // fermerebbe il flusso proprio nel caso piu' frequente.
+    const primo = await servizio.carica(audio(), 'Puntata 12 bis.mp3', 'audio/mpeg')
+    const secondo = await servizio.carica(audio(), 'Puntata 12 bis.mp3', 'audio/mpeg')
+
+    expect(secondo.id).toBe(primo.id)
+    expect(secondo.filename).toBe(primo.filename)
+  })
+})
+
+describe('le lavorazioni', () => {
+  it('accorcia i silenzi passando i parametri che l’utente ha scelto', async () => {
+    const caricato = await servizio.carica(audio(), 'Puntata 14.mp3', 'audio/mpeg')
+    const lavoro = await servizio.avviaSilenzi(caricato.filename, {
+      sogliaDb: -33,
+      pausaMinimaS: 1.5,
+      silenzioDaLasciareS: 0.3,
+    })
+    await attendiLavoro(servizio, lavoro, SUBITO)
+
+    const inviato = finto.richiesteAudio.at(-1)
+    expect(inviato?.percorso).toBe('/v0/audio/silence')
+    // La soglia viaggia come numero: l'unita' la mette il servizio. Prima
+    // andava composta qui, e ometterla voleva dire non tagliare nulla.
+    expect(inviato?.corpo).toMatchObject({
+      threshold_db: -33,
+      min_pause_s: 1.5,
+      keep_silence_s: 0.3,
+    })
+  })
+
+  it('non distrugge la sorgente: si puo’ ritentare con una soglia diversa', async () => {
+    const caricato = await servizio.carica(audio(), 'Puntata 15.mp3', 'audio/mpeg')
+
+    const primo = await attendiLavoro(
+      servizio,
+      await servizio.avviaSilenzi(caricato.filename, { sogliaDb: -50, pausaMinimaS: 1 }),
+      SUBITO,
+    )
+    // Stessa sorgente, un'altra soglia, senza ricaricare il file: e' l'azione
+    // piu' naturale davanti a un cursore, e col servizio vecchio era
+    // impossibile.
+    const secondo = await attendiLavoro(
+      servizio,
+      await servizio.avviaSilenzi(caricato.filename, { sogliaDb: -30, pausaMinimaS: 1 }),
+      SUBITO,
+    )
+
+    expect(primo[0]?.id).not.toBe(secondo[0]?.id)
+  })
+
+  it('l’ordine e’ libero: livellare per primo non spezza la catena', async () => {
+    const caricato = await servizio.carica(audio(), 'Puntata 16.mp3', 'audio/mpeg')
+
+    const livellato = await attendiLavoro(
+      servizio,
+      await servizio.avviaLivellamento(caricato.filename),
+      SUBITO,
+    )
+    const poiSilenzi = await attendiLavoro(
+      servizio,
+      await servizio.avviaSilenzi(livellato[0]?.id as number, SILENZI),
+      SUBITO,
+    )
+
+    expect(poiSilenzi[0]?.id).toBeGreaterThan(0)
+  })
+
+  it('i formati sono indifferenti: anche un wav passa dai silenzi', async () => {
+    const caricato = await servizio.carica(audio('audio/wav'), 'Grezzo.wav', 'audio/wav')
+
+    // Col servizio vecchio l'operazione era semplicemente indisponibile per i
+    // wav, e la pagina doveva disattivarla.
+    await expect(
+      attendiLavoro(servizio, await servizio.avviaSilenzi(caricato.filename, SILENZI), SUBITO),
+    ).resolves.toHaveLength(1)
+  })
+
+  it('converte in un altro formato', async () => {
+    const caricato = await servizio.carica(audio('audio/m4a'), 'Ospite.m4a', 'audio/m4a')
+    const prodotti = await attendiLavoro(
+      servizio,
+      await servizio.avviaConversione(caricato.filename, 'audio/mpeg'),
+      SUBITO,
+    )
+
+    expect(prodotti[0]?.media_type).toBe('audio/mpeg')
   })
 })
 
 describe('attesa del lavoro', () => {
-  it('riporta l' + "'avanzamento a ogni giro", async () => {
+  it('segue gli stati fino alla fine e riporta l’avanzamento', async () => {
     finto.giriPrimaDelFine = 3
-    const nome = await servizio.carica(audio(), 'p.mp3', 'mp3')
-    const lavoro = await servizio.livella(nome, 'mp3')
+    const caricato = await servizio.carica(audio(), 'Puntata 17.mp3', 'audio/mpeg')
 
     const visti: string[] = []
-    await attendiLavoro(servizio, lavoro, { ...SUBITO, onStato: (s) => visti.push(s.stato) })
-
-    expect(visti).toEqual(['in-corso', 'in-corso', 'completato'])
-  })
-
-  it('un lavoro fallito diventa un errore, non un file mancante', async () => {
-    finto.faiFallire = true
-    const nome = await servizio.carica(audio(), 'p.mp3', 'mp3')
-    const lavoro = await servizio.livella(nome, 'mp3')
-
-    await expect(attendiLavoro(servizio, lavoro, SUBITO)).rejects.toThrow(/non e’ riuscita/)
-  })
-
-  it('smette di aspettare, e non promette di aver annullato nulla', async () => {
-    finto.giriPrimaDelFine = 1000
-    const nome = await servizio.carica(audio(), 'p.mp3', 'mp3')
-    const lavoro = await servizio.livella(nome, 'mp3')
-
-    await expect(attendiLavoro(servizio, lavoro, { ...SUBITO, scadenzaMs: 5 })).rejects.toThrow(
-      /ancora in corso sul servizio/,
+    const prodotti = await attendiLavoro(
+      servizio,
+      await servizio.avviaSilenzi(caricato.filename, SILENZI),
+      { ...SUBITO, onStato: (s) => visti.push(s.stato) },
     )
+
+    expect(visti).toContain('in-coda')
+    expect(visti).toContain('in-corso')
+    expect(prodotti[0]?.id).toBeGreaterThan(0)
   })
 
-  it('si puo' + "' interrompere da fuori", async () => {
-    finto.giriPrimaDelFine = 1000
-    const nome = await servizio.carica(audio(), 'p.mp3', 'mp3')
-    const lavoro = await servizio.livella(nome, 'mp3')
+  it('un lavoro fallito diventa un errore leggibile, non un’attesa infinita', async () => {
+    finto.faiFallire = true
+    const caricato = await servizio.carica(audio(), 'Puntata 18.mp3', 'audio/mpeg')
 
-    const taglio = new AbortController()
-    taglio.abort()
     await expect(
-      attendiLavoro(servizio, lavoro, { ...SUBITO, segnale: taglio.signal }),
-    ).rejects.toThrow(/interrotta/)
+      attendiLavoro(servizio, await servizio.avviaSilenzi(caricato.filename, SILENZI), SUBITO),
+    ).rejects.toThrow(/ffmpeg/)
+  })
+
+  it('si puo’ smettere di aspettare senza fermare il lavoro sul servizio', async () => {
+    finto.giriPrimaDelFine = 99
+    const caricato = await servizio.carica(audio(), 'Puntata 19.mp3', 'audio/mpeg')
+    const lavoro = await servizio.avviaSilenzi(caricato.filename, SILENZI)
+
+    const stop = new AbortController()
+    const attesa = attendiLavoro(servizio, lavoro, { ...SUBITO, segnale: stop.signal })
+    stop.abort()
+    await expect(attesa).rejects.toThrow(/interrotta/)
+
+    // Il lavoro resta interrogabile: e' persistente, e riprenderlo e' lecito.
+    await expect(servizio.stato(lavoro)).resolves.toMatchObject({ stato: 'in-corso' })
+  })
+
+  it('smette di aspettare a scadenza, senza promettere di aver annullato', async () => {
+    finto.giriPrimaDelFine = 99
+    const caricato = await servizio.carica(audio(), 'Puntata 20.mp3', 'audio/mpeg')
+
+    await expect(
+      attendiLavoro(servizio, await servizio.avviaSilenzi(caricato.filename, SILENZI), {
+        ...SUBITO,
+        scadenzaMs: 5,
+        adesso: (() => {
+          let t = 0
+          return () => (t += 10)
+        })(),
+      }),
+    ).rejects.toThrow(/ancora in corso/)
+  })
+
+  it('un lavoro che il servizio non conosce non e’ «in corso»', async () => {
+    await expect(servizio.stato('inventato-1')).rejects.toThrow(/non conosce/)
   })
 })
 
-describe('quando il servizio non c’e' + "'", () => {
-  it('lo dice senza far credere che sia colpa della rete', async () => {
-    const spento = creaServizioAudioLegacy({ baseUrl: 'http://127.0.0.1:1', timeoutMs: 2000 })
-    expect(await spento.disponibile()).toBe(false)
-    await expect(spento.carica(audio(), 'p.mp3', 'mp3')).rejects.toThrow(/CORS|contenuto misto/)
-  })
-
-  it('il servizio raggiungibile risulta disponibile anche senza health check', async () => {
-    // Quello vero non ne ha uno: si interroga un lavoro inesistente, che
-    // risponde 404 senza modificare niente.
-    expect(await servizio.disponibile()).toBe(true)
-  })
-
-  it('porta lo stato HTTP nell' + "'errore", async () => {
-    await expect(servizio.scarica('inesistente.mp3')).rejects.toSatisfy(
-      (e: unknown) => e instanceof ErroreServizio && e.stato === 404,
+describe('quando il servizio non c’e’', () => {
+  it('lo dice invece di restare in attesa', async () => {
+    const spento = creaServizioAudio({ baseUrl: 'http://127.0.0.1:1', timeoutMs: 2000 })
+    await expect(spento.disponibile()).resolves.toBe(false)
+    await expect(spento.carica(audio(), 'x.mp3', 'audio/mpeg')).rejects.toBeInstanceOf(
+      ErroreServizio,
     )
   })
 })

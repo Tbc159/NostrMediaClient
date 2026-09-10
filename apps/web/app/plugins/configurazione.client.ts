@@ -1,4 +1,3 @@
-import { useAudio } from '~/stores/audio'
 import { useConfigurazione } from '~/stores/configurazione'
 import { useMediaManager } from '~/stores/mediamanager'
 
@@ -23,13 +22,12 @@ export default defineNuxtPlugin(() => {
   })
 
   /*
-   * Stessa ragione per i servizi di elaborazione, e una in piu': le pagine
+   * Stessa ragione per il servizio di elaborazione, e una in piu': le pagine
    * Audio ed Elabora non chiedono piu' indirizzo e chiave: se leggessero lo
    * storage da sole in un `onMounted`, il primo rendering partirebbe come non
    * configurato e mostrerebbe l'avviso «configura il servizio» a chi il
    * servizio ce l'ha gia'.
    */
-  useAudio().inizializza(String(pub.audioServiceUrl ?? ''))
   useMediaManager().inizializza({
     baseUrl: String(pub.mediaManagerUrl ?? ''),
     apiKey: String(pub.mediaManagerApiKey ?? ''),

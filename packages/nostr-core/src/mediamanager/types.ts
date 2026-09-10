@@ -11,13 +11,33 @@
 /** Un media gia' caricato sul servizio. */
 export interface MediaItem {
   id: number
+  /** Il titolo **che hai inviato tu**. Non e' un riferimento valido. */
   title: string
+  /**
+   * Il nome del file, **generato dal servizio**: e' questo il riferimento.
+   *
+   * La distinzione non e' pedanteria: la risoluzione per stringa guarda solo
+   * il `filename`, e passare il `title` produce un 400. Va riletto da qui,
+   * perche' non coincide con quello che hai mandato.
+   */
+  filename: string
   media_type: string
+  status?: 'ready' | 'processing' | 'error'
   size_bytes?: number | null
   duration_s?: number | null
   created_at_s?: number
   content_url?: string
   download_url?: string
+  /**
+   * URL dei byte utilizzabile **senza intestazioni**, a scadenza.
+   *
+   * E' il campo per `<img src>` e `<audio src>`: il browser non allega la
+   * chiave alle sotto-risorse, e `content_url` li' riceve 401. Assente se
+   * l'ambiente del servizio non ha una chiave di firma; in quel caso restano
+   * i byte scaricati con la chiave.
+   */
+  signed_url?: string
+  signed_url_expires_at_s?: number
 }
 
 export interface ElencoMedia {
@@ -108,7 +128,7 @@ export interface RichiestaComposita {
   layers: Livello[]
 }
 
-/** Il generatore `social` esiste nel contratto ma risponde 501: non e' implementato. */
+/** Preset quadrato 1080x1080 del motore a livelli. */
 export interface RichiestaSocial {
   tipo: 'social'
   logo_top: RiferimentoMedia
@@ -124,12 +144,15 @@ export type RichiestaImmagine = RichiestaCopertina | RichiestaComposita | Richie
 
 export interface ImmagineGenerata {
   id: number
-  tipo: 'copertina' | 'composita' | 'social'
+  tipo: 'copertina' | 'composita' | 'social' | 'slide'
   media_type: FormatoImmagine
   size_bytes?: number | null
   created_at_s: number
   content_url: string
   download_url: string
+  /** URL senza intestazioni per l'anteprima. Vedi `MediaItem.signed_url`. */
+  signed_url?: string
+  signed_url_expires_at_s?: number
   /** Avvisi non bloccanti: font non trovato, livello saltato… La risposta resta 201. */
   warnings?: string[]
 }

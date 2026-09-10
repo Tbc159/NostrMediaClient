@@ -49,13 +49,22 @@ export const VERSIONE_API = 'v0'
 
 export interface ClientMediaManager {
   readonly radice: string
-  /** Health check del dominio: `media` o `content`. */
-  salute(dominio: 'media' | 'content'): Promise<boolean>
+  /** Health check di un dominio pubblico. */
+  salute(dominio: 'media' | 'content' | 'audio'): Promise<boolean>
+  /** Senza `tipo` elenca tutto l'archivio: il filtro e' opzionale. */
   elencoMedia(
-    tipo: string,
+    tipo?: string,
     opzioni?: { title?: string; page?: number; pageSize?: number },
   ): Promise<ElencoMedia>
   caricaMedia(file: Blob, titolo: string, mediaType: string, durataS?: number): Promise<MediaItem>
+  /**
+   * Crea un media facendolo scaricare **al servizio**.
+   *
+   * Per un file gia' pubblicato (tipicamente su Blossom) evita il doppio
+   * transito dal browser: i byte non passano di qui. Il servizio si difende da
+   * solo dagli URL che puntano alla sua rete interna.
+   */
+  caricaMediaDaUrl(url: string, titolo: string, mediaType?: string): Promise<MediaItem>
   generaImmagine(richiesta: RichiestaImmagine): Promise<ImmagineGenerata>
   /**
    * Scarica i byte di un media dal servizio.
@@ -113,7 +122,8 @@ export function creaClientMediaManager(opzioni: OpzioniClientMediaManager): Clie
     },
 
     async elencoMedia(tipo, o = {}) {
-      const q = new URLSearchParams({ type: tipo })
+      const q = new URLSearchParams()
+      if (tipo) q.set('type', tipo)
       if (o.title) q.set('title', o.title)
       if (o.page) q.set('page', String(o.page))
       if (o.pageSize) q.set('page_size', String(o.pageSize))
@@ -130,6 +140,20 @@ export function creaClientMediaManager(opzioni: OpzioniClientMediaManager): Clie
       // Nessun content-type a mano: il confine multipart lo scrive fetch.
       return esito<MediaItem>(
         await chiama('/media', { method: 'POST', headers: intestazioni(), body: modulo }),
+      )
+    },
+
+    async caricaMediaDaUrl(url, titolo, mediaType) {
+      return esito<MediaItem>(
+        await chiama('/media/from-url', {
+          method: 'POST',
+          headers: intestazioni({ 'content-type': 'application/json' }),
+          body: JSON.stringify({
+            url,
+            title: titolo,
+            ...(mediaType ? { media_type: mediaType } : {}),
+          }),
+        }),
       )
     },
 

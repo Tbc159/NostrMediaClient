@@ -1,16 +1,17 @@
 <script setup lang="ts">
 import {
   attendiLavoro,
-  codecDaNome,
-  strategiaSilenzi,
-  type CodecAudio,
+  estensioneDi,
+  formatoDaNome,
+  type FormatoAudio,
+  type MediaProdotto,
   type StatoLavoro,
 } from '@nmc/nostr-core'
-import { useAudio } from '~/stores/audio'
+import { useMediaManager } from '~/stores/mediamanager'
 
 useHead({ title: 'Audio · NostrMediaClient' })
 
-const servizio = useAudio()
+const servizio = useMediaManager()
 
 // La configurazione del servizio sta nelle impostazioni, con gli altri
 // endpoint: qui si controlla soltanto che risponda, per poterlo dire prima che
@@ -32,7 +33,9 @@ const urlOriginale = ref<string | null>(null)
 const durataOriginale = ref<number | null>(null)
 const erroreFile = ref<string | null>(null)
 
-const codec = computed<CodecAudio | null>(() => (file.value ? codecDaNome(file.value.name) : null))
+const formato = computed<FormatoAudio | null>(() =>
+  file.value ? formatoDaNome(file.value.name) : null,
+)
 
 function scegli(evento: Event): void {
   const target = evento.target as HTMLInputElement
@@ -41,7 +44,7 @@ function scegli(evento: Event): void {
   if (!scelto) return
 
   erroreFile.value = null
-  if (!codecDaNome(scelto.name)) {
+  if (!formatoDaNome(scelto.name)) {
     erroreFile.value = `Il servizio tratta mp3, m4a e wav. «${scelto.name}» non è fra questi.`
     return
   }
@@ -62,26 +65,21 @@ function annotaDurata(evento: Event): void {
 const vuoiSilenzi = ref(true)
 const vuoiLivellare = ref(true)
 /**
- * Soglia in decibel, come numero.
+ * Soglia in decibel, come numero: l'unita' la mette il servizio.
  *
- * L'unita' si compone al momento dell'invio: il servizio la pretende
- * (`-40dB`), e senza interpreta il valore come ampiezza lineare — un `-40`
- * scritto per sbaglio non taglierebbe nulla, in silenzio.
+ * Prima andava composta qui (`-40dB`) perche' il servizio la pretendeva nella
+ * stringa, e ometterla significava passare un'ampiezza lineare — cioe' non
+ * tagliare nulla, senza che nulla lo dicesse.
  */
 const sogliaDb = ref(-40)
 const durataMinimaS = ref(1)
-const codecUscita = ref<CodecAudio>('mp3')
+const formatoUscita = ref<FormatoAudio>('audio/mpeg')
 
-/** Se e come il taglio dei silenzi è possibile per questo formato. */
-const strategia = computed(() => (codec.value ? strategiaSilenzi(codec.value) : null))
-
-watch(codec, (c) => {
-  if (!c) return
-  codecUscita.value = c === 'wav' ? 'wav' : 'mp3'
-  // Si riallinea in entrambe le direzioni: spegnerla soltanto lascerebbe
-  // l'operazione disattivata anche dopo aver scelto un file che la ammette,
-  // senza che nulla lo spieghi.
-  vuoiSilenzi.value = strategiaSilenzi(c) !== 'non-disponibile'
+watch(formato, (f) => {
+  if (!f) return
+  // Un wav resta un wav se non si chiede altro; per il resto l'mp3 e' il
+  // formato con cui un episodio si pubblica.
+  formatoUscita.value = f === 'audio/wav' ? 'audio/wav' : 'audio/mpeg'
 })
 
 const nienteDaFare = computed(() => !vuoiSilenzi.value && !vuoiLivellare.value)
@@ -118,9 +116,9 @@ function interrompi(): void {
 }
 
 async function elabora(): Promise<void> {
-  const s = servizio.servizio
+  const s = servizio.audio
   const sorgente = file.value
-  const suo = codec.value
+  const suo = formato.value
   if (!s || !sorgente || !suo) return
 
   azzeraRisultato()
@@ -130,47 +128,64 @@ async function elabora(): Promise<void> {
   const cronometro = setInterval(() => (trascorsoS.value = (Date.now() - inizio) / 1000), 200)
 
   const segui = (stato: StatoLavoro): void => {
-    if (stato.stato === 'in-corso') trascorsoS.value = (Date.now() - inizio) / 1000
+    if (stato.stato !== 'completato') trascorsoS.value = (Date.now() - inizio) / 1000
+  }
+
+  /** Aspetta un lavoro e restituisce l'unico file che ha prodotto. */
+  const attendi = async (idLavoro: string): Promise<MediaProdotto> => {
+    const prodotti = await attendiLavoro(s, idLavoro, {
+      segnale: interruzione?.signal as AbortSignal,
+      onStato: segui,
+    })
+    return prodotti[0] as MediaProdotto
   }
 
   try {
     fase.value = 'Invio il file al servizio…'
-    let nome = await s.carica(sorgente, sorgente.name, suo)
-    let lavorato: CodecAudio = suo
+    const caricato = await s.carica(sorgente, sorgente.name, suo)
 
-    // Un m4a non può perdere i silenzi finché non diventa mp3: è la cartella
-    // da cui quell'operazione legge, non una nostra preferenza.
-    if (vuoiSilenzi.value && strategiaSilenzi(suo) === 'conversione') {
-      fase.value = 'Converto in mp3, perché il taglio dei silenzi legge solo da lì…'
-      const lavoro = await s.convertiInMp3(nome)
-      nome = await attendiLavoro(s, lavoro, { segnale: interruzione.signal, onStato: segui })
-      lavorato = 'mp3'
-    }
+    // Il riferimento e' il `filename` che risponde il servizio, non il titolo
+    // che gli abbiamo mandato: sono due campi diversi, e il secondo non
+    // risolve.
+    let riferimento: string | number = caricato.filename
+    let prodotto: MediaProdotto | null = null
 
-    // Prima i silenzi, poi il livellamento: invertendo, il file finisce in
-    // un'altra cartella e il taglio non lo trova più — e il livellamento
-    // alzerebbe il rumore di fondo sopra la soglia di silenzio.
+    /*
+     * Prima i silenzi, poi il livellamento.
+     *
+     * L'ordine non e' piu' imposto dal servizio — ogni operazione accetta
+     * qualunque riferimento — ma resta la scelta giusta: livellando per primo,
+     * l'amplificazione alza il rumore di fondo sopra la soglia e i silenzi non
+     * vengono piu' riconosciuti.
+     */
     if (vuoiSilenzi.value) {
-      fase.value = 'Tolgo i silenzi…'
-      nome = await s.togliSilenzi(nome, {
-        soglia: `${sogliaDb.value}dB`,
-        durataMinimaS: durataMinimaS.value,
-      })
+      fase.value = 'Accorcio i silenzi…'
+      prodotto = await attendi(
+        await s.avviaSilenzi(riferimento, {
+          sogliaDb: sogliaDb.value,
+          pausaMinimaS: durataMinimaS.value,
+          // Senza livellamento dopo, questo e' gia' il file finale: va
+          // consegnato nel formato scelto invece che nel wav intermedio.
+          ...(vuoiLivellare.value ? {} : { formato: formatoUscita.value }),
+        }),
+      )
+      riferimento = prodotto.id
     }
 
     if (vuoiLivellare.value) {
       fase.value = 'Livello le voci…'
-      const lavoro = await s.livella(nome, codecUscita.value)
-      nome = await attendiLavoro(s, lavoro, { segnale: interruzione.signal, onStato: segui })
-      lavorato = codecUscita.value
+      prodotto = await attendi(
+        await s.avviaLivellamento(riferimento, { formato: formatoUscita.value }),
+      )
     }
 
+    if (!prodotto) return
+
     fase.value = 'Recupero il risultato…'
-    const prodotto = await s.scarica(nome)
-    urlRisultato.value = URL.createObjectURL(prodotto)
-    nomeRisultato.value = nome
+    const byte = await s.scarica(prodotto)
+    urlRisultato.value = URL.createObjectURL(byte)
+    nomeRisultato.value = `${nomeSenzaEstensione(sorgente.name)}-elaborato.${estensioneDi(formatoUscita.value)}`
     fase.value = null
-    void lavorato
   } catch (e) {
     erroreLavoro.value = e instanceof Error ? e.message : String(e)
     fase.value = null
@@ -180,6 +195,11 @@ async function elabora(): Promise<void> {
     interruzione = null
   }
 }
+
+const nomeSenzaEstensione = (nome: string): string => nome.replace(/\.[^.]+$/, '')
+
+/** Sigla del formato scelto, per l'etichetta accanto al nome del file. */
+const estensioneCorrente = computed(() => (formato.value ? estensioneDi(formato.value) : ''))
 
 function scarica(): void {
   if (!urlRisultato.value || !nomeRisultato.value) return
@@ -221,12 +241,12 @@ const pesoLeggibile = (b: number): string =>
         </NuxtLink>
       </BaseAlert>
 
-      <BaseAlert v-else-if="servizio.raggiungibile === false" tono="avviso">
-        Il servizio di elaborazione non risponde. Il file lo puoi comunque scegliere e riascoltare,
-        ma l’elaborazione fallirà.
-        <NuxtLink to="/impostazioni" class="underline">
-          Cambia indirizzo nelle impostazioni
-        </NuxtLink>
+      <BaseAlert v-else-if="servizio.salute && !servizio.salute.audio" tono="avviso">
+        Il servizio risponde ma
+        <strong>non espone il dominio audio</strong>
+        : il file lo puoi scegliere e riascoltare, ma l’elaborazione fallirà. È l’ambiente a non
+        averlo ancora, non una configurazione sbagliata.
+        <NuxtLink to="/impostazioni" class="underline">Controlla il servizio</NuxtLink>
       </BaseAlert>
 
       <!-- ─────────── 1. Il file ─────────── -->
@@ -245,7 +265,7 @@ const pesoLeggibile = (b: number): string =>
           <div v-if="file && urlOriginale" class="flex flex-col gap-2">
             <div class="flex flex-wrap items-center gap-2 text-sm">
               <strong>{{ file.name }}</strong>
-              <BaseBadge>{{ codec }}</BaseBadge>
+              <BaseBadge>{{ estensioneCorrente }}</BaseBadge>
               <span class="text-[var(--testo-tenue)]">
                 {{ pesoLeggibile(file.size) }} · {{ durataLeggibile(durataOriginale) }}
               </span>
@@ -259,30 +279,16 @@ const pesoLeggibile = (b: number): string =>
       <BaseCard
         v-if="file"
         title="2 · Scegli cosa fare"
-        subtitle="L’ordine non è modificabile, e il motivo è più sotto."
+        subtitle="Due operazioni, nell’ordine che dà il risultato migliore."
       >
         <div class="flex flex-col gap-4">
           <label class="flex items-start gap-2 text-sm">
-            <input
-              v-model="vuoiSilenzi"
-              type="checkbox"
-              class="mt-1"
-              :disabled="strategia === 'non-disponibile'"
-            />
+            <input v-model="vuoiSilenzi" type="checkbox" class="mt-1" />
             <span>
-              Togli i silenzi
-              <span
-                v-if="strategia === 'conversione'"
-                class="block text-xs text-[var(--testo-tenue)]"
-              >
-                Un m4a viene prima convertito in mp3: è la cartella da cui questa operazione legge.
-              </span>
-              <span
-                v-else-if="strategia === 'non-disponibile'"
-                class="block text-xs text-[var(--avviso)]"
-              >
-                Non disponibile per i wav: il servizio sa togliere i silenzi solo dagli mp3 e non ha
-                un convertitore da wav.
+              Accorcia i silenzi
+              <span class="block text-xs text-[var(--testo-tenue)]">
+                Le pause si accorciano, non si azzerano: ne resta una udibile. Vale per mp3, m4a e
+                wav allo stesso modo.
               </span>
             </span>
           </label>
@@ -345,12 +351,12 @@ const pesoLeggibile = (b: number): string =>
               <BaseField v-slot="{ id }" label="Formato in uscita">
                 <BaseSelect
                   :id="id"
-                  v-model="codecUscita"
+                  v-model="formatoUscita"
                   :disabled="!vuoiLivellare"
                   :options="[
-                    { value: 'mp3', label: 'mp3' },
-                    { value: 'wav', label: 'wav' },
-                    { value: 'm4a', label: 'm4a' },
+                    { value: 'audio/mpeg', label: 'mp3' },
+                    { value: 'audio/wav', label: 'wav' },
+                    { value: 'audio/m4a', label: 'm4a' },
                   ]"
                 />
               </BaseField>
@@ -358,14 +364,9 @@ const pesoLeggibile = (b: number): string =>
           </details>
 
           <BaseAlert v-if="vuoiSilenzi && vuoiLivellare" tono="info">
-            Prima i silenzi, poi il livellamento — in quest’ordine e non nell’altro. Livellando per
-            primo, l’amplificazione alza il rumore di fondo sopra la soglia e i silenzi non vengono
-            più riconosciuti: su una prova, 56 secondi tolti contro 28.
-          </BaseAlert>
-
-          <BaseAlert v-if="vuoiSilenzi" tono="avviso">
-            Il servizio azzera le pause invece di accorciarle: gli stacchi possono risultare
-            bruschi. Lasciarne una parte richiede una modifica alle API.
+            Prima i silenzi, poi il livellamento. Non è un vincolo del servizio ma una scelta di
+            qualità: livellando per primo, l’amplificazione alza il rumore di fondo sopra la soglia
+            e i silenzi non vengono più riconosciuti — su una prova, 56 secondi tolti contro 28.
           </BaseAlert>
 
           <div>

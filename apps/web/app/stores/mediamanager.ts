@@ -1,4 +1,10 @@
-import { creaClientMediaManager, normalizzaBaseUrl, type ClientMediaManager } from '@nmc/nostr-core'
+import {
+  creaClientMediaManager,
+  creaServizioAudio,
+  normalizzaBaseUrl,
+  type ClientMediaManager,
+  type ServizioAudio,
+} from '@nmc/nostr-core'
 import { defineStore } from 'pinia'
 
 /**
@@ -6,8 +12,12 @@ import { defineStore } from 'pinia'
  *
  * E' un servizio esterno al protocollo: non ha nulla di Nostr, elabora
  * contenuti e tiene un proprio archivio. Come per i relay e per Blossom, **qui
- * si configura soltanto, e la configurazione sta nelle impostazioni**: la
- * pagina Elabora mostra solo cosa il servizio sa fare.
+ * si configura soltanto, e la configurazione sta nelle impostazioni**: le
+ * pagine Elabora e Audio mostrano solo cosa il servizio sa fare.
+ *
+ * **Un indirizzo solo, per tutto.** Immagini, archivio ed elaborazione audio
+ * sono tre domini dello stesso microservizio: prima l'audio stava altrove e
+ * aveva una configurazione sua, ora non piu'.
  *
  * Indirizzo e chiave arrivano dall'ambiente (`.env`), gia' valorizzati su cio'
  * che funziona, e restano sostituibili dall'utente. La sostituzione vive nel
@@ -39,7 +49,7 @@ export const useMediaManager = defineStore('mediamanager', () => {
   const apiKey = computed(() => override.value.apiKey ?? predefiniti.value.apiKey)
 
   /** Salute per dominio: `null` finche' non si e' verificato. */
-  const salute = ref<{ media: boolean; content: boolean } | null>(null)
+  const salute = ref<{ media: boolean; content: boolean; audio: boolean } | null>(null)
   const verificaInCorso = ref(false)
 
   const configurato = computed(() => normalizzaBaseUrl(baseUrl.value) !== '')
@@ -109,6 +119,24 @@ export const useMediaManager = defineStore('mediamanager', () => {
     }
   })
 
+  /**
+   * Client del dominio audio, sullo stesso indirizzo e con la stessa chiave.
+   *
+   * Sta in un oggetto separato perche' e' un dominio distinto del contratto,
+   * non perche' sia un'altra installazione da configurare.
+   */
+  const audio = computed<ServizioAudio | null>(() => {
+    if (!configurato.value) return null
+    try {
+      return creaServizioAudio({
+        baseUrl: baseUrl.value,
+        ...(apiKey.value ? { apiKey: apiKey.value } : {}),
+      })
+    } catch {
+      return null
+    }
+  })
+
   async function verifica(): Promise<void> {
     const c = client.value
     if (!c) {
@@ -117,8 +145,12 @@ export const useMediaManager = defineStore('mediamanager', () => {
     }
     verificaInCorso.value = true
     try {
-      const [media, content] = await Promise.all([c.salute('media'), c.salute('content')])
-      salute.value = { media, content }
+      const [media, content, audioOk] = await Promise.all([
+        c.salute('media'),
+        c.salute('content'),
+        c.salute('audio'),
+      ])
+      salute.value = { media, content, audio: audioOk }
     } finally {
       verificaInCorso.value = false
     }
@@ -156,6 +188,7 @@ export const useMediaManager = defineStore('mediamanager', () => {
     verificaInCorso,
     configurato,
     client,
+    audio,
     ostacoli,
     inizializza,
     applica,

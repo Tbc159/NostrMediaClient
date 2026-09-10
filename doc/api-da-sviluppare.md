@@ -1,12 +1,32 @@
-# API da sviluppare sul microservizio media-manager
+# API del microservizio media-manager — stato e prompt
 
-Documento di lavoro per NostrMediaClient. Raccoglie **cosa manca** al servizio
+Documento di lavoro per NostrMediaClient. Nato per raccogliere **cosa mancava**
+al servizio
 [`microservice-media-manager`](https://github.com/Tbc159/microservice-media-manager)
-perché questo client possa usarlo, e i **prompt** da consegnare a un agente che
-lavori su quel repository.
+perché questo client potesse usarlo, e i **prompt** da consegnare a chi lo
+sviluppa.
 
-Tutto quanto segue è stato verificato il 6 settembre 2026 contro il branch
-`develop` del repository e contro l'ambiente `http://mediamanager-dev.duckdns.org`.
+> **Stato al 10 settembre 2026 — i prompt sono stati svolti.** Sul branch
+> `feature/content-custom-fonts` del servizio esistono i commit che realizzano
+> A (CORS e HTTPS), B (`POST /v0/media/from-url`), C (dominio `audio`
+> completo), D (preset `social` e `slide`, enum dei formati, elenco senza
+> filtro), E (URL firmati) e il contratto degli asset non ambiguo con errori
+> `400` diagnosticabili.
+>
+> **Il client è già allineato a quel contratto** (branch `API-extension`):
+> legge i riferimenti come `filename`, usa `from-url`, mostra le anteprime con
+> `signed_url` e fa l'audio sul dominio `audio`. Il servizio precedente non è
+> più chiamato da nessuna parte.
+>
+> **Manca solo il deploy.** Verificato con `curl` oggi contro
+> `http://mediamanager-dev.duckdns.org`: `/v0/audio/health` risponde `404`, il
+> preflight `OPTIONS /v0/content/image` risponde `405` senza intestazioni CORS,
+> e `https://` non risponde. Finché quel branch non è unito e pubblicato, dal
+> browser le due sezioni non funzionano contro l'ambiente di sviluppo: la
+> verifica del client è stata fatta contro un finto fedele al contratto.
+
+I prompt restano qui sotto come traccia di cosa è stato chiesto e perché: sono
+la spiegazione delle scelte che il contratto porta ora dentro di sé.
 
 ---
 
@@ -120,38 +140,18 @@ Da fare:
    il limite, duplicato.
 ```
 
-### Decisione del 10 settembre 2026 — `microservices-media` è in dismissione
+### `microservices-media` è dismesso
 
-Il servizio `ffmpeg` del repository precedente **è vivo** su
-`http://api-v0-bitcoinradio.duckdns.org` (un `GET` sulle rotte risponde `405`:
-esistono e vogliono `POST`) e, a differenza del media-manager, **espone
-correttamente il CORS** — il preflight risponde `200` con
-`Access-Control-Allow-Origin`. È chiamabile da un browser oggi, purché la
-pagina stia su `http`.
+Il servizio `ffmpeg` del repository precedente è ancora vivo su
+`http://api-v0-bitcoinradio.duckdns.org`, ma **il client non lo chiama più da
+nessuna parte**: l'adattatore che gli parlava è stato tolto, insieme ai tre
+espedienti che imponeva — l'ordine obbligato delle operazioni, il taglio dei
+silenzi riservato agli mp3, e le pause azzerate invece che accorciate.
 
-Il client lo usa già, nella sezione «Audio», attraverso l'interfaccia
-`ServizioAudio` (`packages/nostr-core/src/audio/tipi.ts`): le pagine non
-conoscono le rotte, le conosce solo l'adattatore `legacy.ts`.
-
-**Da qui in avanti su quel repository non si interviene.** È in dismissione:
-non riceve correzioni, non riceve funzionalità, e i suoi difetti non vanno
-riparati là. Resta acceso finché il dominio audio del media-manager non è
-pronto, e serve a due cose soltanto:
-
-1. **implementazione di riferimento** — il comportamento da riprodurre si legge
-   nel suo codice, con le misure già fatte;
-2. **termine di paragone** — a port avvenuto, lo stesso file deve dare un
-   risultato almeno pari.
-
-Conseguenza per il client: i vincoli del servizio vecchio si continuano ad
-**assorbire**, non a correggere. Sono documentati in `audio/legacy.ts` e sono
-tre: le cartelle impongono l'ordine delle operazioni (un `mp3` caricato finisce
-in `uploads/mp3_media`, `remove_silence` legge solo da lì e scrive in
-`uploads/clean`, `normalize` scrive in `uploads/normalized`, quindi
-normalizzare per primo spezza la catena); il taglio dei silenzi vale solo per
-gli `mp3`; `stop_silence` non è esposto, quindi le pause vengono azzerate
-invece che accorciate. Il Prompt C li elimina alla radice, **nel repository
-nuovo**.
+Su quel repository non si interviene: niente PR, niente correzioni, nemmeno per
+i difetti elencati nel prompt qui sotto. Resta acceso finché il dominio audio
+del media-manager non è pubblicato, e serve come termine di paragone — a port
+avvenuto, sullo stesso file, il risultato dev'essere almeno pari.
 
 ### Prompt C — Ricostruire il dominio audio nel media-manager
 
@@ -426,30 +426,40 @@ Nel repository nuovo esistono già branch che anticipano parte del lavoro:
 
 ---
 
-## 5. Cosa fa il client, oggi, con quello che c'è
+## 5. Cosa fa il client, oggi
 
-**Indirizzi e chiavi non si chiedono più dentro le due sezioni**: stanno in
-_Impostazioni → Servizi di elaborazione_, insieme a relay e server Blossom, con
-i default presi dall'ambiente (`.env`, vedi `.env.example`) già valorizzati su
-ciò che funziona. Le pagine mostrano le funzionalità e nient'altro; se un
-servizio non risponde lo dicono con un rimando alle impostazioni, invece di
-piazzare un campo di configurazione in mezzo al lavoro.
+**Un servizio solo, configurato in un posto solo.** Indirizzo e chiave stanno in
+_Impostazioni → Servizio di elaborazione_, con i default presi dall'ambiente
+(`.env`, vedi `.env.example`). Le pagine Elabora e Audio mostrano soltanto le
+funzionalità; se un dominio non risponde lo dicono con un rimando alle
+impostazioni, dove le pastiglie riportano la salute dei tre domini (`media`,
+`content`, `audio`) separatamente — perché è normale, oggi, che i primi due
+rispondano e il terzo no.
 
-La chiave del media-manager resta **vuota nei default versionati**: è una
-credenziale, e `NUXT_PUBLIC_*` finisce nel bundle servito al browser. Chi
-sviluppa la mette nel proprio `.env`; il sito pubblicato parte senza, e chi lo
-usa la inserisce dalle impostazioni.
+La chiave resta **vuota nei default versionati**: è una credenziale, e
+`NUXT_PUBLIC_*` finisce nel bundle servito al browser. Chi sviluppa la mette nel
+proprio `.env`; il sito pubblicato parte senza, e chi lo usa la inserisce dalle
+impostazioni.
 
-La sezione **Elabora** copre il percorso completo per le immagini, contro il
-media-manager: si portano gli ingredienti nel suo archivio (da file locale o da
-un indirizzo, tipicamente un file già su Blossom), si compone con `copertina` o
-`composita`, e il risultato si scarica oppure torna su Blossom, pronto per
-essere pubblicato come evento Nostr.
+**Elabora** — ingredienti nell'archivio del servizio (da file locale, oppure da
+un indirizzo con `from-url`: i byte non passano più dal browser), composizione
+`copertina` o `composita`, anteprima con `signed_url`, e il risultato si scarica
+o torna su Blossom pronto per essere pubblicato come evento.
 
-La sezione **Audio** copre la pre-elaborazione — taglio dei silenzi con soglia
-e durata regolabili da cursore, livellamento delle voci, confronto con
-l'originale e scaricamento — e parla con il **servizio vecchio**, l'unico che
-sappia farlo. Il flusso si ferma allo scaricamento: niente Blossom, niente
-eventi. Quando il dominio audio del media-manager esisterà (Prompt C), cambierà
-un adattatore in `packages/nostr-core/src/audio/` e le pagine resteranno come
-sono.
+**Audio** — un file locale, taglio dei silenzi con soglia e pausa regolabili da
+cursore, livellamento, confronto con l'originale, scaricamento. Il flusso si
+ferma lì: niente Blossom, niente eventi.
+
+Tre cose che il contratto nuovo ha reso possibili e che si vedono in pagina:
+
+- **i wav non sono più esclusi** dal taglio dei silenzi, e un m4a non viene più
+  convertito prima: ogni operazione accetta qualunque riferimento;
+- **l'ordine non è più imposto**. Il client continua a fare prima i silenzi e
+  poi il livellamento, ma ora è una scelta di qualità dichiarata, non un
+  vincolo dell'infrastruttura;
+- **la sorgente sopravvive**, quindi rifare con un'altra soglia non richiede di
+  ricaricare il file — che è l'azione più naturale davanti a un cursore.
+
+Non è stata aggiunta nessuna funzionalità: `analyze`, `split`, `concat`, i
+preset `social` e `slide` e il catalogo font esistono nel contratto e non hanno
+ancora un posto nell'interfaccia.

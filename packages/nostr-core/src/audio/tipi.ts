@@ -1,78 +1,115 @@
+import type { MediaItem } from '../mediamanager/types.js'
+
 /**
- * Pre-elaborazione audio: cosa il client puo' chiedere, senza dire a chi.
+ * Elaborazione audio: cosa il client puo' chiedere, senza dire a chi.
  *
- * L'interfaccia sta a monte dell'implementazione perche' oggi il servizio che
- * sa fare queste cose e' quello vecchio (`microservices-media`, servizio
- * `ffmpeg`) e domani sara' un dominio del microservizio nuovo. Le rotte
- * cambieranno; le pagine che le usano no.
+ * Il dominio `audio` del media-manager ha sostituito il servizio precedente, e
+ * con esso i suoi vincoli: **l'ordine delle operazioni e' libero, i formati
+ * sono indifferenti, e nessuna operazione distrugge la sorgente**. Quindi qui
+ * non c'e' piu' alcuna strategia da calcolare prima di chiedere: si manda un
+ * riferimento e si aspetta un lavoro.
  *
- * Le operazioni si scambiano **nomi di file**, non byte: e' cosi' che ragiona
- * il servizio, che tiene un proprio archivio e vi si riferisce per nome.
+ * L'interfaccia resta separata dall'implementazione perche' e' cio' che rende
+ * l'attesa dei lavori provabile senza rete, non perche' si preveda un altro
+ * servizio.
  */
 
-export type CodecAudio = 'mp3' | 'm4a' | 'wav'
+/** Formati che il dominio audio accetta in ingresso e sa produrre. */
+export type FormatoAudio = 'audio/mpeg' | 'audio/m4a' | 'audio/wav'
+
+/**
+ * Riferimento a un media in archivio: l'id numerico oppure il **filename**.
+ *
+ * Il `filename` lo genera il servizio e va riletto dalla risposta: il `title`
+ * che hai inviato non e' un riferimento valido.
+ */
+export type RiferimentoAudio = number | string
+
+/** Un file prodotto da una lavorazione. */
+export interface MediaProdotto {
+  id: number
+  media_type: string
+  content_url: string
+  download_url: string
+  /**
+   * URL dei byte utilizzabile **senza intestazioni**, a scadenza.
+   *
+   * E' l'unico che si puo' mettere in un `<audio src>`: il browser non allega
+   * la chiave alle richieste di sotto-risorsa, e `content_url` li' riceve 401.
+   * Manca se l'ambiente del servizio non ha una chiave di firma.
+   */
+  signed_url?: string
+  signed_url_expires_at_s?: number
+}
 
 export interface OpzioniSilenzi {
   /**
-   * Sotto questo livello e' silenzio. Vuole l'unita': `-40dB`.
+   * Sotto questo livello e' silenzio, in decibel (per esempio -40).
    *
-   * Senza unita' il valore e' interpretato come ampiezza lineare, e un `-40`
-   * scritto per sbaglio non taglierebbe nulla senza dirlo.
+   * Numero e non stringa: l'unita' la mette il servizio. Prima andava scritta
+   * a mano (`-40dB`) e ometterla significava passare un'ampiezza lineare, cioe'
+   * non tagliare nulla senza che nulla lo dicesse.
    */
-  soglia: string
-  /** Quanto deve durare un silenzio per essere tagliato, in secondi. */
-  durataMinimaS: number
+  sogliaDb: number
+  /** Quanto deve durare una pausa perche' venga accorciata, in secondi. */
+  pausaMinimaS: number
+  /** Quanto silenzio lasciare: le pause si accorciano, non si azzerano. */
+  silenzioDaLasciareS?: number
+  /** Formato del prodotto. Il servizio usa il wav quando non si dice nulla. */
+  formato?: FormatoAudio
+  titolo?: string
+}
+
+export interface OpzioniLivellamento {
+  formato?: FormatoAudio
+  titolo?: string
 }
 
 export interface StatoLavoro {
-  stato: 'in-corso' | 'completato' | 'fallito'
-  /** Nome del file prodotto, presente solo a lavoro completato. */
-  risultato?: string
+  stato: 'in-coda' | 'in-corso' | 'completato' | 'fallito'
+  /** Presente a lavoro completato: i file prodotti, in ordine. */
+  media?: MediaProdotto[]
   errore?: string
-}
-
-/**
- * Se il taglio dei silenzi e' possibile per un certo formato.
- *
- * Non e' una scelta nostra ma una conseguenza di come il servizio dispone le
- * cartelle: `remove_silence` legge da quella degli mp3. Un m4a va convertito
- * prima; per un wav non esiste un convertitore, quindi l'operazione non e'
- * disponibile — e l'interfaccia lo dice invece di far fallire la richiesta.
- */
-export type StrategiaSilenzi = 'diretta' | 'conversione' | 'non-disponibile'
-
-export function strategiaSilenzi(codec: CodecAudio): StrategiaSilenzi {
-  if (codec === 'mp3') return 'diretta'
-  if (codec === 'm4a') return 'conversione'
-  return 'non-disponibile'
 }
 
 export interface ServizioAudio {
   readonly radice: string
-  /** Se il servizio risponde. Non richiede autenticazione. */
+  /** Se il dominio audio risponde. */
   disponibile(): Promise<boolean>
-  /** Manda i byte al servizio. Restituisce il nome con cui vi e' conosciuto. */
-  carica(file: Blob, nome: string, codec: CodecAudio): Promise<string>
-  /** m4a → mp3. Asincrono: restituisce l'identificativo del lavoro. */
-  convertiInMp3(nome: string): Promise<string>
-  /** Taglia i silenzi. Sincrono: restituisce il nome del risultato. */
-  togliSilenzi(nome: string, opzioni: OpzioniSilenzi): Promise<string>
-  /** Livella le voci. Asincrono: restituisce l'identificativo del lavoro. */
-  livella(nome: string, codec: CodecAudio): Promise<string>
+  /** Manda i byte in archivio. Il riferimento da usare poi e' il `filename`. */
+  carica(file: Blob, titolo: string, mime: FormatoAudio): Promise<MediaItem>
+  /** Accorcia i silenzi. Restituisce l'identificativo del lavoro. */
+  avviaSilenzi(sorgente: RiferimentoAudio, opzioni: OpzioniSilenzi): Promise<string>
+  /** Livella le voci. Restituisce l'identificativo del lavoro. */
+  avviaLivellamento(sorgente: RiferimentoAudio, opzioni?: OpzioniLivellamento): Promise<string>
+  /** Cambia formato. Restituisce l'identificativo del lavoro. */
+  avviaConversione(
+    sorgente: RiferimentoAudio,
+    formato: FormatoAudio,
+    titolo?: string,
+  ): Promise<string>
   stato(idLavoro: string): Promise<StatoLavoro>
-  scarica(nome: string): Promise<Blob>
+  /** I byte di un prodotto, per riascoltarlo o salvarlo. */
+  scarica(media: MediaProdotto): Promise<Blob>
 }
 
-/** Estensione attesa per un codec, come la pretende il servizio. */
-export function estensioneDi(codec: CodecAudio): string {
-  return `.${codec}`
+/** Estensione consueta di un formato, per comporre un nome di file. */
+export function estensioneDi(formato: FormatoAudio): string {
+  if (formato === 'audio/mpeg') return 'mp3'
+  if (formato === 'audio/m4a') return 'm4a'
+  return 'wav'
 }
 
-/** Il codec di un file dal suo nome, o `null` se non e' un audio trattabile. */
-export function codecDaNome(nome: string): CodecAudio | null {
+/**
+ * Il formato di un file dal suo nome, o `null` se non e' un audio trattabile.
+ *
+ * `mp3` diventa `audio/mpeg`, che e' il tipo registrato: il servizio accetta
+ * `audio/mp3` come alias, ma non c'e' ragione di propagare un nome sbagliato.
+ */
+export function formatoDaNome(nome: string): FormatoAudio | null {
   const ext = nome.toLowerCase().split('.').pop() ?? ''
-  if (ext === 'mp3') return 'mp3'
-  if (ext === 'm4a') return 'm4a'
-  if (ext === 'wav') return 'wav'
+  if (ext === 'mp3') return 'audio/mpeg'
+  if (ext === 'm4a') return 'audio/m4a'
+  if (ext === 'wav') return 'audio/wav'
   return null
 }

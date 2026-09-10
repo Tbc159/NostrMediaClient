@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import {
+  portaDaIndirizzo,
   portaSulServizio,
   scaricaGenerata,
+  urlPerAnteprima,
   uploadBlob,
   TIPI_ACCETTATI,
   type ImmagineGenerata,
@@ -42,32 +44,26 @@ async function aggiungiLocale(evento: Event): Promise<void> {
   const file = target.files?.[0]
   target.value = ''
   if (!file) return
-  await aggiungi(file, file.name, file.type)
+  // Un file sul disco di chi guarda nessun server può andarselo a prendere:
+  // questi byte passano per forza dal browser.
+  await aggiungi((client) =>
+    portaSulServizio(client, { blob: file, titolo: file.name, mime: file.type }),
+  )
 }
 
 async function aggiungiDaIndirizzo(): Promise<void> {
   const url = indirizzoRemoto.value.trim()
   if (!url) return
-  erroreIngrediente.value = null
-  caricamento.value = true
-  try {
-    // I byte fanno il giro dal browser perché il servizio non espone un
-    // endpoint pubblico che scarichi da un URL: ne esiste uno interno
-    // (`/source/media/from-url`) ma non è raggiungibile da qui.
-    const risposta = await fetch(url)
-    if (!risposta.ok) throw new Error(`Il file non è raggiungibile (${risposta.status}).`)
-    const blob = await risposta.blob()
-    const nome = url.split('/').pop()?.split('?')[0] || 'da-blossom'
-    await aggiungi(blob, nome, blob.type)
-    indirizzoRemoto.value = ''
-  } catch (e) {
-    erroreIngrediente.value = e instanceof Error ? e.message : String(e)
-  } finally {
-    caricamento.value = false
-  }
+  // Il download lo fa il servizio: i byte non passano più da qui. Per un file
+  // di decine di megabyte è la differenza fra due transiti e nessuno.
+  const nome = url.split('/').pop()?.split('?')[0] || 'da-blossom'
+  await aggiungi((client) => portaDaIndirizzo(client, { url, titolo: nome }))
+  if (!erroreIngrediente.value) indirizzoRemoto.value = ''
 }
 
-async function aggiungi(blob: Blob, nome: string, mime: string): Promise<void> {
+async function aggiungi(
+  porta: (client: NonNullable<typeof servizio.client>) => Promise<{ media: MediaItem }>,
+): Promise<void> {
   const client = servizio.client
   if (!client) {
     erroreIngrediente.value = 'Servizio non configurato: l’indirizzo si imposta dalle impostazioni.'
@@ -76,7 +72,7 @@ async function aggiungi(blob: Blob, nome: string, mime: string): Promise<void> {
   erroreIngrediente.value = null
   caricamento.value = true
   try {
-    const esito = await portaSulServizio(client, { blob, titolo: nome, mime })
+    const esito = await porta(client)
     if (!ingredienti.value.some((m) => m.id === esito.media.id)) {
       ingredienti.value = [...ingredienti.value, esito.media]
     }
@@ -118,7 +114,7 @@ interface LivelloModificabile {
 const nuovoLivello = (type: Livello['type']): LivelloModificabile => ({
   type,
   content: type === 'text' ? 'TESTO' : '',
-  media: type === 'background' ? '' : (ingredienti.value[0]?.title ?? ''),
+  media: type === 'background' ? '' : (ingredienti.value[0]?.filename ?? ''),
   fallback_color: '#111111',
   x: 'center',
   y: type === 'person' ? 'bottom' : 'center',
@@ -150,9 +146,17 @@ function verso(l: LivelloModificabile): Livello {
   return { type: l.type, media: l.media, x: l.x, y: l.y }
 }
 
+/*
+ * Il valore e' il `filename`, l'etichetta il `title`.
+ *
+ * Sono due campi diversi e solo il primo e' un riferimento: il `filename` lo
+ * genera il servizio e va riletto dalla risposta del caricamento. Mandare il
+ * titolo produce un 400 «asset non trovato», che è esattamente l'errore che
+ * questa pagina faceva prima.
+ */
 const scelteAsset = computed(() => [
   { value: '', label: '— nessuna immagine —' },
-  ...ingredienti.value.map((m) => ({ value: m.title, label: m.title })),
+  ...ingredienti.value.map((m) => ({ value: m.filename, label: m.title })),
 ])
 
 const richiesta = computed<RichiestaImmagine | null>(() => {
@@ -165,9 +169,9 @@ const richiesta = computed<RichiestaImmagine | null>(() => {
       logo_host: logoHost.value,
       colore_sfondo: coloreSfondo.value,
       ospiti: ingredienti.value
-        .filter((m) => m.title !== logoHost.value)
+        .filter((m) => m.filename !== logoHost.value)
         .slice(0, 5)
-        .map((m) => m.title),
+        .map((m) => m.filename),
     }
   }
   return livelli.value.length ? { tipo: 'composita', layers: livelli.value.map(verso) } : null
@@ -176,6 +180,8 @@ const richiesta = computed<RichiestaImmagine | null>(() => {
 // ─── Risultato ─────────────────────────────────────────────────────────────
 const generata = ref<ImmagineGenerata | null>(null)
 const anteprima = ref<string | null>(null)
+/** L'object URL, quando serve: solo se il servizio non firma gli URL. */
+const anteprimaLocale = ref<string | null>(null)
 const blobGenerato = ref<Blob | null>(null)
 const erroreGenerazione = ref<string | null>(null)
 const generazioneInCorso = ref(false)
@@ -189,11 +195,16 @@ async function genera(): Promise<void> {
   generazioneInCorso.value = true
   try {
     generata.value = await client.generaImmagine(corpo)
-    // L'anteprima non può essere un <img src> verso il servizio: anche i byte
-    // stanno dietro la chiave, e il browser non la manderebbe.
+
+    // L'anteprima usa il `signed_url`, che porta con sé un token a scadenza e
+    // quindi funziona in un <img src> dove la chiave non si può mettere. I
+    // byte si scaricano lo stesso, ma per il pulsante «Carica su Blossom»:
+    // servono in mano, non solo a schermo.
+    const firmato = urlPerAnteprima(client, generata.value)
     blobGenerato.value = await scaricaGenerata(client, generata.value)
-    if (anteprima.value) URL.revokeObjectURL(anteprima.value)
-    anteprima.value = URL.createObjectURL(blobGenerato.value)
+    if (anteprimaLocale.value) URL.revokeObjectURL(anteprimaLocale.value)
+    anteprimaLocale.value = firmato ? null : URL.createObjectURL(blobGenerato.value)
+    anteprima.value = firmato ?? anteprimaLocale.value
   } catch (e) {
     erroreGenerazione.value = e instanceof Error ? e.message : String(e)
   } finally {
@@ -202,15 +213,21 @@ async function genera(): Promise<void> {
 }
 
 onBeforeUnmount(() => {
-  if (anteprima.value) URL.revokeObjectURL(anteprima.value)
+  if (anteprimaLocale.value) URL.revokeObjectURL(anteprimaLocale.value)
 })
 
 function scarica(): void {
-  if (!anteprima.value || !generata.value) return
+  const blob = blobGenerato.value
+  if (!blob || !generata.value) return
+  // Si scarica dai byte che abbiamo, non dall'URL firmato: quello scade, e un
+  // pulsante che dopo qualche minuto salva una pagina di errore è peggio di un
+  // pulsante che non c'è.
+  const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
-  a.href = anteprima.value
+  a.href = url
   a.download = `generata-${generata.value.id}.${generata.value.media_type.split('/')[1]}`
   a.click()
+  URL.revokeObjectURL(url)
 }
 
 const suBlossom = ref<string | null>(null)

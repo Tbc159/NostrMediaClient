@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { passwordStrength } from '@nmc/nostr-core'
-import { useAudio } from '~/stores/audio'
 import { campiEndpoint, useConfigurazione, type CampoEndpoint } from '~/stores/configurazione'
 import { useMediaManager } from '~/stores/mediamanager'
 import { linkEventoEsterno, type PiattaformaClient } from '@nmc/nostr-core'
@@ -61,53 +60,60 @@ function salvaEndpoint(): void {
   }
 }
 
-// --- Servizi di elaborazione ------------------------------------------------
+// --- Servizio di elaborazione ------------------------------------------------
 
 /*
- * Audio e media-manager stanno qui e non nelle loro pagine.
+ * Un indirizzo solo, per Elabora e per Audio.
  *
- * Sono endpoint come i relay e i server Blossom: chi apre «Audio» vuole
- * lavorare su una registrazione, non rispondere a domande di amministrazione.
- * I default arrivano dall'ambiente e sono gia' quelli funzionanti; questa
- * pagina serve a sostituirli, non a farli scoprire.
+ * Immagini, archivio ed elaborazione audio sono tre domini dello stesso
+ * microservizio: finche' l'audio stava altrove servivano due configurazioni,
+ * ora una. E sta qui, non nelle pagine: chi apre «Audio» vuole lavorare su una
+ * registrazione, non rispondere a domande di amministrazione. Il default
+ * arriva dall'ambiente ed e' gia' quello funzionante.
  */
 
-const audio = useAudio()
 const mediaManager = useMediaManager()
 
 const bozzaServizi = reactive({
-  audio: audio.baseUrl,
-  mediaManagerUrl: mediaManager.baseUrl,
-  mediaManagerChiave: mediaManager.apiKey,
+  url: mediaManager.baseUrl,
+  chiave: mediaManager.apiKey,
 })
 
 // I default arrivano dal plugin, che gira prima di questa pagina ma non prima
 // del `reactive` qui sopra in un ricaricamento a caldo: riallinea la bozza
 // quando i valori effettivi cambiano da sotto (ripristino compreso).
 watch(
-  () => [audio.baseUrl, mediaManager.baseUrl, mediaManager.apiKey] as const,
-  ([a, u, k]) => {
-    bozzaServizi.audio = a
-    bozzaServizi.mediaManagerUrl = u
-    bozzaServizi.mediaManagerChiave = k
+  () => [mediaManager.baseUrl, mediaManager.apiKey] as const,
+  ([u, k]) => {
+    bozzaServizi.url = u
+    bozzaServizi.chiave = k
   },
   { immediate: true },
 )
 
 const serviziSalvati = ref(false)
 
+// Questa e' la pagina dove si viene a capire se il servizio risponde: le
+// pastiglie dei domini devono esserci gia' all'apertura, non solo dopo aver
+// premuto «Salva e verifica».
+onMounted(() => {
+  if (mediaManager.configurato) void mediaManager.verifica()
+})
+
+/** I domini del servizio, con il nome della sezione che ciascuno alimenta. */
+const dominiServizio = [
+  { chiave: 'media' as const, etichetta: 'media', a_cosa_serve: 'archivio' },
+  { chiave: 'content' as const, etichetta: 'content', a_cosa_serve: 'immagini' },
+  { chiave: 'audio' as const, etichetta: 'audio', a_cosa_serve: 'elaborazione audio' },
+]
+
 async function salvaServizi(): Promise<void> {
-  audio.applica(bozzaServizi.audio)
-  mediaManager.applica({
-    baseUrl: bozzaServizi.mediaManagerUrl,
-    apiKey: bozzaServizi.mediaManagerChiave,
-  })
+  mediaManager.applica({ baseUrl: bozzaServizi.url, apiKey: bozzaServizi.chiave })
   serviziSalvati.value = true
-  await Promise.all([audio.verifica(), mediaManager.verifica()])
+  await mediaManager.verifica()
 }
 
 function ripristinaServizi(): void {
-  audio.ripristina()
   mediaManager.ripristina()
   serviziSalvati.value = false
 }
@@ -546,46 +552,21 @@ const etichettaModo: Record<string, string> = {
         </form>
       </BaseCard>
 
-      <!-- ─────────── Servizi di elaborazione ─────────── -->
+      <!-- ─────────── Servizio di elaborazione ─────────── -->
       <BaseCard
-        title="Servizi di elaborazione"
-        subtitle="I microservizi dietro le sezioni Audio ed Elabora. Non sono Nostr: sono API HTTP esterne, e come i relay si possono sostituire."
+        title="Servizio di elaborazione"
+        subtitle="Il microservizio dietro le sezioni Elabora e Audio. Non è Nostr: è un’API HTTP esterna, e come i relay si può sostituire."
       >
         <form class="flex flex-col gap-5" @submit.prevent="salvaServizi">
           <BaseField
             v-slot="{ id, describedBy }"
-            label="Servizio audio"
-            hint="Normalizzazione e taglio dei silenzi. Non richiede chiave."
+            label="Indirizzo"
+            hint="Uno solo: immagini, archivio ed elaborazione audio sono domini dello stesso servizio. Senza /v0, che lo aggiunge il client."
           >
             <div class="flex flex-col gap-1">
               <BaseInput
                 :id="id"
-                v-model="bozzaServizi.audio"
-                placeholder="http://…"
-                :described-by="describedBy"
-              />
-              <p class="flex flex-wrap items-center gap-2 text-xs text-[var(--testo-tenue)]">
-                <BaseBadge v-if="audio.personalizzato" tono="accento">sostituito da te</BaseBadge>
-                <BaseBadge v-else>dal file .env</BaseBadge>
-                <BaseBadge v-if="audio.raggiungibile === true" tono="successo">
-                  raggiungibile
-                </BaseBadge>
-                <BaseBadge v-else-if="audio.raggiungibile === false" tono="avviso">
-                  non raggiungibile
-                </BaseBadge>
-              </p>
-            </div>
-          </BaseField>
-
-          <BaseField
-            v-slot="{ id, describedBy }"
-            label="Servizio media-manager"
-            hint="Composizione di immagini e archivio degli asset. Senza /v0: lo aggiunge il client."
-          >
-            <div class="flex flex-col gap-1">
-              <BaseInput
-                :id="id"
-                v-model="bozzaServizi.mediaManagerUrl"
+                v-model="bozzaServizi.url"
                 placeholder="http://…"
                 :described-by="describedBy"
               />
@@ -595,11 +576,13 @@ const etichettaModo: Record<string, string> = {
                 </BaseBadge>
                 <BaseBadge v-else>dal file .env</BaseBadge>
                 <template v-if="mediaManager.salute">
-                  <BaseBadge :tono="mediaManager.salute.media ? 'successo' : 'avviso'">
-                    media {{ mediaManager.salute.media ? 'attivo' : 'non raggiungibile' }}
-                  </BaseBadge>
-                  <BaseBadge :tono="mediaManager.salute.content ? 'successo' : 'avviso'">
-                    content {{ mediaManager.salute.content ? 'attivo' : 'non raggiungibile' }}
+                  <BaseBadge
+                    v-for="d in dominiServizio"
+                    :key="d.chiave"
+                    :tono="mediaManager.salute[d.chiave] ? 'successo' : 'avviso'"
+                  >
+                    {{ d.etichetta }} ({{ d.a_cosa_serve }}):
+                    {{ mediaManager.salute[d.chiave] ? 'attivo' : 'assente' }}
                   </BaseBadge>
                 </template>
               </p>
@@ -608,39 +591,31 @@ const etichettaModo: Record<string, string> = {
 
           <BaseField
             v-slot="{ id, describedBy }"
-            label="Chiave del media-manager"
+            label="Chiave API"
             hint="Viaggia nell’intestazione X-API-Key ed è conservata in chiaro in questo browser. Non è un’identità e non firma nulla, ma resta una credenziale."
           >
             <BaseInput
               :id="id"
-              v-model="bozzaServizi.mediaManagerChiave"
+              v-model="bozzaServizi.chiave"
               type="password"
               :described-by="describedBy"
             />
           </BaseField>
 
-          <BaseAlert
-            v-for="(o, i) in [...audio.ostacoli, ...mediaManager.ostacoli]"
-            :key="i"
-            tono="pericolo"
-          >
+          <BaseAlert v-for="(o, i) in mediaManager.ostacoli" :key="i" tono="pericolo">
             {{ o }}
           </BaseAlert>
 
           <BaseAlert v-if="serviziSalvati" tono="successo">
-            Salvati. Un campo lasciato vuoto torna al valore del .env, invece di restare senza.
+            Salvato. Un campo lasciato vuoto torna al valore del .env, invece di restare senza.
           </BaseAlert>
 
           <div class="flex flex-wrap gap-2">
-            <BaseButton
-              type="submit"
-              variant="primario"
-              :loading="audio.verificaInCorso || mediaManager.verificaInCorso"
-            >
+            <BaseButton type="submit" variant="primario" :loading="mediaManager.verificaInCorso">
               Salva e verifica
             </BaseButton>
             <BaseButton
-              v-if="audio.personalizzato || mediaManager.personalizzato"
+              v-if="mediaManager.personalizzato"
               variant="fantasma"
               @click="ripristinaServizi"
             >

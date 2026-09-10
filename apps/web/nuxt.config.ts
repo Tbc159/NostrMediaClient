@@ -100,18 +100,19 @@ export default defineNuxtConfig({
       njumpUrl: 'https://njump.me',
 
       /*
-       * Servizi di elaborazione (sezioni Audio ed Elabora).
+       * Servizio di elaborazione (sezioni Elabora e Audio).
        *
-       * Gli indirizzi qui sono quelli **oggi funzionanti**, perche' una
-       * sezione che si apre chiedendo un indirizzo non e' utilizzabile da chi
-       * non lo conosce. Restano sostituibili dalle impostazioni.
+       * Uno solo: immagini, archivio ed elaborazione audio sono domini dello
+       * stesso microservizio. L'indirizzo qui e' quello **oggi funzionante**,
+       * perche' una sezione che si apre chiedendo un indirizzo non e'
+       * utilizzabile da chi non lo conosce. Resta sostituibile dalle
+       * impostazioni.
        *
        * La chiave resta **vuota di proposito**: e' una credenziale, e i valori
        * `public` finiscono nel bundle servito al browser. Chi sviluppa la mette
        * nel proprio `.env`; una build pubblica, che quel `.env` non ce l'ha,
        * parte senza chiave e lo dice nelle impostazioni.
        */
-      audioServiceUrl: 'http://api-v0-bitcoinradio.duckdns.org',
       mediaManagerUrl: 'http://mediamanager-dev.duckdns.org',
       mediaManagerApiKey: '',
     },

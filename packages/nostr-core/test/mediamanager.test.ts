@@ -3,9 +3,11 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import {
   ErroreMediaManager,
   creaClientMediaManager,
+  portaDaIndirizzo,
   portaSulServizio,
   scaricaGenerata,
   tipoAccettato,
+  urlPerAnteprima,
   type ClientMediaManager,
 } from '../src/mediamanager/index.js'
 // Traduzione degli stati e normalizzazione dell'indirizzo sono condivise fra i
@@ -58,16 +60,30 @@ describe('lettura e scrittura dei media', () => {
     await expect(anonimo.elencoMedia('image/png')).rejects.toThrow(/Chiave API/)
   })
 
+  it('elenca tutto l’archivio, senza dover dire di che tipo', async () => {
+    // Prima `type` era obbligatorio e l'archivio non si poteva sfogliare:
+    // senza filtro il servizio rispondeva 400.
+    await client.caricaMedia(
+      new Blob([new Uint8Array([1])], { type: 'audio/wav' }),
+      'grezzo.wav',
+      'audio/wav',
+    )
+    const tutto = await client.elencoMedia()
+    expect(tutto.items.length).toBeGreaterThan(0)
+    expect(new Set(tutto.items.map((m) => m.media_type)).size).toBeGreaterThan(0)
+  })
+
   it('la salute non richiede chiave: serve a capire se il servizio e' + " c'e'", async () => {
     const anonimo = creaClientMediaManager({ baseUrl: servizio.url })
     expect(await anonimo.salute('media')).toBe(true)
     expect(await anonimo.salute('content')).toBe(true)
+    expect(await anonimo.salute('audio')).toBe(true)
   })
 })
 
 describe('generazione di un’immagine', () => {
   it('compone una copertina e restituisce gli indirizzi dei byte', async () => {
-    await client.caricaMedia(
+    const host = await client.caricaMedia(
       new Blob([new Uint8Array([9])], { type: 'image/png' }),
       'host.png',
       'image/png',
@@ -77,7 +93,8 @@ describe('generazione di un’immagine', () => {
       tipo: 'copertina',
       titolo: 'Prova',
       testo_centrale: 'ospita',
-      logo_host: 'host.png',
+      // Il riferimento e' il filename generato dal servizio, non il titolo.
+      logo_host: host.filename,
     })
 
     expect(immagine.tipo).toBe('copertina')
@@ -98,19 +115,24 @@ describe('generazione di un’immagine', () => {
     expect(immagine.tipo).toBe('composita')
   })
 
-  it(
-    'dice che il generatore social non e' + "' ancora realizzato, invece di «errore»",
-    async () => {
-      // 501 non e' un guasto: e' una funzione dichiarata nel contratto e non
-      // ancora scritta. Confonderla con un errore manderebbe a cercare un
-      // problema che non c'e'.
-      await expect(
-        client.generaImmagine({ tipo: 'social', logo_top: 1, logo_bottom: 2 }),
-      ).rejects.toThrow(/non ancora realizzata/)
-    },
-  )
+  it('accetta il preset social, che ora e' + "' un preset del motore a livelli", async () => {
+    const logo = await client.caricaMedia(
+      new Blob([new Uint8Array([9])], { type: 'image/png' }),
+      'logo-social.png',
+      'image/png',
+    )
+    const immagine = await client.generaImmagine({
+      tipo: 'social',
+      logo_top: logo.filename,
+      logo_bottom: logo.id,
+    })
+    expect(immagine.tipo).toBe('social')
+  })
 
-  it('segnala un asset che il servizio non conosce', async () => {
+  it('segnala un asset che il servizio non conosce, dicendo come lo ha cercato', async () => {
+    // Il corpo porta `field`, `value` e `searched_by`: senza, un «asset non
+    // trovato» non permette di distinguere «ho usato il campo sbagliato» da
+    // «il file non c'e'» — che e' esattamente l'errore che il client faceva.
     await expect(
       client.generaImmagine({
         tipo: 'copertina',
@@ -120,20 +142,66 @@ describe('generazione di un’immagine', () => {
       }),
     ).rejects.toThrow(/asset/)
   })
+
+  it('un riferimento per titolo non risolve: e' + "' il filename che conta", async () => {
+    const host = await client.caricaMedia(
+      new Blob([new Uint8Array([9])], { type: 'image/png' }),
+      'Logo della trasmissione.png',
+      'image/png',
+    )
+    expect(host.filename).not.toBe(host.title)
+
+    await expect(
+      client.generaImmagine({
+        tipo: 'copertina',
+        titolo: 'x',
+        testo_centrale: 'y',
+        logo_host: host.title,
+      }),
+    ).rejects.toThrow(/asset/)
+  })
 })
 
 describe('ponte da e verso Blossom', () => {
   it('traduce i tipi che il contratto non nomina ma sono la stessa cosa', () => {
-    expect(tipoAccettato('audio/mpeg')).toBe('audio/mp3')
+    // `audio/mp3` resta accettato dal servizio come alias legacy, ma qui si
+    // manda sempre il tipo registrato.
+    expect(tipoAccettato('audio/mp3')).toBe('audio/mpeg')
+    expect(tipoAccettato('audio/x-m4a')).toBe('audio/m4a')
     expect(tipoAccettato('image/jpg')).toBe('image/jpeg')
     expect(tipoAccettato('image/png; charset=binary')).toBe('image/png')
   })
 
+  it('accetta il wav, che e' + "' il formato di lavorazione dell'audio", () => {
+    expect(tipoAccettato('audio/wav')).toBe('audio/wav')
+  })
+
   it('rifiuta in anticipo i tipi che il servizio non accetta', () => {
-    // Meglio fermarsi qui che mandare un upload destinato a un 400: il
-    // contratto non prevede ne' i font ne' i wav, e serve dirlo.
+    // Meglio fermarsi qui che mandare un upload destinato a un 400: i font si
+    // caricano solo dalla rete interna, non dal dominio pubblico.
     expect(tipoAccettato('font/ttf')).toBeNull()
-    expect(tipoAccettato('audio/wav')).toBeNull()
+  })
+
+  it('un file a un indirizzo pubblico lo scarica il servizio, non il browser', async () => {
+    const esito = await portaDaIndirizzo(client, {
+      url: 'https://blossom.example/ab12cd34.png',
+      titolo: 'da-blossom.png',
+      mime: 'image/png',
+    })
+
+    expect(esito.giaPresente).toBe(false)
+    // Cio' che conta e' che sia passato di la': i byte non hanno fatto il giro
+    // dal browser, che per un episodio da decine di megabyte non e' un
+    // dettaglio.
+    expect(servizio.richieste).toContainEqual(
+      expect.objectContaining({ from_url: 'https://blossom.example/ab12cd34.png' }),
+    )
+  })
+
+  it('rifiuta un indirizzo che non e' + "' http", async () => {
+    await expect(
+      portaDaIndirizzo(client, { url: 'file:///etc/passwd', titolo: 'x.png' }),
+    ).rejects.toThrow()
   })
 
   it('un file gia' + " presente non e' un errore: si riusa quello", async () => {
@@ -157,14 +225,33 @@ describe('ponte da e verso Blossom', () => {
   })
 
   it('i byte del servizio sono dietro la chiave: un <img src> diretto darebbe 401', async () => {
-    // Non e' un dettaglio: e' il motivo per cui l'anteprima si costruisce
-    // scaricando i byte, invece di puntare l'immagine al servizio.
     const immagine = await client.generaImmagine({
       tipo: 'composita',
       layers: [{ type: 'background', fallback_color: '#000000' }],
     })
     const risposta = await fetch(client.urlAssoluto(immagine.content_url))
     expect(risposta.status).toBe(401)
+  })
+
+  it(
+    'il signed_url invece funziona senza intestazioni: e' + "' quello per l'anteprima",
+    async () => {
+      // E' la ragione per cui l'anteprima non deve piu' scaricare i byte e
+      // tenerli in memoria: un tag del browser ce la fa da solo.
+      const immagine = await client.generaImmagine({
+        tipo: 'composita',
+        layers: [{ type: 'background', fallback_color: '#000000' }],
+      })
+      const url = urlPerAnteprima(client, immagine)
+      expect(url).toBeTruthy()
+
+      const risposta = await fetch(url as string)
+      expect(risposta.status).toBe(200)
+    },
+  )
+
+  it('senza chiave di firma si ricade sui byte scaricati', () => {
+    expect(urlPerAnteprima(client, {})).toBeNull()
   })
 })
 
