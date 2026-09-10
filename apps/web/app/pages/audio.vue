@@ -12,10 +12,10 @@ useHead({ title: 'Audio · NostrMediaClient' })
 
 const servizio = useAudio()
 
-onMounted(async () => {
-  servizio.carica()
-  await servizio.verifica()
-})
+// La configurazione del servizio sta nelle impostazioni, con gli altri
+// endpoint: qui si controlla soltanto che risponda, per poterlo dire prima che
+// l'utente scelga un file e scopra il guasto a meta' strada.
+onMounted(() => servizio.verifica())
 
 /*
  * Pre-elaborazione: quello che succede *prima* di pubblicare.
@@ -25,11 +25,6 @@ onMounted(async () => {
  * altrove nel client il passo dopo c'e' sempre, e la sua assenza qui
  * sorprenderebbe.
  */
-
-async function salvaEVerifica(): Promise<void> {
-  servizio.salva()
-  await servizio.verifica()
-}
 
 // ─── 1. Il file ────────────────────────────────────────────────────────────
 const file = ref<File | null>(null)
@@ -214,37 +209,25 @@ const pesoLeggibile = (b: number): string =>
     </header>
 
     <ClientOnly>
-      <!-- ─────────── Il servizio ─────────── -->
-      <BaseCard
-        title="Il servizio"
-        subtitle="Chi fa il lavoro. L’indirizzo resta in questo browser."
-      >
-        <div class="flex flex-col gap-3">
-          <BaseField
-            v-slot="{ id }"
-            label="Indirizzo"
-            hint="Il servizio di elaborazione audio. Non richiede chiave."
-          >
-            <BaseInput :id="id" v-model="servizio.baseUrl" placeholder="http://…" />
-          </BaseField>
+      <!-- ─────────── Il servizio, solo se c'è qualcosa da dire ─────────── -->
+      <BaseAlert v-for="(o, i) in servizio.ostacoli" :key="i" tono="pericolo">
+        {{ o }}
+      </BaseAlert>
 
-          <div class="flex flex-wrap items-center gap-2">
-            <BaseButton :loading="servizio.verificaInCorso" @click="salvaEVerifica">
-              Salva e verifica
-            </BaseButton>
-            <BaseBadge v-if="servizio.raggiungibile === true" tono="successo">
-              raggiungibile
-            </BaseBadge>
-            <BaseBadge v-else-if="servizio.raggiungibile === false" tono="avviso">
-              non raggiungibile
-            </BaseBadge>
-          </div>
+      <BaseAlert v-if="!servizio.configurato" tono="avviso">
+        Nessun servizio di elaborazione configurato: senza, questa pagina non può fare nulla.
+        <NuxtLink to="/impostazioni" class="underline">
+          Impostazioni → Servizi di elaborazione
+        </NuxtLink>
+      </BaseAlert>
 
-          <BaseAlert v-for="(o, i) in servizio.ostacoli" :key="i" tono="pericolo">
-            {{ o }}
-          </BaseAlert>
-        </div>
-      </BaseCard>
+      <BaseAlert v-else-if="servizio.raggiungibile === false" tono="avviso">
+        Il servizio di elaborazione non risponde. Il file lo puoi comunque scegliere e riascoltare,
+        ma l’elaborazione fallirà.
+        <NuxtLink to="/impostazioni" class="underline">
+          Cambia indirizzo nelle impostazioni
+        </NuxtLink>
+      </BaseAlert>
 
       <!-- ─────────── 1. Il file ─────────── -->
       <BaseCard title="1 · Scegli il file" subtitle="Ascoltalo prima di mandarlo da qualche parte.">

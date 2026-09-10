@@ -4,42 +4,75 @@ import { defineStore } from 'pinia'
 /**
  * Collegamento al servizio di elaborazione audio.
  *
- * E' un servizio esterno al protocollo, come i relay e Blossom: qui si
- * configura soltanto. L'indirizzo vive nel browser dell'utente, non nel
- * repository.
+ * E' un servizio esterno al protocollo, come i relay e Blossom: **qui si
+ * configura soltanto, e la configurazione si tocca dalle impostazioni**. La
+ * pagina Audio mostra solo cosa il servizio sa fare — un indirizzo chiesto
+ * dentro il flusso di lavoro obbligherebbe a rispondere a una domanda di
+ * amministrazione per fare una cosa che con l'amministrazione non c'entra.
  *
- * Il predefinito punta al servizio di sviluppo perche' e' l'unico deployato che
- * sappia elaborare audio; resta modificabile, ed e' il primo campo della
- * pagina invece che una costante nascosta.
+ * L'indirizzo arriva dall'ambiente (`.env`, vedi `.env.example`) ed e' gia'
+ * quello funzionante: chi apre il client non deve scoprirlo. Resta comunque
+ * sostituibile, e la sostituzione vive nel browser di chi la fa, non nel
+ * repository.
  */
 
 const CHIAVE_STORAGE = 'nmc.audio'
-const PREDEFINITO = 'http://api-v0-bitcoinradio.duckdns.org'
+
+interface Persistito {
+  /** Presente solo se l'utente ha sostituito il default d'ambiente. */
+  baseUrl?: string
+}
 
 export const useAudio = defineStore('audio', () => {
-  const baseUrl = ref(PREDEFINITO)
+  const predefinito = ref('')
+  const override = ref<string | undefined>(undefined)
+
+  const baseUrl = computed(() => override.value ?? predefinito.value)
   const raggiungibile = ref<boolean | null>(null)
   const verificaInCorso = ref(false)
 
   const configurato = computed(() => normalizzaBaseUrl(baseUrl.value) !== '')
+  const personalizzato = computed(() => override.value !== undefined)
 
-  function carica(): void {
+  function inizializza(daAmbiente: string): void {
+    predefinito.value = daAmbiente
     if (!import.meta.client) return
     try {
-      const salvato = localStorage.getItem(CHIAVE_STORAGE)
-      if (salvato) baseUrl.value = salvato
+      const grezzo = localStorage.getItem(CHIAVE_STORAGE)
+      if (!grezzo) return
+      const dati = JSON.parse(grezzo) as Persistito
+      if (dati.baseUrl) override.value = dati.baseUrl
     } catch {
-      // Storage non disponibile: resta il predefinito.
+      // Storage non disponibile o dato corrotto: resta il default d'ambiente.
     }
   }
 
-  function salva(): void {
+  function persisti(): void {
     if (!import.meta.client) return
     try {
-      localStorage.setItem(CHIAVE_STORAGE, baseUrl.value)
+      if (override.value === undefined) localStorage.removeItem(CHIAVE_STORAGE)
+      else localStorage.setItem(CHIAVE_STORAGE, JSON.stringify({ baseUrl: override.value }))
     } catch {
       // La scelta vale per questa sessione soltanto.
     }
+  }
+
+  /**
+   * Sostituisce l'indirizzo. Vuoto significa **torna al default**, non
+   * «nessun servizio»: e' l'unico modo di disfare una modifica senza dover
+   * riconoscere e riscrivere a mano l'indirizzo di partenza.
+   */
+  function applica(indirizzo: string): void {
+    const pulito = indirizzo.trim()
+    override.value = pulito === '' || pulito === predefinito.value ? undefined : pulito
+    raggiungibile.value = null
+    persisti()
+  }
+
+  function ripristina(): void {
+    override.value = undefined
+    raggiungibile.value = null
+    persisti()
   }
 
   const servizio = computed<ServizioAudio | null>(() => {
@@ -87,13 +120,16 @@ export const useAudio = defineStore('audio', () => {
 
   return {
     baseUrl,
+    predefinito,
+    personalizzato,
     raggiungibile,
     verificaInCorso,
     configurato,
     servizio,
     ostacoli,
-    carica,
-    salva,
+    inizializza,
+    applica,
+    ripristina,
     verifica,
   }
 })

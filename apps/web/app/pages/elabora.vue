@@ -17,10 +17,10 @@ const identita = useIdentity()
 const servizio = useMediaManager()
 const config = useClientConfigSafe()
 
-onMounted(async () => {
-  servizio.carica()
-  if (servizio.configurato) await servizio.verifica()
-})
+// Indirizzo e chiave stanno nelle impostazioni, con gli altri endpoint: questa
+// pagina mostra solo cosa il servizio sa fare. Qui si controlla che risponda,
+// per dirlo prima che l'utente carichi un ingrediente.
+onMounted(() => servizio.verifica())
 
 /*
  * Due archivi che non si conoscono.
@@ -30,11 +30,6 @@ onMounted(async () => {
  * e' automaticamente noto al servizio: i byte devono passare di la', ed e' il
  * primo passo di questa pagina invece di un dettaglio nascosto.
  */
-
-async function salvaEVerifica(): Promise<void> {
-  servizio.salva()
-  await servizio.verifica()
-}
 
 // ─── Ingredienti ───────────────────────────────────────────────────────────
 const ingredienti = ref<MediaItem[]>([])
@@ -75,7 +70,7 @@ async function aggiungiDaIndirizzo(): Promise<void> {
 async function aggiungi(blob: Blob, nome: string, mime: string): Promise<void> {
   const client = servizio.client
   if (!client) {
-    erroreIngrediente.value = 'Configura prima l’indirizzo del servizio.'
+    erroreIngrediente.value = 'Servizio non configurato: l’indirizzo si imposta dalle impostazioni.'
     return
   }
   erroreIngrediente.value = null
@@ -261,64 +256,32 @@ async function mandaSuBlossom(): Promise<void> {
     </header>
 
     <ClientOnly>
-      <!-- ─────────── 1. Servizio ─────────── -->
-      <BaseCard title="1 · Il servizio" subtitle="Indirizzo e chiave restano in questo browser.">
-        <div class="flex flex-col gap-4">
-          <BaseField
-            v-slot="{ id }"
-            label="Indirizzo"
-            hint="Senza /v0: viene aggiunto dal client. Esempio: http://mediamanager-dev.duckdns.org"
-          >
-            <BaseInput :id="id" v-model="servizio.baseUrl" placeholder="http://…" />
-          </BaseField>
+      <!-- ─────────── Il servizio, solo se c'è qualcosa da dire ─────────── -->
+      <BaseAlert v-for="(o, i) in servizio.ostacoli" :key="i" tono="pericolo">
+        {{ o }}
+      </BaseAlert>
 
-          <BaseField
-            v-slot="{ id }"
-            label="Chiave API"
-            hint="Viaggia nell’intestazione X-API-Key ed è conservata in chiaro in questo browser. Non è un’identità e non firma nulla, ma resta una credenziale."
-          >
-            <BaseInput :id="id" v-model="servizio.apiKey" type="password" />
-          </BaseField>
+      <BaseAlert v-if="!servizio.configurato" tono="avviso">
+        Nessun servizio configurato: questa pagina non può fare nulla senza.
+        <NuxtLink to="/impostazioni" class="underline">
+          Impostazioni → Servizi di elaborazione
+        </NuxtLink>
+      </BaseAlert>
 
-          <div class="flex flex-wrap items-center gap-2">
-            <BaseButton
-              variant="primario"
-              :loading="servizio.verificaInCorso"
-              @click="salvaEVerifica"
-            >
-              Salva e verifica
-            </BaseButton>
-            <BaseButton variant="fantasma" @click="servizio.dimentica()">Dimentica</BaseButton>
+      <BaseAlert
+        v-else-if="servizio.salute && !servizio.salute.media && !servizio.salute.content"
+        tono="avviso"
+      >
+        Il servizio non risponde su nessuno dei due domini. Dal browser la causa più frequente non è
+        il servizio spento: se non espone le intestazioni CORS, la richiesta viene bloccata prima di
+        partire e qui si vede come «non raggiungibile».
+        <NuxtLink to="/impostazioni" class="underline">Controlla indirizzo e chiave</NuxtLink>
+      </BaseAlert>
 
-            <template v-if="servizio.salute">
-              <BaseBadge :tono="servizio.salute.media ? 'successo' : 'avviso'">
-                media {{ servizio.salute.media ? 'attivo' : 'non raggiungibile' }}
-              </BaseBadge>
-              <BaseBadge :tono="servizio.salute.content ? 'successo' : 'avviso'">
-                content {{ servizio.salute.content ? 'attivo' : 'non raggiungibile' }}
-              </BaseBadge>
-            </template>
-          </div>
-
-          <BaseAlert v-for="(o, i) in servizio.ostacoli" :key="i" tono="pericolo">
-            {{ o }}
-          </BaseAlert>
-
-          <BaseAlert
-            v-if="servizio.salute && !servizio.salute.media && !servizio.salute.content"
-            tono="avviso"
-          >
-            Nessuno dei due domini risponde. Dal browser la causa più frequente non è il servizio
-            spento: se non espone le intestazioni CORS, la richiesta viene bloccata prima di partire
-            e qui si vede come «non raggiungibile».
-          </BaseAlert>
-        </div>
-      </BaseCard>
-
-      <!-- ─────────── 2. Ingredienti ─────────── -->
+      <!-- ─────────── 1. Ingredienti ─────────── -->
       <BaseCard
         v-if="servizio.configurato"
-        title="2 · Porta gli ingredienti sul servizio"
+        title="1 · Porta gli ingredienti sul servizio"
         subtitle="Da un file locale, oppure da un indirizzo — per esempio un file già su Blossom."
       >
         <div class="flex flex-col gap-4">
@@ -360,10 +323,10 @@ async function mandaSuBlossom(): Promise<void> {
         </div>
       </BaseCard>
 
-      <!-- ─────────── 3. Composizione ─────────── -->
+      <!-- ─────────── 2. Composizione ─────────── -->
       <BaseCard
         v-if="ingredienti.length"
-        title="3 · Componi l’immagine"
+        title="2 · Componi l’immagine"
         subtitle="Gli asset si indicano per nome file: il servizio li risolve nel suo archivio."
       >
         <div class="flex flex-col gap-4">
@@ -465,10 +428,10 @@ async function mandaSuBlossom(): Promise<void> {
         </div>
       </BaseCard>
 
-      <!-- ─────────── 4. Risultato ─────────── -->
+      <!-- ─────────── 3. Risultato ─────────── -->
       <BaseCard
         v-if="generata"
-        title="4 · Il risultato"
+        title="3 · Il risultato"
         subtitle="Scaricalo, o pubblicalo su Blossom."
       >
         <div class="flex flex-col gap-4">
@@ -513,17 +476,17 @@ async function mandaSuBlossom(): Promise<void> {
         </div>
       </BaseCard>
 
-      <!-- ─────────── Audio: non ancora ─────────── -->
-      <BaseCard title="Audio" subtitle="Normalizzazione e taglio dei silenzi.">
-        <BaseAlert tono="avviso">
-          <strong>Il servizio non espone ancora alcun endpoint audio.</strong>
-          Il codice esiste nel repository precedente (normalizzazione EBU R128 e
-          <code>silenceremove</code>
-          ), ma non è stato portato nel microservizio né dichiarato nel contratto OpenAPI. Finché
-          non c’è, questa sezione non può fare nulla: vedi il documento
+      <!-- ─────────── Dove sta l'audio ─────────── -->
+      <BaseCard title="E l’audio?" subtitle="Sta in una sezione sua.">
+        <p class="text-sm text-[var(--testo-tenue)]">
+          Normalizzazione e taglio dei silenzi si fanno nella sezione
+          <NuxtLink to="/audio" class="underline">Audio</NuxtLink>
+          , che parla con un servizio diverso: questo microservizio non espone ancora un dominio
+          audio, e finché non lo espone le due cose restano separate. Cosa manca e in che forma è
+          scritto in
           <code>doc/api-da-sviluppare.md</code>
-          per cosa serve e con quali correzioni.
-        </BaseAlert>
+          .
+        </p>
       </BaseCard>
     </ClientOnly>
   </div>

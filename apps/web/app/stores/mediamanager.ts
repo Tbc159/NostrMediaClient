@@ -5,9 +5,13 @@ import { defineStore } from 'pinia'
  * Collegamento al microservizio media-manager.
  *
  * E' un servizio esterno al protocollo: non ha nulla di Nostr, elabora
- * contenuti e tiene un proprio archivio. Come per i relay e per Blossom, qui
- * si configura soltanto — l'indirizzo e la chiave restano scelte dell'utente e
- * vivono nel suo browser, non nel repository.
+ * contenuti e tiene un proprio archivio. Come per i relay e per Blossom, **qui
+ * si configura soltanto, e la configurazione sta nelle impostazioni**: la
+ * pagina Elabora mostra solo cosa il servizio sa fare.
+ *
+ * Indirizzo e chiave arrivano dall'ambiente (`.env`), gia' valorizzati su cio'
+ * che funziona, e restano sostituibili dall'utente. La sostituzione vive nel
+ * suo browser, non nel repository.
  *
  * **La chiave e' conservata in chiaro.** Non e' un'identita' e non firma
  * nulla: apre un servizio di elaborazione. Resta pero' una credenziale, e
@@ -17,55 +21,79 @@ import { defineStore } from 'pinia'
 const CHIAVE_STORAGE = 'nmc.mediamanager'
 
 interface Persistito {
+  /** Presenti solo se l'utente ha sostituito il default d'ambiente. */
+  baseUrl?: string
+  apiKey?: string
+}
+
+export interface DefaultMediaManager {
   baseUrl: string
   apiKey: string
 }
 
 export const useMediaManager = defineStore('mediamanager', () => {
-  const baseUrl = ref('')
-  const apiKey = ref('')
+  const predefiniti = ref<DefaultMediaManager>({ baseUrl: '', apiKey: '' })
+  const override = ref<Persistito>({})
+
+  const baseUrl = computed(() => override.value.baseUrl ?? predefiniti.value.baseUrl)
+  const apiKey = computed(() => override.value.apiKey ?? predefiniti.value.apiKey)
+
   /** Salute per dominio: `null` finche' non si e' verificato. */
   const salute = ref<{ media: boolean; content: boolean } | null>(null)
   const verificaInCorso = ref(false)
 
   const configurato = computed(() => normalizzaBaseUrl(baseUrl.value) !== '')
+  const personalizzato = computed(
+    () => override.value.baseUrl !== undefined || override.value.apiKey !== undefined,
+  )
 
-  function carica(): void {
+  function inizializza(daAmbiente: DefaultMediaManager): void {
+    predefiniti.value = daAmbiente
     if (!import.meta.client) return
     try {
       const grezzo = localStorage.getItem(CHIAVE_STORAGE)
       if (!grezzo) return
       const dati = JSON.parse(grezzo) as Persistito
-      baseUrl.value = dati.baseUrl ?? ''
-      apiKey.value = dati.apiKey ?? ''
+      const letto: Persistito = {}
+      if (dati.baseUrl) letto.baseUrl = dati.baseUrl
+      if (dati.apiKey) letto.apiKey = dati.apiKey
+      override.value = letto
     } catch {
-      // Storage non disponibile o dato corrotto: si riparte non configurati.
+      // Storage non disponibile o dato corrotto: restano i default d'ambiente.
     }
   }
 
-  function salva(): void {
+  function persisti(): void {
     if (!import.meta.client) return
     try {
-      localStorage.setItem(
-        CHIAVE_STORAGE,
-        JSON.stringify({ baseUrl: baseUrl.value, apiKey: apiKey.value }),
-      )
+      if (!personalizzato.value) localStorage.removeItem(CHIAVE_STORAGE)
+      else localStorage.setItem(CHIAVE_STORAGE, JSON.stringify(override.value))
     } catch {
       // La configurazione vale per questa sessione soltanto.
     }
   }
 
-  function dimentica(): void {
-    baseUrl.value = ''
-    apiKey.value = ''
+  /**
+   * Sostituisce indirizzo e chiave. Un campo vuoto significa **torna al
+   * default d'ambiente**, non «nessun valore»: altrimenti svuotare la chiave
+   * per sbaglio lascerebbe il servizio muto senza modo di rimediare se non
+   * riscrivendola a memoria.
+   */
+  function applica(modifiche: DefaultMediaManager): void {
+    const prossimo: Persistito = {}
+    const url = modifiche.baseUrl.trim()
+    const chiave = modifiche.apiKey.trim()
+    if (url !== '' && url !== predefiniti.value.baseUrl) prossimo.baseUrl = url
+    if (chiave !== '' && chiave !== predefiniti.value.apiKey) prossimo.apiKey = chiave
+    override.value = prossimo
     salute.value = null
-    if (import.meta.client) {
-      try {
-        localStorage.removeItem(CHIAVE_STORAGE)
-      } catch {
-        // niente da fare
-      }
-    }
+    persisti()
+  }
+
+  function ripristina(): void {
+    override.value = {}
+    salute.value = null
+    persisti()
   }
 
   /** Il client, oppure `null` se manca l'indirizzo. Ricreato quando cambia la configurazione. */
@@ -122,14 +150,16 @@ export const useMediaManager = defineStore('mediamanager', () => {
   return {
     baseUrl,
     apiKey,
+    predefiniti,
+    personalizzato,
     salute,
     verificaInCorso,
     configurato,
     client,
     ostacoli,
-    carica,
-    salva,
-    dimentica,
+    inizializza,
+    applica,
+    ripristina,
     verifica,
   }
 })

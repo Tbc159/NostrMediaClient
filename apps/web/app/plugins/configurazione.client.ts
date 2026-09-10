@@ -1,4 +1,6 @@
+import { useAudio } from '~/stores/audio'
 import { useConfigurazione } from '~/stores/configurazione'
+import { useMediaManager } from '~/stores/mediamanager'
 
 /**
  * Carica gli endpoint scelti dall'utente prima che le pagine li leggano.
@@ -18,5 +20,18 @@ export default defineNuxtPlugin(() => {
     NUXT_PUBLIC_DEFAULT_BLOSSOM_SERVERS: String(pub.defaultBlossomServers ?? ''),
     NUXT_PUBLIC_SITE_URL: String(pub.siteUrl ?? ''),
     NUXT_PUBLIC_NJUMP_URL: String(pub.njumpUrl ?? ''),
+  })
+
+  /*
+   * Stessa ragione per i servizi di elaborazione, e una in piu': le pagine
+   * Audio ed Elabora non chiedono piu' indirizzo e chiave: se leggessero lo
+   * storage da sole in un `onMounted`, il primo rendering partirebbe come non
+   * configurato e mostrerebbe l'avviso «configura il servizio» a chi il
+   * servizio ce l'ha gia'.
+   */
+  useAudio().inizializza(String(pub.audioServiceUrl ?? ''))
+  useMediaManager().inizializza({
+    baseUrl: String(pub.mediaManagerUrl ?? ''),
+    apiKey: String(pub.mediaManagerApiKey ?? ''),
   })
 })

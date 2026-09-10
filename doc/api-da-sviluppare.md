@@ -120,130 +120,141 @@ Da fare:
    il limite, duplicato.
 ```
 
-### Aggiornamento del 7 settembre 2026 — il servizio audio è già deployato
+### Decisione del 10 settembre 2026 — `microservices-media` è in dismissione
 
-Il dominio audio non esiste in `microservice-media-manager`, ma il servizio
-`ffmpeg` del repository precedente **è vivo** su
-`http://api-v0-bitcoinradio.duckdns.org`: un `GET` sulle rotte risponde `405`,
-cioè esistono e vogliono `POST`. E, a differenza del media-manager, **espone
-correttamente il CORS**: il preflight risponde `200` con
+Il servizio `ffmpeg` del repository precedente **è vivo** su
+`http://api-v0-bitcoinradio.duckdns.org` (un `GET` sulle rotte risponde `405`:
+esistono e vogliono `POST`) e, a differenza del media-manager, **espone
+correttamente il CORS** — il preflight risponde `200` con
 `Access-Control-Allow-Origin`. È chiamabile da un browser oggi, purché la
-pagina sia su `http` (manca l'HTTPS anche lì).
+pagina stia su `http`.
 
-Il client lo usa già: vedi la sezione «Audio». Quello che ha dovuto assorbire,
-e che il Prompt C deve correggere alla radice:
+Il client lo usa già, nella sezione «Audio», attraverso l'interfaccia
+`ServizioAudio` (`packages/nostr-core/src/audio/tipi.ts`): le pagine non
+conoscono le rotte, le conosce solo l'adattatore `legacy.ts`.
 
-- **Le cartelle impongono l'ordine.** Un upload `mp3` finisce in
-  `uploads/mp3_media`; `remove_silence` legge **solo da lì** e scrive in
-  `uploads/clean`; `normalize` scrive in `uploads/normalized`. Quindi
-  normalizzare per primo rende il file irraggiungibile al taglio dei silenzi —
-  è quasi certamente il motivo per cui in `create_yt_media.py` quel passaggio è
-  commentato. L'ordine giusto è l'inverso, ed è anche quello giusto per la
-  qualità.
-- **Il taglio dei silenzi vale solo per gli mp3.** Un m4a va convertito prima
-  (`/media/m4a_to_mp3`); per un wav non esiste convertitore, e l'operazione è
-  semplicemente indisponibile.
-- **`remove_silence` non espone `stop_silence`**: le pause vengono azzerate, non
-  accorciate, e gli stacchi risultano bruschi. È il parametro che manca di più.
-- Cose che invece funzionano bene e vanno conservate nel port: `normalize`
-  accetta un **URL** come `source_file` e scarica da sé; il job restituisce
-  `output_file` e `download_link`, quindi il client non deve indovinare il nome
-  del risultato; `/voice/download` cerca ricorsivamente in tutte le cartelle,
-  ed è ciò che tiene insieme la catena.
+**Da qui in avanti su quel repository non si interviene.** È in dismissione:
+non riceve correzioni, non riceve funzionalità, e i suoi difetti non vanno
+riparati là. Resta acceso finché il dominio audio del media-manager non è
+pronto, e serve a due cose soltanto:
 
-### Prompt C-bis — Togliere alla radice i vincoli che il client oggi aggira
+1. **implementazione di riferimento** — il comportamento da riprodurre si legge
+   nel suo codice, con le misure già fatte;
+2. **termine di paragone** — a port avvenuto, lo stesso file deve dare un
+   risultato almeno pari.
 
-Da svolgere **insieme** al Prompt C: sono le modifiche che rendono inutili gli
-espedienti che il client ha dovuto adottare. Ognuna nasce da una riga di codice
-letta, non da un'impressione.
+Conseguenza per il client: i vincoli del servizio vecchio si continuano ad
+**assorbire**, non a correggere. Sono documentati in `audio/legacy.ts` e sono
+tre: le cartelle impongono l'ordine delle operazioni (un `mp3` caricato finisce
+in `uploads/mp3_media`, `remove_silence` legge solo da lì e scrive in
+`uploads/clean`, `normalize` scrive in `uploads/normalized`, quindi
+normalizzare per primo spezza la catena); il taglio dei silenzi vale solo per
+gli `mp3`; `stop_silence` non è esposto, quindi le pause vengono azzerate
+invece che accorciate. Il Prompt C li elimina alla radice, **nel repository
+nuovo**.
+
+### Prompt C — Ricostruire il dominio audio nel media-manager
+
+Prompt autosufficiente, da consegnare all'agente che sviluppa
+`microservice-media-manager`. Sostituisce e assorbe il precedente Prompt C-bis.
+Ogni affermazione qui dentro nasce da codice letto o da una misura eseguita,
+mai da un'impressione: dove è una misura, sono riportati i numeri perché siano
+ripetibili.
 
 ```
-Lavori sul dominio audio (Prompt C). Questo intervento riguarda il *modello*
-del servizio, non le singole operazioni: sono i vincoli che oggi un client deve
-aggirare, e che nel port non vanno riportati.
+Repository: microservice-media-manager, contract-first (openapi/<dominio>/api.yaml
+è l'unica fonte di verità), branch develop.
 
-1. RIFERIMENTI AI FILE, non cartelle per operazione. È la causa di tutto il
-   resto. Oggi `remove_silence` legge da CONVERTED_FOLDER (uploads/mp3_media) e
-   scrive in CLEANED_FOLDER; `normalize` scrive in NORMALIZED_FOLDER. Ne
-   discendono due limiti che non hanno alcuna ragione d'essere:
-   - **l'ordine delle operazioni è obbligato**: normalizzando prima, il file
-     finisce in una cartella che il taglio dei silenzi non guarda, e la catena
-     si spezza (è quasi certamente perché in create_yt_media.py quel passaggio
-     è commentato);
+OBIETTIVO
+Un nuovo dominio pubblico `audio`, che porti qui l'elaborazione audio oggi
+disponibile solo nel repository precedente (microservices-media, branch dev,
+servizio `ffmpeg`).
+
+REGOLA DI PERIMETRO, VINCOLANTE
+microservices-media è **in dismissione**. Non aprire PR, non correggere bug,
+non aggiungere parametri là: nemmeno quelli che questo prompt descrive come
+difetti. Quel codice si legge come riferimento e basta. Tutto il lavoro sta in
+questo repository. Se ti accorgi che una funzione del vecchio servizio non è
+descritta qui, segnalala invece di andarla a sistemare dove sta.
+
+CHI CONSUMERÀ QUESTE API
+Un client web (NostrMediaClient) che oggi parla col servizio vecchio dietro
+un'interfaccia propria. Quando questo dominio esisterà, il client cambierà solo
+l'adattatore: **non serve compatibilità con le rotte vecchie**, serve parità di
+capacità. Le capacità che usa oggi, in ordine di flusso:
+  1. manda un file audio (mp3, m4a o wav)
+  2. toglie i silenzi, con soglia in dB e durata minima della pausa, entrambe
+     regolate dall'utente con un cursore
+  3. livella le voci e sceglie il formato di uscita
+  4. segue l'avanzamento e può smettere di attendere
+  5. riscarica il risultato per riascoltarlo accanto all'originale
+Il client è servito da browser: **CORS e HTTPS valgono anche per questo
+dominio** (Prompt A). Senza, dal browser non è chiamabile.
+
+OPERAZIONI MINIME
+  POST /v0/audio/normalize   livella il parlato
+  POST /v0/audio/silence     accorcia i silenzi
+  POST /v0/audio/convert     cambia contenitore/codec (sostituisce m4a_to_mp3)
+  POST /v0/audio/analyze     misura e non modifica nulla (vedi §7)
+  GET  /v0/audio/job/{id}    stato di una lavorazione
+Dal servizio vecchio vale la pena portare anche `split` (dividere un episodio
+lungo) e `concat` (sigla + corpo + coda). NON portare `radio/*`,
+`media/clock/assemble` (palinsesto radio), `voice/generation` e `voice/mixing`
+(sintesi vocale Piper): sono un altro dominio.
+
+L'input è un media già presente nell'archivio (id o riferimento, come fa
+`content`), non un upload dentro l'operazione: così la stessa sorgente si riusa
+fra più tentativi. L'output è un nuovo media, e la risposta ne porta id e URL,
+come fa GET /v0/content/image. Le lavorazioni sono lunghe: modello a job con
+polling (POST -> 202 + job_id, GET .../job/{id} -> stato).
+
+--- MODELLO: i sei vincoli da NON riprodurre -------------------------------
+
+1. RIFERIMENTI AI FILE, NON UNA CARTELLA PER OPERAZIONE. È la causa di tutto il
+   resto. Nel servizio vecchio `remove_silence` legge da CONVERTED_FOLDER
+   (uploads/mp3_media) e scrive in CLEANED_FOLDER, mentre `normalize` scrive in
+   NORMALIZED_FOLDER. Ne discendono due limiti senza alcuna ragione d'essere:
+   - **l'ordine delle operazioni è obbligato**: normalizzando per primo, il
+     file finisce in una cartella che il taglio dei silenzi non guarda e la
+     catena si spezza (è quasi certamente perché in create_yt_media.py quel
+     passaggio è commentato);
    - **il taglio dei silenzi vale solo per gli mp3**, perché legge dalla
-     cartella degli mp3; un m4a va convertito prima, un wav non si può proprio.
-   Nel dominio nuovo ogni operazione deve accettare lo stesso tipo di
-   riferimento e risolverlo allo stesso modo — come già fa `normalize`, che
-   accetta un URL. Con questo, ordine libero e formati indifferenti.
+     cartella degli mp3: un m4a va convertito prima, un wav non si può proprio.
+   Qui ogni operazione deve accettare lo stesso tipo di riferimento e
+   risolverlo allo stesso modo. Con questo, ordine libero e formati
+   indifferenti — due limiti che spariscono senza scriverci una riga contro.
 
-2. NON DISTRUGGERE L'INGRESSO. `remove_silence` fa `os.remove(input_file_path)`
-   e `m4a_to_mp3` pure. Conseguenza pratica, oggi visibile nel client: la
-   pagina espone un cursore per la soglia del silenzio, e **riprovare con una
-   soglia diversa è l'azione più normale del mondo** — ma il file di partenza
-   non c'è più e va ricaricato. Le operazioni devono produrre un nuovo oggetto
-   e lasciare intatto quello di partenza; la pulizia è una politica di
-   ritenzione, non un effetto collaterale.
+2. NON DISTRUGGERE L'INGRESSO. Nel vecchio, `remove_silence` fa
+   `os.remove(input_file_path)`, e `m4a_to_mp3` pure. Conseguenza concreta, già
+   visibile nel client: la pagina espone un cursore per la soglia del silenzio,
+   e **riprovare con una soglia diversa è l'azione più naturale del mondo** —
+   ma il file di partenza non esiste più e va ricaricato. Un'operazione produce
+   un nuovo oggetto e lascia intatto quello di partenza; la pulizia è una
+   politica di ritenzione, non un effetto collaterale.
 
-3. `stop_silence`. Oggi `silenceremove` è invocato con
-   `stop_periods=-1:stop_duration=…:stop_threshold=…` e basta: le pause
-   vengono **azzerate**, non accorciate, e gli stacchi risultano bruschi.
-   Esporre `stop_silence` (quanto silenzio lasciare, es. 0.3s) come parametro
-   dell'API, con un default che lasci una pausa udibile.
+3. NON RICOMPRIMERE A OGNI PASSAGGIO. La catena attuale su un mp3 fa tre
+   generazioni lossy: l'originale, la ricodifica di `remove_silence` (che riusa
+   codec e bitrate della sorgente) e quella di `normalize`. Le fasi intermedie
+   lavorino senza perdita (wav o flac) e la compressione avvenga **solo
+   nell'ultimo passaggio**, quello che produce il file consegnato.
 
-4. NON RICOMPRIMERE A OGNI PASSAGGIO. La catena di oggi su un mp3 fa tre
-   generazioni lossy: l'originale, la ricodifica di `remove_silence` (che
-   riusa codec e bitrate della sorgente) e quella di `normalize`. Le fasi
-   intermedie devono lavorare su un formato senza perdita (wav o flac) e la
-   compressione deve avvenire **solo all'ultimo passaggio**, quello che produce
-   il file consegnato.
+4. TUTTE LE OPERAZIONI LUNGHE SIANO JOB. Nel vecchio `remove_silence` è
+   sincrona mentre `normalize` e `m4a_to_mp3` sono asincrone. Su un file lungo
+   la richiesta sincrona resta appesa finché non scade qualcosa — un proxy, il
+   browser — e il client non può distinguere «sta lavorando» da «è morto».
 
-5. `remove_silence` SIA UN JOB. Oggi è sincrona mentre `normalize` e
-   `m4a_to_mp3` sono asincrone. Su un file lungo la richiesta resta appesa
-   finché non scade qualcosa — un proxy, il browser — e il client non ha modo
-   di distinguere «sta lavorando» da «è morto». Stesso modello a job per tutte
-   le operazioni lunghe.
+5. I JOB SOPRAVVIVANO AL RIAVVIO. Nel vecchio `jobs` è un dizionario in memoria
+   di processo: un riavvio perde i lavori in corso e più di un worker non può
+   funzionare. Serve stato condiviso e persistente.
 
-6. I JOB SOPRAVVIVANO AL RIAVVIO. `jobs` è un dizionario in memoria di
-   processo: un riavvio perde tutti i lavori in corso, e più di un worker non
-   può funzionare. Serve uno stato condiviso e persistente.
+6. NIENTE `verify=False`. Nella `requests.get` di `normalize` la verifica del
+   certificato TLS è disattivata. Se serve per un certificato interno, si
+   aggiunga quella CA.
 
-7. UN ENDPOINT DI MISURA — è quello che aiuta di più l'interfaccia.
-   `POST /audio/analyze` che restituisca, senza modificare nulla: loudness
-   integrata (LUFS), true peak, loudness range, **livello del rumore di
-   fondo**, e la distribuzione delle durate dei silenzi sopra alcune soglie.
-   Oggi il client propone -40dB e 1s come default ragionevoli, ma sono
-   ragionevoli *in generale*: con la misura potrebbe proporre la soglia giusta
-   **per quella registrazione**, che è la differenza fra un cursore che si
-   muove alla cieca e uno che parte dal punto giusto.
+--- ELABORAZIONE: cosa fa ffmpeg, misurato ---------------------------------
 
-8. `verify=False` nella `requests.get` di `normalize` disattiva la verifica del
-   certificato TLS. Se serve per un certificato interno, si aggiunga quella CA;
-   non si spenga il controllo.
-```
-
-### Prompt C — Il dominio audio (non esiste, e serve)
-
-```
-Repository: microservice-media-manager, contract-first, branch develop.
-
-Obiettivo: un nuovo dominio `audio` con l'elaborazione che oggi vive solo nel
-repository precedente (microservices-media, branch dev, servizio `ffmpeg`).
-
-Operazioni minime:
-- POST /v0/audio/normalize  — livella il parlato
-- POST /v0/audio/silence    — accorcia i silenzi
-- POST /v0/audio/convert    — cambia contenitore/codec (sostituisce m4a_to_mp3)
-- GET  /v0/audio/job/{id}   — stato di una lavorazione asincrona
-
-L'input è un media già caricato (id o nome, come fa `content`), non un upload
-diretto: così la stessa sorgente si riusa fra le operazioni. L'output è un
-nuovo media, e la risposta ne porta id e URL, come fa GET /v0/content/image.
-Le lavorazioni sono lunghe: modello a job con polling, come nel servizio
-vecchio (`POST` → 202 + job_id, `GET .../job/{id}` → stato).
-
-IMPORTANTE — il codice esistente NON produce l'effetto desiderato, e la causa è
-stata misurata, non ipotizzata. Catena attuale in
-`ffmpeg/processors/ffmpeg_processor.py`:
+Il codice esistente NON produce l'effetto desiderato, e la causa è stata
+misurata. Catena attuale in ffmpeg/processors/ffmpeg_processor.py:
 
     -af dynaudnorm=f=500:g=31:p=0.95,loudnorm=I=-16:TP=-1.5:LRA=11
 
@@ -268,31 +279,83 @@ Effetto collaterale misurato, da non nascondere: con un fruscio di fondo a
 sotto il programma, ma su registrazioni rumorose serve un gate o una riduzione
 di rumore prima.
 
-Da fare quindi:
-1. `maxgain` deve essere un parametro dell'API, con default alto (50–100) e non
-   il 10 di ffmpeg; documentare che è il tetto di correzione in dB (20·log10 m).
-2. Ordine della pipeline: **prima i silenzi, poi la normalizzazione.**
-   Misurato: normalizzando prima, l'amplificazione alza il rumore di fondo sopra
-   la soglia di silenzio e la rimozione non lo riconosce più — sullo stesso
-   file, 56.2 s contro 28.1 s di durata finale. Lo script `create_yt_media.py`
-   fa esattamente l'ordine sbagliato.
-3. `silenceremove` oggi è usato come
-   `stop_periods=-1:stop_duration=…:stop_threshold=…`, che **azzera** le pause e
-   produce stacchi innaturali. Esporre anche `stop_silence` (quanto silenzio
-   lasciare, es. 0.3 s) e documentare che `stop_threshold` vuole un'unità
-   (`-40dB`), altrimenti è ampiezza lineare.
-4. Valutare `loudnorm` in due passate (misura, poi applica con `measured_*` e
-   `linear=true`): in una passata sola lavora in modo dinamico e aggiunge una
-   seconda compressione sopra a quella di dynaudnorm. Non l'ho misurato:
-   verificalo prima di deciderlo.
-5. Limite noto da dichiarare nell'API, non da risolvere: quando due voci si
-   sovrappongono nello stesso canale nessuna di queste tecniche le separa. Se
-   esistono tracce separate per parlante, normalizzarle singolarmente prima del
-   missaggio dà un risultato molto migliore — valuta un endpoint che accetti più
-   tracce.
+Quindi:
+  a. `maxgain` sia un parametro dell'API, con default alto (50-100) e non il 10
+     di ffmpeg; documentarlo come tetto di correzione in dB (20*log10 m).
+  b. La pipeline consigliata è **prima i silenzi, poi la normalizzazione**.
+     Misurato: normalizzando prima, l'amplificazione alza il rumore di fondo
+     sopra la soglia di silenzio e la rimozione non lo riconosce più — sullo
+     stesso file, 56.2 s contro 28.1 s di durata finale. Con il punto 1 del
+     modello l'ordine non è più imposto dall'infrastruttura: resta una
+     raccomandazione da scrivere nella documentazione dell'endpoint, che è il
+     posto giusto per una scelta di qualità.
+  c. `silenceremove` è oggi invocato come
+     `stop_periods=-1:stop_duration=...:stop_threshold=...`, che **azzera** le
+     pause e produce stacchi innaturali. Esporre `stop_silence` (quanto
+     silenzio lasciare, es. 0.3 s) con un default che lasci una pausa udibile,
+     e documentare che `stop_threshold` vuole un'unità (`-40dB`), altrimenti è
+     ampiezza lineare. È il parametro che manca di più.
+  d. Valutare `loudnorm` in due passate (misura, poi applica con `measured_*` e
+     `linear=true`): in una passata sola lavora in modo dinamico e aggiunge una
+     seconda compressione sopra a quella di dynaudnorm. Non è stato misurato:
+     verificalo prima di deciderlo.
+  e. Limite noto da dichiarare nell'API, non da risolvere: quando due voci si
+     sovrappongono nello stesso canale nessuna di queste tecniche le separa. Se
+     esistono tracce separate per parlante, normalizzarle singolarmente prima
+     del missaggio dà un risultato molto migliore — valuta un endpoint che
+     accetti più tracce.
 
-Test: file sintetico con due livelli molto diversi, verifica che lo scarto fra i
-turni scenda sotto 1 LU e che il file finisca a -16 LUFS ±0.5.
+--- 7. POST /v0/audio/analyze: la misura come funzione ---------------------
+
+È l'endpoint che aiuta di più l'interfaccia, e non esiste da nessuna parte.
+Restituisce, senza modificare nulla: loudness integrata (LUFS), true peak,
+loudness range, **livello del rumore di fondo**, e la distribuzione delle
+durate dei silenzi sopra alcune soglie.
+
+Perché conta: oggi il client propone -40dB e 1s come default, e sono
+ragionevoli *in generale*. Con la misura può proporre la soglia giusta **per
+quella registrazione** — la differenza fra un cursore che si muove alla cieca e
+uno che parte dal punto giusto. Un'analisi va anche riusata: il risultato
+dev'essere associato al media, non ricalcolato a ogni apertura di pagina.
+
+--- CONTRATTO ---------------------------------------------------------------
+
+- `media_type` in POST /v0/media deve accettare `audio/wav` (formato di
+  lavorazione naturale prima della compressione finale) e `audio/mpeg` accanto
+  a `audio/mp3`, che non è un tipo MIME registrato. Vedi il Prompt D: se lo
+  svolgi insieme, falli una volta sola.
+- Gli errori del dominio audio devono dire **quale** riferimento non è stato
+  risolto e con quale criterio è stato cercato. Un 400 «file non trovato» senza
+  altro non permette a un client di distinguere «ho sbagliato campo» da «il
+  file non c'è» — è già successo sul dominio content.
+- Dichiarare esplicitamente i formati accettati per ciascuna operazione. Se un
+  formato non è supportato, l'errore lo dica: il client oggi disabilita da sé
+  il taglio dei silenzi sui wav basandosi su una regola letta nel codice del
+  servizio, che è esattamente il genere di conoscenza che non dovrebbe stare in
+  un client.
+
+--- COME SI VERIFICA --------------------------------------------------------
+
+1. File sintetico con due interlocutori a livelli molto diversi (la prova qui
+   sopra si ricostruisce con ffmpeg): dopo `normalize`, lo scarto fra i turni
+   sotto 1 LU e il file a -16 LUFS +/-0.5. Misurare con `ffmpeg -af ebur128`,
+   non fidarsi del 200.
+2. Stessa sorgente, due `silence` di fila con soglie diverse: entrambi devono
+   riuscire senza ricaricare il file. È il test che dimostra il punto 2 del
+   modello.
+3. `normalize` poi `silence` e `silence` poi `normalize`: entrambi gli ordini
+   devono completare. La qualità sarà diversa — la documentazione dice quale
+   preferire — ma nessuno dei due deve rompersi.
+4. Un m4a e un wav devono attraversare `silence` senza conversioni preliminari
+   a carico del chiamante.
+5. Un riavvio del servizio con un job in corso: il job dev'essere ancora
+   interrogabile.
+6. Confronto con il servizio vecchio sullo stesso file: il risultato dev'essere
+   almeno pari. Se è peggiore, è una regressione anche se l'API è più bella.
+
+FUORI PERIMETRO
+Blossom, Nostr e qualunque cosa riguardi il client: qui si costruiscono API.
+Nessuna modifica a microservices-media, per nessun motivo.
 ```
 
 ### Prompt D — Completare il generatore `social` e i formati
@@ -365,14 +428,28 @@ Nel repository nuovo esistono già branch che anticipano parte del lavoro:
 
 ## 5. Cosa fa il client, oggi, con quello che c'è
 
-La sezione **Elabora** copre il percorso completo per le immagini:
+**Indirizzi e chiavi non si chiedono più dentro le due sezioni**: stanno in
+_Impostazioni → Servizi di elaborazione_, insieme a relay e server Blossom, con
+i default presi dall'ambiente (`.env`, vedi `.env.example`) già valorizzati su
+ciò che funziona. Le pagine mostrano le funzionalità e nient'altro; se un
+servizio non risponde lo dicono con un rimando alle impostazioni, invece di
+piazzare un campo di configurazione in mezzo al lavoro.
 
-1. si configura indirizzo e chiave del servizio (restano nel browser);
-2. si portano gli ingredienti nell'archivio del servizio, da file locale o da un
-   indirizzo — tipicamente un file già su Blossom;
-3. si compone con `copertina` o `composita`;
-4. il risultato si scarica oppure torna su Blossom, pronto per essere pubblicato
-   come evento Nostr.
+La chiave del media-manager resta **vuota nei default versionati**: è una
+credenziale, e `NUXT_PUBLIC_*` finisce nel bundle servito al browser. Chi
+sviluppa la mette nel proprio `.env`; il sito pubblicato parte senza, e chi lo
+usa la inserisce dalle impostazioni.
 
-L'audio resta dichiarato come non disponibile finché il Prompt C non è svolto:
-il client non finge una funzione che il servizio non ha.
+La sezione **Elabora** copre il percorso completo per le immagini, contro il
+media-manager: si portano gli ingredienti nel suo archivio (da file locale o da
+un indirizzo, tipicamente un file già su Blossom), si compone con `copertina` o
+`composita`, e il risultato si scarica oppure torna su Blossom, pronto per
+essere pubblicato come evento Nostr.
+
+La sezione **Audio** copre la pre-elaborazione — taglio dei silenzi con soglia
+e durata regolabili da cursore, livellamento delle voci, confronto con
+l'originale e scaricamento — e parla con il **servizio vecchio**, l'unico che
+sappia farlo. Il flusso si ferma allo scaricamento: niente Blossom, niente
+eventi. Quando il dominio audio del media-manager esisterà (Prompt C), cambierà
+un adattatore in `packages/nostr-core/src/audio/` e le pagine resteranno come
+sono.
