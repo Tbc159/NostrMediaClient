@@ -63,13 +63,13 @@ function salvaEndpoint(): void {
 // --- Servizio di elaborazione ------------------------------------------------
 
 /*
- * Un indirizzo solo, per Elabora e per Audio.
+ * Il servizio dietro la sezione Audio.
  *
- * Immagini, archivio ed elaborazione audio sono tre domini dello stesso
- * microservizio: finche' l'audio stava altrove servivano due configurazioni,
- * ora una. E sta qui, non nelle pagine: chi apre «Audio» vuole lavorare su una
- * registrazione, non rispondere a domande di amministrazione. Il default
- * arriva dall'ambiente ed e' gia' quello funzionante.
+ * Archivio ed elaborazione audio sono due domini dello stesso microservizio:
+ * un indirizzo, una chiave. E stanno qui, non nella pagina: chi apre «Audio»
+ * vuole lavorare su una registrazione, non rispondere a domande di
+ * amministrazione. Il default arriva dall'ambiente ed e' gia' quello
+ * funzionante.
  */
 
 const mediaManager = useMediaManager()
@@ -103,7 +103,6 @@ onMounted(() => {
 /** I domini del servizio, con il nome della sezione che ciascuno alimenta. */
 const dominiServizio = [
   { chiave: 'media' as const, etichetta: 'media', a_cosa_serve: 'archivio' },
-  { chiave: 'content' as const, etichetta: 'content', a_cosa_serve: 'immagini' },
   { chiave: 'audio' as const, etichetta: 'audio', a_cosa_serve: 'elaborazione audio' },
 ]
 
@@ -555,13 +554,13 @@ const etichettaModo: Record<string, string> = {
       <!-- ─────────── Servizio di elaborazione ─────────── -->
       <BaseCard
         title="Servizio di elaborazione"
-        subtitle="Il microservizio dietro le sezioni Elabora e Audio. Non è Nostr: è un’API HTTP esterna, e come i relay si può sostituire."
+        subtitle="Il microservizio dietro la sezione Audio. Non è Nostr: è un’API HTTP esterna, e come i relay si può sostituire."
       >
         <form class="flex flex-col gap-5" @submit.prevent="salvaServizi">
           <BaseField
             v-slot="{ id, describedBy }"
             label="Indirizzo"
-            hint="Uno solo: immagini, archivio ed elaborazione audio sono domini dello stesso servizio. Senza /v0, che lo aggiunge il client."
+            hint="Senza /v0, che lo aggiunge il client."
           >
             <div class="flex flex-col gap-1">
               <BaseInput
