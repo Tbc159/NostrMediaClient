@@ -13,11 +13,10 @@ sviluppa.
 > filtro), E (URL firmati) e il contratto degli asset non ambiguo con errori
 > `400` diagnosticabili.
 >
-> **Il client è già allineato a quel contratto.** La sezione **Audio** è in
-> `main` e fa tutto sul dominio `audio`; il servizio precedente non è più
-> chiamato da nessuna parte. La sezione **Elabora** (immagini: riferimenti per
-> `filename`, `from-url`, anteprime con `signed_url`) resta sul branch
-> `feature/elabora-immagini` finché la sua UX non è rivista.
+> **Il client è già allineato a quel contratto** (branch `API-extension`):
+> legge i riferimenti come `filename`, usa `from-url`, mostra le anteprime con
+> `signed_url` e fa l'audio sul dominio `audio`. Il servizio precedente non è
+> più chiamato da nessuna parte.
 >
 > **Manca solo il deploy.** Verificato con `curl` oggi contro
 > `http://mediamanager-dev.duckdns.org`: `/v0/audio/health` risponde `404`, il
@@ -429,22 +428,29 @@ Nel repository nuovo esistono già branch che anticipano parte del lavoro:
 
 ## 5. Cosa fa il client, oggi
 
-**Un servizio, configurato in un posto solo.** Indirizzo e chiave stanno in
+**Un servizio solo, configurato in un posto solo.** Indirizzo e chiave stanno in
 _Impostazioni → Servizio di elaborazione_, con i default presi dall'ambiente
-(`.env`, vedi `.env.example`). La pagina Audio mostra soltanto le
-funzionalità; se il dominio audio non risponde lo dice con un rimando alle
-impostazioni, dove le pastiglie riportano la salute di `media` e `audio`
-separatamente — perché è normale, oggi, che il primo risponda e il secondo no.
+(`.env`, vedi `.env.example`). Le pagine Elabora e Audio mostrano soltanto le
+funzionalità; se un dominio non risponde lo dicono con un rimando alle
+impostazioni, dove le pastiglie riportano la salute dei tre domini (`media`,
+`content`, `audio`) separatamente — perché è normale, oggi, che i primi due
+rispondano e il terzo no.
 
 La chiave resta **vuota nei default versionati**: è una credenziale, e
 `NUXT_PUBLIC_*` finisce nel bundle servito al browser. Chi sviluppa la mette nel
 proprio `.env`; il sito pubblicato parte senza, e chi lo usa la inserisce dalle
 impostazioni.
 
-**Audio** (in `main`) — un file locale, taglio dei silenzi con soglia e pausa
-regolabili da cursore, livellamento, confronto con l'originale, scaricamento.
-Il flusso si ferma lì: niente Blossom, niente eventi. Tre cose che il contratto
-nuovo ha reso possibili e che si vedono in pagina:
+**Elabora** — ingredienti nell'archivio del servizio (da file locale, oppure da
+un indirizzo con `from-url`: i byte non passano più dal browser), composizione
+`copertina` o `composita`, anteprima con `signed_url`, e il risultato si scarica
+o torna su Blossom pronto per essere pubblicato come evento.
+
+**Audio** — un file locale, taglio dei silenzi con soglia e pausa regolabili da
+cursore, livellamento, confronto con l'originale, scaricamento. Il flusso si
+ferma lì: niente Blossom, niente eventi.
+
+Tre cose che il contratto nuovo ha reso possibili e che si vedono in pagina:
 
 - **i wav non sono più esclusi** dal taglio dei silenzi, e un m4a non viene più
   convertito prima: ogni operazione accetta qualunque riferimento;
@@ -453,17 +459,6 @@ nuovo ha reso possibili e che si vedono in pagina:
   vincolo dell'infrastruttura;
 - **la sorgente sopravvive**, quindi rifare con un'altra soglia non richiede di
   ricaricare il file — che è l'azione più naturale davanti a un cursore.
-
-**Dal sito pubblicato** (GitHub Pages, `https`) la pagina funzionerà solo
-quando il servizio risponderà in `https` con le intestazioni CORS: finché
-l'ambiente resta in `http`, il browser blocca la richiesta come contenuto misto
-e la pagina lo dice. In sviluppo, da `http://localhost`, funziona già.
-
-**Elabora** (branch `feature/elabora-immagini`) — ingredienti nell'archivio
-del servizio, composizione `copertina` o `composita`, anteprima, scaricamento o
-ritorno su Blossom. Da rivedere nella UX prima di portarla in `main`: si
-compone alla cieca, gli ingredienti spariscono al ricaricamento, mancano le
-miniature.
 
 Non è stata aggiunta nessuna funzionalità: `analyze`, `split`, `concat`, i
 preset `social` e `slide` e il catalogo font esistono nel contratto e non hanno

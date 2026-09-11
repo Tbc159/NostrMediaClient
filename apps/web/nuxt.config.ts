@@ -100,10 +100,10 @@ export default defineNuxtConfig({
       njumpUrl: 'https://njump.me',
 
       /*
-       * Servizio di elaborazione (sezione Audio).
+       * Servizio di elaborazione (sezioni Elabora e Audio).
        *
-       * Archivio ed elaborazione audio sono domini dello stesso microservizio.
-       * L'indirizzo qui e' quello **oggi funzionante**,
+       * Uno solo: immagini, archivio ed elaborazione audio sono domini dello
+       * stesso microservizio. L'indirizzo qui e' quello **oggi funzionante**,
        * perche' una sezione che si apre chiedendo un indirizzo non e'
        * utilizzabile da chi non lo conosce. Resta sostituibile dalle
        * impostazioni.

@@ -4,19 +4,17 @@ import {
   ErroreServizio,
   normalizzaBaseUrl,
 } from '../servizi/http.js'
-import type { ElencoMedia, MediaItem } from './types.js'
+import type { ElencoMedia, ImmagineGenerata, MediaItem, RichiestaImmagine } from './types.js'
 
 /**
  * Client del microservizio media-manager.
  *
- * Il servizio elabora contenuti e tiene un proprio archivio di media,
- * separato da Blossom. Le due cose non si sovrappongono: **Blossom conserva
- * cio' che pubblichi**, il media-manager conserva le sorgenti e i prodotti
- * dell'elaborazione. Un file su Blossom non e' automaticamente noto al
- * servizio, e viceversa.
- *
- * Qui c'e' il dominio `media` (l'archivio); il dominio `audio` ha un client
- * suo in `src/audio/`, sullo stesso indirizzo e con la stessa chiave.
+ * Il servizio elabora contenuti (compone immagini, e in prospettiva tratta
+ * l'audio) e tiene un proprio archivio di media, separato da Blossom. Le due
+ * cose non si sovrappongono: **Blossom conserva cio' che pubblichi**, il
+ * media-manager conserva gli ingredienti e i prodotti dell'elaborazione. Il
+ * ponte fra i due lo fa questo client, ed e' esplicito di proposito — un file
+ * su Blossom non e' automaticamente noto al servizio, e viceversa.
  *
  * `fetch` e' iniettabile perche' il pacchetto resta isomorfico e perche' i
  * test devono poter rispondere senza rete.
@@ -59,6 +57,15 @@ export interface ClientMediaManager {
     opzioni?: { title?: string; page?: number; pageSize?: number },
   ): Promise<ElencoMedia>
   caricaMedia(file: Blob, titolo: string, mediaType: string, durataS?: number): Promise<MediaItem>
+  /**
+   * Crea un media facendolo scaricare **al servizio**.
+   *
+   * Per un file gia' pubblicato (tipicamente su Blossom) evita il doppio
+   * transito dal browser: i byte non passano di qui. Il servizio si difende da
+   * solo dagli URL che puntano alla sua rete interna.
+   */
+  caricaMediaDaUrl(url: string, titolo: string, mediaType?: string): Promise<MediaItem>
+  generaImmagine(richiesta: RichiestaImmagine): Promise<ImmagineGenerata>
   /**
    * Scarica i byte di un media dal servizio.
    *
@@ -133,6 +140,30 @@ export function creaClientMediaManager(opzioni: OpzioniClientMediaManager): Clie
       // Nessun content-type a mano: il confine multipart lo scrive fetch.
       return esito<MediaItem>(
         await chiama('/media', { method: 'POST', headers: intestazioni(), body: modulo }),
+      )
+    },
+
+    async caricaMediaDaUrl(url, titolo, mediaType) {
+      return esito<MediaItem>(
+        await chiama('/media/from-url', {
+          method: 'POST',
+          headers: intestazioni({ 'content-type': 'application/json' }),
+          body: JSON.stringify({
+            url,
+            title: titolo,
+            ...(mediaType ? { media_type: mediaType } : {}),
+          }),
+        }),
+      )
+    },
+
+    async generaImmagine(richiesta) {
+      return esito<ImmagineGenerata>(
+        await chiama('/content/image', {
+          method: 'POST',
+          headers: intestazioni({ 'content-type': 'application/json' }),
+          body: JSON.stringify(richiesta),
+        }),
       )
     },
 

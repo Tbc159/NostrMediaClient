@@ -22,11 +22,11 @@ export default defineNuxtPlugin(() => {
   })
 
   /*
-   * Stessa ragione per il servizio di elaborazione, e una in piu': la pagina
-   * Audio non chiede indirizzo e chiave: se leggesse lo storage da sola in un
-   * `onMounted`, il primo rendering partirebbe come non configurato e
-   * mostrerebbe l'avviso «configura il servizio» a chi il servizio ce l'ha
-   * gia'.
+   * Stessa ragione per il servizio di elaborazione, e una in piu': le pagine
+   * Audio ed Elabora non chiedono piu' indirizzo e chiave: se leggessero lo
+   * storage da sole in un `onMounted`, il primo rendering partirebbe come non
+   * configurato e mostrerebbe l'avviso «configura il servizio» a chi il
+   * servizio ce l'ha gia'.
    */
   useMediaManager().inizializza({
     baseUrl: String(pub.mediaManagerUrl ?? ''),

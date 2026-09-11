@@ -12,12 +12,12 @@ import { defineStore } from 'pinia'
  *
  * E' un servizio esterno al protocollo: non ha nulla di Nostr, elabora
  * contenuti e tiene un proprio archivio. Come per i relay e per Blossom, **qui
- * si configura soltanto, e la configurazione sta nelle impostazioni**: la
- * pagina Audio mostra solo cosa il servizio sa fare.
+ * si configura soltanto, e la configurazione sta nelle impostazioni**: le
+ * pagine Elabora e Audio mostrano solo cosa il servizio sa fare.
  *
- * **Un indirizzo solo.** Archivio ed elaborazione audio sono domini dello
- * stesso microservizio: prima l'audio stava altrove e aveva una
- * configurazione sua, ora non piu'.
+ * **Un indirizzo solo, per tutto.** Immagini, archivio ed elaborazione audio
+ * sono tre domini dello stesso microservizio: prima l'audio stava altrove e
+ * aveva una configurazione sua, ora non piu'.
  *
  * Indirizzo e chiave arrivano dall'ambiente (`.env`), gia' valorizzati su cio'
  * che funziona, e restano sostituibili dall'utente. La sostituzione vive nel
