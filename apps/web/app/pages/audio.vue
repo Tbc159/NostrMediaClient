@@ -237,7 +237,7 @@ const pesoLeggibile = (b: number): string =>
       <BaseAlert v-if="!servizio.configurato" tono="avviso">
         Nessun servizio di elaborazione configurato: senza, questa pagina non può fare nulla.
         <NuxtLink to="/impostazioni" class="underline">
-          Impostazioni → Servizi di elaborazione
+          Impostazioni → Servizio di elaborazione
         </NuxtLink>
       </BaseAlert>
 

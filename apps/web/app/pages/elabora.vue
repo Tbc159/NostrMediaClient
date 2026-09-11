@@ -154,9 +154,12 @@ function verso(l: LivelloModificabile): Livello {
  * titolo produce un 400 «asset non trovato», che è esattamente l'errore che
  * questa pagina faceva prima.
  */
+/** Gli ingredienti che si possono mettere in un'immagine. */
+const immagini = computed(() => ingredienti.value.filter((m) => m.media_type.startsWith('image/')))
+
 const scelteAsset = computed(() => [
   { value: '', label: '— nessuna immagine —' },
-  ...ingredienti.value.map((m) => ({ value: m.filename, label: m.title })),
+  ...immagini.value.map((m) => ({ value: m.filename, label: m.title })),
 ])
 
 const richiesta = computed<RichiestaImmagine | null>(() => {
@@ -168,7 +171,8 @@ const richiesta = computed<RichiestaImmagine | null>(() => {
       testo_centrale: testoCentrale.value.trim(),
       logo_host: logoHost.value,
       colore_sfondo: coloreSfondo.value,
-      ospiti: ingredienti.value
+      // Solo immagini: un mp3 fra gli ingredienti non e' un ospite.
+      ospiti: immagini.value
         .filter((m) => m.filename !== logoHost.value)
         .slice(0, 5)
         .map((m) => m.filename),
@@ -281,7 +285,7 @@ async function mandaSuBlossom(): Promise<void> {
       <BaseAlert v-if="!servizio.configurato" tono="avviso">
         Nessun servizio configurato: questa pagina non può fare nulla senza.
         <NuxtLink to="/impostazioni" class="underline">
-          Impostazioni → Servizi di elaborazione
+          Impostazioni → Servizio di elaborazione
         </NuxtLink>
       </BaseAlert>
 
@@ -289,9 +293,9 @@ async function mandaSuBlossom(): Promise<void> {
         v-else-if="servizio.salute && !servizio.salute.media && !servizio.salute.content"
         tono="avviso"
       >
-        Il servizio non risponde su nessuno dei due domini. Dal browser la causa più frequente non è
-        il servizio spento: se non espone le intestazioni CORS, la richiesta viene bloccata prima di
-        partire e qui si vede come «non raggiungibile».
+        Il servizio non risponde né per l’archivio né per le immagini. Dal browser la causa più
+        frequente non è il servizio spento: se non espone le intestazioni CORS, la richiesta viene
+        bloccata prima di partire e qui si vede come «non raggiungibile».
         <NuxtLink to="/impostazioni" class="underline">Controlla indirizzo e chiave</NuxtLink>
       </BaseAlert>
 
@@ -380,7 +384,7 @@ async function mandaSuBlossom(): Promise<void> {
               <BaseSelect
                 :id="id"
                 v-model="logoHost"
-                :options="ingredienti.map((m) => ({ value: m.title, label: m.title }))"
+                :options="immagini.map((m) => ({ value: m.filename, label: m.title }))"
               />
             </BaseField>
             <BaseField v-slot="{ id }" label="Colore di sfondo">
