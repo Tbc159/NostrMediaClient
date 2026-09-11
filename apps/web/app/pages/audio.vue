@@ -241,6 +241,22 @@ const pesoLeggibile = (b: number): string =>
         </NuxtLink>
       </BaseAlert>
 
+      <!--
+        Due guasti diversi, due frasi diverse: se non risponde *nessun* dominio
+        la causa e' quasi sempre CORS o l'indirizzo, non l'audio — e dire
+        «manca l'audio» manderebbe a cercare il problema dove non e'.
+      -->
+      <BaseAlert
+        v-else-if="servizio.salute && !servizio.salute.media && !servizio.salute.audio"
+        tono="avviso"
+      >
+        <strong>Il servizio non risponde</strong>
+        , su nessun dominio. Dal browser la causa più frequente non è il servizio spento: se questa
+        origine non è fra quelle ammesse dal suo CORS, la richiesta viene bloccata prima di partire
+        e qui si vede così. Con curl risponderebbe.
+        <NuxtLink to="/impostazioni" class="underline">Controlla indirizzo e chiave</NuxtLink>
+      </BaseAlert>
+
       <BaseAlert v-else-if="servizio.salute && !servizio.salute.audio" tono="avviso">
         Il servizio risponde ma
         <strong>non espone il dominio audio</strong>
