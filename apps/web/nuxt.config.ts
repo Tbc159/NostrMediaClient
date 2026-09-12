@@ -113,7 +113,7 @@ export default defineNuxtConfig({
        * nel proprio `.env`; una build pubblica, che quel `.env` non ce l'ha,
        * parte senza chiave e lo dice nelle impostazioni.
        */
-      mediaManagerUrl: 'http://mediamanager-dev.duckdns.org',
+      mediaManagerUrl: 'https://mediamanager-dev.duckdns.org',
       mediaManagerApiKey: '',
     },
   },
