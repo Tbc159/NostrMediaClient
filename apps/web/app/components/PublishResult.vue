@@ -11,6 +11,24 @@ import type { EsitoRelay, RisultatoPubblicazione } from '@nmc/nostr-core'
  */
 const props = defineProps<{ esito: RisultatoPubblicazione }>()
 
+/*
+ * L'esito mostrato puo' cambiare da qui: con la rotazione l'evento e' su un
+ * relay solo, e chi vuole metterlo anche sugli altri non deve ricomporre
+ * niente — e' gia' firmato. Si rimanda lo stesso evento con «tutti» e si
+ * mostra il nuovo esito al posto del vecchio.
+ */
+const invio = usePublish()
+const esitoMostrato = ref<RisultatoPubblicazione>(props.esito)
+watch(
+  () => props.esito,
+  (e) => (esitoMostrato.value = e),
+)
+
+async function ridistribuisci(): Promise<void> {
+  await invio.pubblica(esitoMostrato.value.evento, undefined, { strategia: 'tutti' })
+  if (invio.esito.value) esitoMostrato.value = invio.esito.value
+}
+
 const toni: Record<EsitoRelay, 'successo' | 'avviso' | 'neutro'> = {
   accettato: 'successo',
   duplicato: 'successo',
@@ -29,7 +47,7 @@ const etichette: Record<EsitoRelay, string> = {
   'non tentato': 'non tentato',
 }
 
-const accettati = computed(() => props.esito.accettati.length)
+const accettati = computed(() => esitoMostrato.value.accettati.length)
 
 /*
  * Con la rotazione i relay non tentati non sono fallimenti: contarli nel
@@ -37,19 +55,27 @@ const accettati = computed(() => props.esito.accettati.length)
  * doveva.
  */
 const tentati = computed(
-  () => props.esito.risultati.filter((r) => r.esito !== 'non tentato').length,
+  () => esitoMostrato.value.risultati.filter((r) => r.esito !== 'non tentato').length,
 )
-const saltati = computed(() => props.esito.risultati.length - tentati.value)
+const saltati = computed(() => esitoMostrato.value.risultati.length - tentati.value)
 </script>
 
 <template>
   <div class="flex flex-col gap-3">
-    <BaseAlert :tono="esito.riuscita ? 'successo' : 'pericolo'">
-      <template v-if="esito.riuscita">
+    <BaseAlert :tono="esitoMostrato.riuscita ? 'successo' : 'pericolo'">
+      <template v-if="esitoMostrato.riuscita">
         Evento accettato da {{ accettati }} su {{ tentati }} relay contattati.
         <template v-if="saltati > 0">
           Gli altri {{ saltati }} non sono stati contattati: bastava il primo che lo ha preso in
-          carico.
+          carico. Se vuoi che ci sia anche lì:
+          <button
+            type="button"
+            class="underline"
+            :disabled="invio.inCorso.value"
+            @click="ridistribuisci"
+          >
+            {{ invio.inCorso.value ? 'ridistribuisco…' : 'ridistribuisci su tutti' }}
+          </button>
         </template>
         <template v-else-if="accettati < tentati">
           Gli altri non lo hanno preso: sotto trovi il motivo di ciascuno.
@@ -63,7 +89,7 @@ const saltati = computed(() => props.esito.risultati.length - tentati.value)
 
     <ul class="flex flex-col gap-2">
       <li
-        v-for="r in esito.risultati"
+        v-for="r in esitoMostrato.risultati"
         :key="r.url"
         class="superficie flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border px-3 py-2 text-sm"
         :class="r.esito === 'non tentato' ? 'opacity-60' : ''"

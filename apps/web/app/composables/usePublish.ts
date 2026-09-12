@@ -1,5 +1,6 @@
 import {
   publishEvent,
+  strategiaPerKind,
   type NostrEvent,
   type RisultatoPubblicazione,
   type StrategiaPubblicazione,
@@ -57,7 +58,10 @@ export function usePublish() {
         // L'autenticazione NIP-42 serve solo qui, in scrittura. In lettura
         // rivelerebbe al relay cosa leggi e quando, senza alcun vantaggio.
         auth: { signEvent: (template) => identita.firma(template) },
-        strategia: opzioni.strategia ?? configurazione.strategia,
+        // La preferenza dell'utente vale per le note; profilo, liste, scheda e
+        // episodi del podcast vanno su tutti i relay, perche' chi li cerca
+        // legge dal relay suo e non chiede a noi dove li abbiamo messi.
+        strategia: opzioni.strategia ?? strategiaPerKind(evento.kind, configurazione.strategia),
         onTentativo: (url, indice, totale) => {
           tentativo.value = { url, indice, totale }
         },

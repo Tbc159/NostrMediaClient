@@ -1,5 +1,6 @@
 import type { AuthSigner, PublishResponse, RelayPool } from 'applesauce-relay'
 
+import { classifyKind } from '../kinds/classify.js'
 import type { NostrEvent } from '../kinds/types.js'
 import { mergeRelayLists } from './pool.js'
 
@@ -46,6 +47,36 @@ export type EsitoRelay =
  * resta del chiamante invece di essere cablata qui.
  */
 export type StrategiaPubblicazione = 'sequenziale' | 'tutti'
+
+/**
+ * Kind che vanno **ovunque**, qualunque strategia l'utente abbia scelto.
+ *
+ * La rotazione ha senso per una nota: e' su un relay, chi la cerca la trova
+ * per relay hint. Un podcast no: un lettore di podcast legge da un relay suo,
+ * non chiede a te dove hai pubblicato — e uno show con la scheda su `nos.lol`
+ * e' invisibile a chi legge `relay.damus.io`. E' successo, ed e' il motivo di
+ * questa lista.
+ */
+export const KIND_OVUNQUE: readonly number[] = [54, 10064, 10154]
+
+/**
+ * La strategia da usare davvero per un evento.
+ *
+ * Quella preferita dall'utente vale per gli eventi regolari; per i replaceable
+ * e gli addressable — profilo, liste, scheda del podcast, articoli — e per i
+ * kind di `KIND_OVUNQUE` si va su tutti i relay: sono eventi che devono
+ * essere *trovati*, non solo esistere da qualche parte.
+ */
+export function strategiaPerKind(
+  kind: number,
+  preferita: StrategiaPubblicazione,
+): StrategiaPubblicazione {
+  if (preferita === 'tutti') return 'tutti'
+  const classe = classifyKind(kind)
+  if (classe === 'replaceable' || classe === 'addressable') return 'tutti'
+  if (KIND_OVUNQUE.includes(kind)) return 'tutti'
+  return preferita
+}
 
 export interface RisultatoRelay {
   url: string

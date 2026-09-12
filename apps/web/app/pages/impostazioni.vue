@@ -39,7 +39,7 @@ const strategie = [
     id: 'sequenziale' as const,
     titolo: 'A rotazione, uno per volta (consigliata)',
     spiegazione:
-      'Prova i relay nell’ordine in cui li hai scritti e si ferma al primo che prende in carico l’evento. Apre una connessione per volta, quindi non incappa nei limiti per indirizzo IP dei relay. In cambio l’evento finisce su un solo relay.',
+      'Prova i relay nell’ordine in cui li hai scritti e si ferma al primo che prende in carico l’evento. Apre una connessione per volta, quindi non incappa nei limiti per indirizzo IP dei relay. In cambio l’evento finisce su un solo relay. Vale per note e media; profilo, liste, articoli, scheda ed episodi del podcast vanno comunque su tutti, perché chi li cerca legge dal relay suo.',
   },
   {
     id: 'tutti' as const,

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { mergeRelayLists, normalizeRelayUrl } from '../src/relays/pool.js'
-import { spiegaRispostaRelay } from '../src/relays/publish.js'
+import { spiegaRispostaRelay, strategiaPerKind } from '../src/relays/publish.js'
 import { ordinaPerData, ultimaVersione } from '../src/relays/request.js'
 import type { NostrEvent } from '../src/kinds/types.js'
 
@@ -119,5 +119,25 @@ describe('ricomposizione degli eventi letti', () => {
       evento({ id: 'cc', created_at: 200 }),
     ])
     expect(ordinati.map((e) => e.id)).toEqual(['bb', 'cc', 'aa'])
+  })
+})
+
+describe('strategia per kind', () => {
+  it('una nota segue la preferenza dell’utente', () => {
+    expect(strategiaPerKind(1, 'sequenziale')).toBe('sequenziale')
+    expect(strategiaPerKind(1, 'tutti')).toBe('tutti')
+  })
+
+  it('un podcast va ovunque anche con la rotazione: un lettore legge dal relay suo', () => {
+    // Una scheda su nos.lol e' invisibile a chi legge relay.damus.io: e'
+    // successo davvero, e la rotazione ne era la causa.
+    for (const kind of [54, 10154, 10064])
+      expect(strategiaPerKind(kind, 'sequenziale')).toBe('tutti')
+  })
+
+  it('replaceable e addressable vanno ovunque: devono essere trovati, non solo esistere', () => {
+    for (const kind of [0, 3, 10002, 30023, 31923]) {
+      expect(strategiaPerKind(kind, 'sequenziale')).toBe('tutti')
+    }
   })
 })
