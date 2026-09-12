@@ -1,4 +1,9 @@
-import { publishEvent, type NostrEvent, type RisultatoPubblicazione } from '@nmc/nostr-core'
+import {
+  publishEvent,
+  type NostrEvent,
+  type RisultatoPubblicazione,
+  type StrategiaPubblicazione,
+} from '@nmc/nostr-core'
 import { useConfigurazione } from '~/stores/configurazione'
 
 /**
@@ -38,6 +43,7 @@ export function usePublish() {
   async function pubblica(
     evento: NostrEvent,
     relays: readonly string[] = destinazioni.value,
+    opzioni: { strategia?: StrategiaPubblicazione } = {},
   ): Promise<boolean> {
     if (!pool) {
       errore.value = 'Il pool di relay non e’ disponibile: ricarica la pagina.'
@@ -51,7 +57,7 @@ export function usePublish() {
         // L'autenticazione NIP-42 serve solo qui, in scrittura. In lettura
         // rivelerebbe al relay cosa leggi e quando, senza alcun vantaggio.
         auth: { signEvent: (template) => identita.firma(template) },
-        strategia: configurazione.strategia,
+        strategia: opzioni.strategia ?? configurazione.strategia,
         onTentativo: (url, indice, totale) => {
           tentativo.value = { url, indice, totale }
         },

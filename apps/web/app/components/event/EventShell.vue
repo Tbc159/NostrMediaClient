@@ -43,6 +43,32 @@ const mostraAzione = computed(() => props.azioni && propria.value)
  */
 
 const spiegazione = ref(false)
+
+/*
+ * Ridistribuire: lo stesso evento, gia' firmato, mandato ai relay di
+ * scrittura di adesso. Non si rifirma — l'id resta quello — quindi non nasce
+ * un duplicato: un relay che l'ha gia' risponde «gia' presente». Serve quando
+ * un evento e' finito su un relay solo e chi deve leggerlo guarda altrove: un
+ * lettore di podcast che legge da un relay dove la scheda non c'e' mai stata.
+ */
+const invio = usePublish()
+const ridistribuito = ref<string | null>(null)
+
+async function ridistribuisci(): Promise<void> {
+  ridistribuito.value = null
+  // Sempre «tutti»: il senso e' proprio metterlo ovunque, non sul primo che accetta.
+  await invio.pubblica(props.evento, undefined, { strategia: 'tutti' })
+  const r = invio.esito.value
+  if (!r) return
+  const ok = r.risultati.filter((x) => x.esito === 'accettato' || x.esito === 'duplicato')
+  const ko = r.risultati.filter((x) => !ok.includes(x))
+  ridistribuito.value =
+    `Ora su ${ok.length} relay` +
+    (ko.length
+      ? `; rifiutato da ${ko.map((x) => `${x.url.replace(/^wss?:\/\//, '')} (${x.motivo})`).join(', ')}`
+      : '') +
+    '.'
+}
 // Il tipo 'modifica' non porta un avviso: il template non puo' restringere
 // l'unione da solo, quindi la si appiattisce qui.
 const avviso = computed(() => ('avviso' in azione.value ? azione.value.avviso : ''))
@@ -106,7 +132,22 @@ const avviso = computed(() => ('avviso' in azione.value ? azione.value.avviso : 
           non modificabile — perché
         </button>
 
+        <button
+          v-if="propria"
+          type="button"
+          class="underline"
+          :disabled="invio.inCorso.value"
+          title="Manda questo stesso evento, già firmato, a tutti i relay di scrittura: niente duplicati, chi ce l’ha già lo dice."
+          @click="ridistribuisci"
+        >
+          {{ invio.inCorso.value ? 'ridistribuisco…' : 'ridistribuisci sui relay' }}
+        </button>
+
         <p v-if="spiegazione" class="w-full text-[var(--testo-tenue)]">{{ avviso }}</p>
+        <p v-if="ridistribuito" class="w-full text-[var(--testo-tenue)]">{{ ridistribuito }}</p>
+        <p v-if="invio.errore.value" class="w-full text-[var(--pericolo)]">
+          {{ invio.errore.value }}
+        </p>
       </footer>
     </ClientOnly>
   </article>
