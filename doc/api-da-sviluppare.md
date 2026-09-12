@@ -441,10 +441,13 @@ La chiave resta **vuota nei default versionati**: è una credenziale, e
 proprio `.env`; il sito pubblicato parte senza, e chi lo usa la inserisce dalle
 impostazioni.
 
-**Audio** (in `main`) — un file locale, taglio dei silenzi con soglia e pausa
-regolabili da cursore, livellamento, confronto con l'originale, scaricamento.
-Il flusso si ferma lì: niente Blossom, niente eventi. Tre cose che il contratto
-nuovo ha reso possibili e che si vedono in pagina:
+**Audio** (in `main`, sotto _Media → Audio_) — un file locale, taglio dei
+silenzi con soglia e pausa regolabili da cursore, livellamento, confronto con
+l'originale. Alla fine due uscite: scaricare, oppure «Pubblica come podcast»,
+che porta il file in _Media → Carica su Blossom_ già nel modo episodio (kind
+54), con bozze riprendibili e una proposta esportabile per far firmare
+un'altra chiave. Tre cose che il contratto nuovo ha reso possibili e che si
+vedono in pagina:
 
 - **i wav non sono più esclusi** dal taglio dei silenzi, e un m4a non viene più
   convertito prima: ogni operazione accetta qualunque riferimento;
