@@ -32,6 +32,10 @@
     "./audio": {
       "types": "./dist/audio/index.d.ts",
       "import": "./dist/audio/index.js"
+    },
+    "./signers": {
+      "types": "./dist/signers/index.d.ts",
+      "import": "./dist/signers/index.js"
     }
   },
   "main": "./dist/index.js",

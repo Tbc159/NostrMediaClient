@@ -1,4 +1,4 @@
-import type { AnyKindDefinition, EventTemplate, NostrEvent } from '@nmc/nostr-core'
+import type { AnyKindDefinition, EventTemplate, Firmatario, NostrEvent } from '@nmc/nostr-core'
 
 /**
  * Ciclo di vita di un evento in composizione: costruzione, firma, invio.
@@ -48,8 +48,16 @@ export function useEventDraft() {
     }
   }
 
-  /** Firma il template con la modalita' di accesso attiva. */
-  async function firma(): Promise<boolean> {
+  /**
+   * Firma il template.
+   *
+   * Senza argomenti firma l'identita' attiva. Passando un `firmatario` — una
+   * delega NIP-46 — l'evento esce con la `pubkey` di **quell'altra** identita':
+   * non e' una variante della stessa azione, e' pubblicare a nome di un altro.
+   * Per questo il firmatario si passa a ogni chiamata invece di essere uno
+   * stato del composable: nessuno deve poterlo dimenticare acceso.
+   */
+  async function firma(firmatario?: Firmatario): Promise<boolean> {
     if (!template.value) {
       errore.value = 'Nessun evento da firmare.'
       return false
@@ -57,7 +65,9 @@ export function useEventDraft() {
     errore.value = null
     inCorso.value = true
     try {
-      firmato.value = await identita.firma(template.value)
+      firmato.value = firmatario
+        ? await firmatario.firma(template.value)
+        : await identita.firma(template.value)
       return true
     } catch (e) {
       errore.value = e instanceof Error ? e.message : String(e)
@@ -74,8 +84,8 @@ export function useEventDraft() {
    * a parita' di contenuto e, con NIP-07, farebbe ricomparire il popup
    * dell'estensione a ogni tentativo di reinvio.
    */
-  async function firmaEPubblica(): Promise<boolean> {
-    if (!firmato.value && !(await firma())) return false
+  async function firmaEPubblica(firmatario?: Firmatario): Promise<boolean> {
+    if (!firmato.value && !(await firma(firmatario))) return false
     if (!firmato.value) return false
     return invio.pubblica(firmato.value)
   }
