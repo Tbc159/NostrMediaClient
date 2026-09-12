@@ -200,3 +200,66 @@ export const podcastMetadataDefinition = defineKind<PodcastMetadataParsed, Podca
     }
   },
 })
+
+/**
+ * Kind 10064 — i podcast di cui una persona e' autrice (NIP-F4).
+ *
+ * E' l'altra meta' del cerchio: la scheda del podcast (10154) dice chi sono
+ * gli autori con un tag `p`, ma «un podcast puo' attribuirsi chiunque». Il
+ * 10064 lo pubblica **l'autore**, sulla sua chiave, e nomina i podcast: solo
+ * quando le due dichiarazioni si riscontrano il legame e' credibile.
+ *
+ * Replaceable: c'e' una lista sola per persona, e ripubblicarla la
+ * sostituisce.
+ */
+export const authoredPodcastsSchema = z.object({
+  /** Chiavi dei podcast, in esadecimale. */
+  podcasts: z.array(z.string()),
+})
+
+export type AuthoredPodcastsParsed = z.infer<typeof authoredPodcastsSchema>
+
+export interface AuthoredPodcastsInput {
+  podcasts: string[]
+}
+
+export const authoredPodcastsDefinition = defineKind<AuthoredPodcastsParsed, AuthoredPodcastsInput>(
+  {
+    kind: 10064,
+    name: 'podcast-di-cui-sono-autore',
+    nip: 'NIP-F4',
+    class: 'replaceable',
+    editable: true,
+    deletable: true,
+    schema: authoredPodcastsSchema,
+    feed: { eligible: false },
+    renderer: 'podcast-authored',
+
+    parse(event) {
+      return authoredPodcastsSchema.parse({
+        podcasts: tagsNamed(event, 'p')
+          .map((t) => t[1])
+          .filter((p): p is string => typeof p === 'string' && /^[0-9a-f]{64}$/.test(p)),
+      })
+    },
+
+    build(input, ctx) {
+      // Senza doppioni e senza vuoti: una lista che ripete una chiave non dice
+      // niente di piu', e una chiave malformata non e' un podcast.
+      const podcasts = [...new Set(input.podcasts.map((p) => p.trim().toLowerCase()))].filter((p) =>
+        /^[0-9a-f]{64}$/.test(p),
+      )
+      if (podcasts.length === 0) {
+        throw new Error(
+          'La lista dei podcast di cui sei autore e’ vuota: per toglierti da tutti, cancella l’evento invece di pubblicarne uno vuoto.',
+        )
+      }
+      return {
+        kind: 10064,
+        content: '',
+        tags: podcasts.map((p) => ['p', p]),
+        created_at: ctx.now,
+      }
+    },
+  },
+)

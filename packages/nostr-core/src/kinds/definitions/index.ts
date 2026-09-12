@@ -8,7 +8,11 @@ import { draftWrapDefinition, privateRelaysDefinition } from './draft.js'
 import { fileMetadataDefinition } from './file-metadata.js'
 import { metadataDefinition } from './metadata.js'
 import { noteDefinition } from './note.js'
-import { podcastEpisodeDefinition, podcastMetadataDefinition } from './podcast.js'
+import {
+  authoredPodcastsDefinition,
+  podcastEpisodeDefinition,
+  podcastMetadataDefinition,
+} from './podcast.js'
 import { pictureDefinition } from './picture.js'
 import { shortVideoDefinition, videoDefinition } from './video.js'
 
@@ -36,6 +40,7 @@ export const kindDefinitions = [
   fileMetadataDefinition,
   podcastEpisodeDefinition,
   podcastMetadataDefinition,
+  authoredPodcastsDefinition,
   blossomAuthDefinition,
   articleDefinition,
   articleDraftDefinition,

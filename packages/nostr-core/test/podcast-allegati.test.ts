@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { noteDefinition } from '../src/kinds/definitions/note.js'
 import {
+  authoredPodcastsDefinition,
   podcastEpisodeDefinition,
   podcastMetadataDefinition,
 } from '../src/kinds/definitions/podcast.js'
@@ -178,6 +179,37 @@ describe('descrizione del podcast (kind 10154)', () => {
     expect(() => podcastMetadataDefinition.build({ ...scheda, image: '' }, CTX)).toThrow(/immagine/)
     expect(() => podcastMetadataDefinition.build({ ...scheda, description: '' }, CTX)).toThrow(
       /descrizione/,
+    )
+  })
+})
+
+describe('podcast di cui sono autore (kind 10064)', () => {
+  const PODCAST = 'dd'.repeat(32)
+
+  it('e' + "' replaceable: una lista sola per persona", () => {
+    expect(authoredPodcastsDefinition.class).toBe('replaceable')
+    expect(authoredPodcastsDefinition.editable).toBe(true)
+  })
+
+  it('nomina i podcast con un tag p ciascuno, senza doppioni', () => {
+    // E' l'autore a dichiararsi: la scheda del podcast da sola puo'
+    // attribuirsi chiunque, e solo il riscontro da questa parte lo conferma.
+    const t = authoredPodcastsDefinition.build({ podcasts: [PODCAST, PODCAST.toUpperCase()] }, CTX)
+    expect(t.tags).toEqual([['p', PODCAST]])
+    expect(t.content).toBe('')
+  })
+
+  it('sopravvive al giro build → parse e scarta cio' + "' che non e' una chiave", () => {
+    const t = authoredPodcastsDefinition.build({ podcasts: [PODCAST, 'ee'.repeat(32)] }, CTX)
+    const letto = authoredPodcastsDefinition.parse(
+      evento({ kind: 10064, tags: [...t.tags, ['p', 'non-una-chiave']] }),
+    )
+    expect(letto.podcasts).toEqual([PODCAST, 'ee'.repeat(32)])
+  })
+
+  it('rifiuta una lista vuota, e dice cosa fare invece', () => {
+    expect(() => authoredPodcastsDefinition.build({ podcasts: ['  ', 'x'] }, CTX)).toThrow(
+      /cancella/,
     )
   })
 })

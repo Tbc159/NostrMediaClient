@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { getKindDefinition, uploadBlob } from '@nmc/nostr-core'
+import { getKindDefinition, parsePublicKeyInput, toNpub, uploadBlob } from '@nmc/nostr-core'
 
 useHead({ title: 'Profilo · NostrMediaClient' })
 
@@ -57,6 +57,7 @@ onMounted(() => {
   if (identita.pubkey) {
     void carica()
     void caricaPodcast()
+    void caricaAutore()
   }
 })
 watch(
@@ -85,6 +86,71 @@ function componi(): void {
     bot: bot.value || undefined,
   })
 }
+
+// ─── Podcast di cui sono autore (NIP-F4, kind 10064) ──────────────────────
+/*
+ * L'altra meta' del cerchio. La scheda del podcast dice chi sono gli autori,
+ * ma «un podcast puo' attribuirsi chiunque»: e' l'autore, dalla sua chiave,
+ * a confermare. Facoltativo e chiuso di default: serve solo a chi lavora per
+ * un podcast che non e' la propria identita' — per esempio con una delega.
+ */
+const bozzaAutore = useEventDraft()
+const autoreEsistente = useEventoEsistente()
+const podcastDiCuiSonoAutore = ref<string[]>([])
+const nuovoPodcast = ref('')
+const erroreAutore = ref<string | null>(null)
+const mostraAutore = ref(false)
+const rotta = useRoute()
+
+async function caricaAutore(): Promise<void> {
+  const trovato = await autoreEsistente.perCoordinata(10064)
+  if (!trovato) return
+  const definizione = getKindDefinition(10064)
+  if (!definizione) return
+  try {
+    podcastDiCuiSonoAutore.value = definizione.parse(trovato).podcasts
+    mostraAutore.value = podcastDiCuiSonoAutore.value.length > 0
+  } catch {
+    // Lista malformata: si riparte da vuoto invece di bloccare il profilo.
+  }
+}
+
+function aggiungiPodcast(): void {
+  erroreAutore.value = null
+  try {
+    const hex = parsePublicKeyInput(nuovoPodcast.value.trim())
+    if (!podcastDiCuiSonoAutore.value.includes(hex)) {
+      podcastDiCuiSonoAutore.value = [...podcastDiCuiSonoAutore.value, hex]
+    }
+    nuovoPodcast.value = ''
+  } catch (e) {
+    erroreAutore.value = e instanceof Error ? e.message : String(e)
+  }
+}
+
+function togliPodcast(hex: string): void {
+  podcastDiCuiSonoAutore.value = podcastDiCuiSonoAutore.value.filter((p) => p !== hex)
+}
+
+function componiAutore(): void {
+  const definizione = getKindDefinition(10064)
+  if (!definizione) {
+    bozzaAutore.errore.value = 'Kind 10064 non registrato.'
+    return
+  }
+  bozzaAutore.costruisci(definizione, { podcasts: podcastDiCuiSonoAutore.value })
+}
+
+// Arrivando da una delega appena collegata (`?autore-di=<npub>`), la chiave
+// del podcast e' gia' nel campo e la sezione e' aperta: il rimando ha senso
+// solo se non costringe a ricopiare.
+onMounted(() => {
+  const suggerito = rotta.query['autore-di']
+  if (typeof suggerito === 'string' && suggerito) {
+    nuovoPodcast.value = suggerito
+    mostraAutore.value = true
+  }
+})
 
 // ─── Podcast (NIP-F4) ──────────────────────────────────────────────────────
 /*
@@ -389,6 +455,96 @@ const valori = { nome, nomeVisualizzato, immagine, copertina, sito, nip05, lud16
               <PublishResult
                 v-if="bozzaPodcast.invio.esito.value"
                 :esito="bozzaPodcast.invio.esito.value"
+              />
+            </form>
+          </details>
+        </BaseCard>
+
+        <!-- ─────────── Podcast di cui sono autore (NIP-F4) ─────────── -->
+        <BaseCard
+          title="Podcast di cui sono autore"
+          subtitle="Kind 10064, facoltativo. Per chi lavora a un podcast che è un’altra chiave: la scheda del podcast può nominarti, ma sei tu a confermare."
+        >
+          <details
+            :open="mostraAutore"
+            @toggle="mostraAutore = ($event.target as HTMLDetailsElement).open"
+          >
+            <summary class="cursor-pointer text-sm">
+              {{
+                podcastDiCuiSonoAutore.length
+                  ? `Sei autore di ${podcastDiCuiSonoAutore.length} podcast`
+                  : 'Dichiara i podcast di cui sei autore'
+              }}
+            </summary>
+
+            <form class="mt-4 flex flex-col gap-4" @submit.prevent="componiAutore">
+              <BaseAlert tono="info">
+                Ha senso solo se il podcast è
+                <strong>un’altra chiave</strong>
+                — per esempio una a cui chiedi la firma con una delega. Se pubblichi episodi con
+                questa identità, il podcast sei già tu e questa lista non serve.
+              </BaseAlert>
+
+              <ul v-if="podcastDiCuiSonoAutore.length" class="flex flex-col gap-1 text-sm">
+                <li
+                  v-for="p in podcastDiCuiSonoAutore"
+                  :key="p"
+                  class="superficie flex items-center gap-2 rounded-md border px-3 py-2"
+                >
+                  <code class="min-w-0 flex-1 truncate text-xs">{{ toNpub(p) }}</code>
+                  <BaseButton size="sm" variant="fantasma" @click="togliPodcast(p)">
+                    Togli
+                  </BaseButton>
+                </li>
+              </ul>
+
+              <div class="flex flex-wrap items-end gap-2">
+                <div class="min-w-64 flex-1">
+                  <BaseField
+                    v-slot="{ id, describedBy }"
+                    label="Chiave del podcast"
+                    hint="npub o esadecimale."
+                  >
+                    <BaseInput
+                      :id="id"
+                      v-model="nuovoPodcast"
+                      placeholder="npub1…"
+                      :described-by="describedBy"
+                    />
+                  </BaseField>
+                </div>
+                <BaseButton :disabled="!nuovoPodcast.trim()" @click="aggiungiPodcast">
+                  Aggiungi
+                </BaseButton>
+              </div>
+              <BaseAlert v-if="erroreAutore" tono="pericolo">{{ erroreAutore }}</BaseAlert>
+
+              <div class="flex flex-wrap gap-2">
+                <BaseButton
+                  type="submit"
+                  variant="primario"
+                  :disabled="!podcastDiCuiSonoAutore.length"
+                >
+                  Componi evento
+                </BaseButton>
+                <BaseButton
+                  v-if="bozzaAutore.template.value"
+                  variant="primario"
+                  :loading="bozzaAutore.inCorso.value || bozzaAutore.invio.inCorso.value"
+                  :disabled="!identita.puoFirmare"
+                  @click="bozzaAutore.firmaEPubblica()"
+                >
+                  {{ bozzaAutore.firmato.value ? 'Pubblica' : 'Firma e pubblica' }}
+                </BaseButton>
+              </div>
+
+              <PublishProgress :invio="bozzaAutore.invio" />
+              <BaseAlert v-if="bozzaAutore.errore.value" tono="pericolo">
+                {{ bozzaAutore.errore.value }}
+              </BaseAlert>
+              <PublishResult
+                v-if="bozzaAutore.invio.esito.value"
+                :esito="bozzaAutore.invio.esito.value"
               />
             </form>
           </details>

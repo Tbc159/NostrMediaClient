@@ -238,6 +238,17 @@ const ora = (t: number): string => new Date(t).toLocaleTimeString('it-IT')
               <BaseBadge v-if="deleghe.collegate.includes(d.pubkey)" tono="successo">
                 collegata
               </BaseBadge>
+              <!--
+                Chi chiede la firma a un podcast di solito ne e' autore: NIP-F4
+                vuole che lo dica lui, dalla sua chiave (kind 10064). Un rimando
+                con la chiave gia' nel campo, invece di lasciarlo scoprire.
+              -->
+              <NuxtLink
+                :to="`/profilo?autore-di=${deleghe.npubDi(d.pubkey)}`"
+                class="text-xs underline"
+              >
+                dichiarati autore di questo podcast
+              </NuxtLink>
               <BaseButton
                 size="sm"
                 variant="fantasma"
