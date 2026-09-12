@@ -11,6 +11,7 @@ const voci = [
   { to: '/articoli', label: 'Articoli' },
   { to: '/calendario', label: 'Calendario' },
   { to: '/profilo', label: 'Profilo' },
+  { to: '/firme', label: 'Firme' },
   { to: '/diagnostica', label: 'Diagnostica' },
   { to: '/impostazioni', label: 'Impostazioni' },
 ]
