@@ -27,8 +27,20 @@ export function useEventoEsistente() {
   /** Relay di lettura piu' quelli di scrittura: e' su questi ultimi che l'evento e' finito. */
   const sorgenti = computed(() => [...config.value.readRelays, ...config.value.writeRelays])
 
-  async function perCoordinata(kind: number, identificatore?: string): Promise<NostrEvent | null> {
-    if (!pool || !identita.pubkey) return null
+  /**
+   * L'ultima versione di un replaceable/addressable.
+   *
+   * Di norma quella dell'identita' attiva; `autore` la cerca su un'altra
+   * chiave — serve quando si prepara un evento che firmera' qualcun altro per
+   * delega, e la versione da modificare e' la sua, non la propria.
+   */
+  async function perCoordinata(
+    kind: number,
+    identificatore?: string,
+    autore?: string,
+  ): Promise<NostrEvent | null> {
+    const pubkey = autore ?? identita.pubkey
+    if (!pool || !pubkey) return null
     caricamento.value = true
     errore.value = null
     try {
@@ -37,7 +49,7 @@ export function useEventoEsistente() {
         sorgenti.value,
         {
           kind,
-          pubkey: identita.pubkey,
+          pubkey,
           ...(identificatore !== undefined ? { identifier: identificatore } : {}),
         },
         { timeoutMs: 8000 },

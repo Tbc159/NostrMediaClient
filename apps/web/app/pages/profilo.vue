@@ -1,5 +1,12 @@
 <script setup lang="ts">
-import { getKindDefinition, parsePublicKeyInput, toNpub, uploadBlob } from '@nmc/nostr-core'
+import {
+  getKindDefinition,
+  parsePublicKeyInput,
+  toNpub,
+  uploadBlob,
+  type Firmatario,
+} from '@nmc/nostr-core'
+import { useDeleghe } from '~/stores/deleghe'
 
 useHead({ title: 'Profilo · NostrMediaClient' })
 
@@ -169,8 +176,90 @@ const podcastSito = ref('')
 const haPodcast = ref(false)
 const mostraPodcast = ref(false)
 
+/**
+ * Gli autori dichiarati dalla scheda, con il ruolo (`host`, `cohost`,
+ * `editor`). E' la meta' del riscontro che sta dal lato del podcast: l'altra
+ * e' il kind 10064 pubblicato da ciascun autore sulla propria chiave.
+ */
+const podcastAutori = ref<{ pubkey: string; role: string }[]>([])
+const nuovoAutore = ref('')
+const nuovoRuolo = ref('host')
+const erroreAutorePodcast = ref<string | null>(null)
+const ruoli = [
+  { value: 'host', label: 'host' },
+  { value: 'cohost', label: 'cohost' },
+  { value: 'editor', label: 'editor' },
+]
+
+function aggiungiAutorePodcast(): void {
+  erroreAutorePodcast.value = null
+  try {
+    const hex = parsePublicKeyInput(nuovoAutore.value.trim())
+    podcastAutori.value = [
+      ...podcastAutori.value.filter((a) => a.pubkey !== hex),
+      { pubkey: hex, role: nuovoRuolo.value },
+    ]
+    nuovoAutore.value = ''
+  } catch (e) {
+    erroreAutorePodcast.value = e instanceof Error ? e.message : String(e)
+  }
+}
+
+function togliAutorePodcast(hex: string): void {
+  podcastAutori.value = podcastAutori.value.filter((a) => a.pubkey !== hex)
+}
+
+/*
+ * Chi firma la scheda.
+ *
+ * La scheda sta sulla chiave del podcast. Se quella chiave e' un'altra —
+ * un banco aperto in un'altra sessione — si sceglie qui la delega, e la
+ * scheda che si modifica e' la *sua*, non la propria: per questo cambiando
+ * firmatario si ricarica il form dalla chiave giusta.
+ */
+const deleghe = useDeleghe()
+const firmaPodcastCon = ref('')
+onMounted(() => deleghe.carica())
+const delegaPodcast = computed(() =>
+  firmaPodcastCon.value
+    ? deleghe.elenco.find((d) => d.pubkey === firmaPodcastCon.value)
+    : undefined,
+)
+const scelteFirmaPodcast = computed(() => [
+  { value: '', label: 'La mia chiave' },
+  ...deleghe.elenco.map((d) => ({ value: d.pubkey, label: d.etichetta })),
+])
+const firmatarioPodcast = computed<Firmatario | undefined>(() => {
+  const pubkey = firmaPodcastCon.value
+  if (!pubkey) return undefined
+  return {
+    pubkey: () => Promise.resolve(pubkey),
+    firma: (template) => deleghe.firma(pubkey, template),
+  }
+})
+
+watch(firmaPodcastCon, () => {
+  bozzaPodcast.firmato.value = null
+  bozzaPodcast.template.value = null
+  void caricaPodcast()
+})
+
+function svuotaPodcast(): void {
+  podcastTitolo.value = ''
+  podcastDescrizione.value = ''
+  podcastImmagine.value = ''
+  podcastSito.value = ''
+  podcastAutori.value = []
+  haPodcast.value = false
+}
+
 async function caricaPodcast(): Promise<void> {
-  const trovato = await podcastEsistente.perCoordinata(10154)
+  svuotaPodcast()
+  const trovato = await podcastEsistente.perCoordinata(
+    10154,
+    undefined,
+    firmaPodcastCon.value || undefined,
+  )
   if (!trovato) return
   const definizione = getKindDefinition(10154)
   if (!definizione) return
@@ -180,6 +269,10 @@ async function caricaPodcast(): Promise<void> {
     podcastDescrizione.value = dati.description ?? ''
     podcastImmagine.value = dati.image ?? ''
     podcastSito.value = dati.websites[0] ?? ''
+    podcastAutori.value = dati.authors.map((a: { pubkey: string; role?: string }) => ({
+      pubkey: a.pubkey,
+      role: a.role ?? 'host',
+    }))
     haPodcast.value = true
     mostraPodcast.value = true
   } catch {
@@ -200,6 +293,7 @@ function componiPodcast(): void {
     description: podcastDescrizione.value.trim(),
     image: podcastImmagine.value.trim(),
     ...(podcastSito.value.trim() ? { websites: [podcastSito.value.trim()] } : {}),
+    ...(podcastAutori.value.length ? { authors: podcastAutori.value } : {}),
   })
 }
 
@@ -431,6 +525,68 @@ const valori = { nome, nomeVisualizzato, immagine, copertina, sito, nip05, lud16
                 <BaseInput :id="id" v-model="podcastSito" :described-by="describedBy" />
               </BaseField>
 
+              <!-- ── Autori ── -->
+              <div class="flex flex-col gap-2">
+                <p class="text-sm font-medium">Autori</p>
+                <p class="text-xs text-[var(--testo-tenue)]">
+                  Chi lavora al podcast, con il ruolo. È la metà del riscontro dal lato dello show:
+                  ciascuno conferma dalla propria chiave con «Podcast di cui sono autore».
+                </p>
+                <ul v-if="podcastAutori.length" class="flex flex-col gap-1 text-sm">
+                  <li
+                    v-for="a in podcastAutori"
+                    :key="a.pubkey"
+                    class="superficie flex items-center gap-2 rounded-md border px-3 py-2"
+                  >
+                    <code class="min-w-0 flex-1 truncate text-xs">{{ toNpub(a.pubkey) }}</code>
+                    <BaseBadge>{{ a.role }}</BaseBadge>
+                    <BaseButton size="sm" variant="fantasma" @click="togliAutorePodcast(a.pubkey)">
+                      Togli
+                    </BaseButton>
+                  </li>
+                </ul>
+                <div class="flex flex-wrap items-end gap-2">
+                  <div class="min-w-64 flex-1">
+                    <BaseField
+                      v-slot="{ id, describedBy }"
+                      label="Chiave dell’autore"
+                      hint="npub o esadecimale."
+                    >
+                      <BaseInput
+                        :id="id"
+                        v-model="nuovoAutore"
+                        placeholder="npub1…"
+                        :described-by="describedBy"
+                      />
+                    </BaseField>
+                  </div>
+                  <BaseField v-slot="{ id }" label="Ruolo">
+                    <BaseSelect :id="id" v-model="nuovoRuolo" :options="ruoli" />
+                  </BaseField>
+                  <BaseButton :disabled="!nuovoAutore.trim()" @click="aggiungiAutorePodcast">
+                    Aggiungi
+                  </BaseButton>
+                </div>
+                <BaseAlert v-if="erroreAutorePodcast" tono="pericolo">
+                  {{ erroreAutorePodcast }}
+                </BaseAlert>
+              </div>
+
+              <!-- ── Chi firma ── -->
+              <BaseField
+                v-if="deleghe.elenco.length"
+                v-slot="{ id }"
+                label="Chi firma"
+                hint="La scheda sta sulla chiave del podcast. Con una delega la firma chi tiene quella chiave, e il form mostra la sua scheda, non la tua."
+              >
+                <BaseSelect :id="id" v-model="firmaPodcastCon" :options="scelteFirmaPodcast" />
+              </BaseField>
+              <BaseAlert v-if="delegaPodcast" tono="avviso">
+                La scheda risulterà pubblicata da
+                <strong>{{ delegaPodcast.etichetta }}</strong>
+                : sostituisce la sua, non la tua. Dall’altra parte qualcuno deve approvarla.
+              </BaseAlert>
+
               <div class="flex flex-wrap gap-2">
                 <BaseButton type="submit" variant="primario" :disabled="!podcastCompleto">
                   Componi evento
@@ -440,9 +596,11 @@ const valori = { nome, nomeVisualizzato, immagine, copertina, sito, nip05, lud16
                   variant="primario"
                   :loading="bozzaPodcast.inCorso.value || bozzaPodcast.invio.inCorso.value"
                   :disabled="!identita.puoFirmare"
-                  @click="bozzaPodcast.firmaEPubblica()"
+                  @click="bozzaPodcast.firmaEPubblica(firmatarioPodcast)"
                 >
-                  {{ bozzaPodcast.firmato.value ? 'Pubblica' : 'Firma e pubblica' }}
+                  <template v-if="bozzaPodcast.firmato.value">Pubblica</template>
+                  <template v-else-if="delegaPodcast">Chiedi la firma e pubblica</template>
+                  <template v-else>Firma e pubblica</template>
                 </BaseButton>
               </div>
 
