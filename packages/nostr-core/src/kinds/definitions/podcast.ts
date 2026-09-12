@@ -82,6 +82,13 @@ export const podcastEpisodeDefinition = defineKind<PodcastEpisodeParsed, Podcast
     if (input.title.trim() === '') {
       throw new Error('Un episodio ha bisogno di un titolo: e’ come lo si trova in un lettore.')
     }
+    // Obbligatoria per NIP-F4. Il `parse` la accetta assente — eventi altrui —
+    // ma cio' che si pubblica da qui deve essere conforme.
+    if (!input.description || input.description.trim() === '') {
+      throw new Error(
+        'Un episodio ha bisogno di una descrizione: i lettori di podcast la mostrano sotto il titolo.',
+      )
+    }
     if (input.audio.length === 0) {
       throw new Error(
         'Un episodio senza sorgente audio non e’ ascoltabile. Per un testo senza audio usa una nota o un articolo.',
@@ -93,7 +100,7 @@ export const podcastEpisodeDefinition = defineKind<PodcastEpisodeParsed, Podcast
       content: input.content ?? '',
       tags: [
         ['title', input.title.trim()],
-        ...optionalTag('description', input.description),
+        ['description', input.description.trim()],
         ...optionalTag('image', input.image),
         // Il tipo MIME e' facoltativo per la specifica, ma senza il lettore
         // deve indovinarlo dall'estensione dell'URL.
@@ -166,14 +173,23 @@ export const podcastMetadataDefinition = defineKind<PodcastMetadataParsed, Podca
     if (input.title.trim() === '') {
       throw new Error('Il podcast ha bisogno di un titolo.')
     }
+    // Immagine e descrizione sono obbligatorie per NIP-F4: sono cio' che un
+    // lettore di podcast mostra nell'elenco degli show. Il `parse` resta
+    // tollerante con le schede altrui.
+    if (!input.description || input.description.trim() === '') {
+      throw new Error('La scheda del podcast ha bisogno di una descrizione.')
+    }
+    if (!input.image || input.image.trim() === '') {
+      throw new Error('La scheda del podcast ha bisogno di un’immagine di copertina.')
+    }
 
     return {
       kind: 10154,
       content: '',
       tags: [
         ['title', input.title.trim()],
-        ...optionalTag('description', input.description),
-        ...optionalTag('image', input.image),
+        ['description', input.description.trim()],
+        ['image', input.image.trim()],
         ...(input.websites ?? []).filter(Boolean).map((w) => ['website', w]),
         // Il ruolo dichiarato qui non prova nulla da solo: NIP-F4 chiede di
         // riscontrarlo con il kind 10064 pubblicato dall'autore stesso, perche'

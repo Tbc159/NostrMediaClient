@@ -7,11 +7,13 @@ import {
   type MediaProdotto,
   type StatoLavoro,
 } from '@nmc/nostr-core'
+import { useConsegna } from '~/stores/consegna'
 import { useMediaManager } from '~/stores/mediamanager'
 
 useHead({ title: 'Audio · NostrMediaClient' })
 
 const servizio = useMediaManager()
+const consegna = useConsegna()
 
 // La configurazione del servizio sta nelle impostazioni, con gli altri
 // endpoint: qui si controlla soltanto che risponda, per poterlo dire prima che
@@ -21,10 +23,10 @@ onMounted(() => servizio.verifica())
 /*
  * Pre-elaborazione: quello che succede *prima* di pubblicare.
  *
- * La pagina si ferma allo scaricamento. Non carica su Blossom e non pubblica
- * eventi: e' una scelta, non una funzione mancante, e la pagina lo dice —
- * altrove nel client il passo dopo c'e' sempre, e la sua assenza qui
- * sorprenderebbe.
+ * Questa pagina non carica su Blossom e non pubblica eventi: alla fine offre
+ * due uscite alla pari — scaricare il file, oppure passarlo a «Carica su
+ * Blossom» gia' nel modo podcast. Il passo dopo esiste, ma e' un'altra pagina
+ * con le sue decisioni; qui si decide solo com'e' l'audio.
  */
 
 // ─── 1. Il file ────────────────────────────────────────────────────────────
@@ -94,12 +96,15 @@ let interruzione: AbortController | null = null
 // ─── 4. Risultato ──────────────────────────────────────────────────────────
 const urlRisultato = ref<string | null>(null)
 const nomeRisultato = ref<string | null>(null)
+/** I byte, non solo l'URL: servono per consegnarli alla pagina dopo. */
+const byteRisultato = shallowRef<Blob | null>(null)
 const durataRisultato = ref<number | null>(null)
 
 function azzeraRisultato(): void {
   if (urlRisultato.value) URL.revokeObjectURL(urlRisultato.value)
   urlRisultato.value = null
   nomeRisultato.value = null
+  byteRisultato.value = null
   durataRisultato.value = null
   erroreLavoro.value = null
   fase.value = null
@@ -183,6 +188,7 @@ async function elabora(): Promise<void> {
 
     fase.value = 'Recupero il risultato…'
     const byte = await s.scarica(prodotto)
+    byteRisultato.value = byte
     urlRisultato.value = URL.createObjectURL(byte)
     nomeRisultato.value = `${nomeSenzaEstensione(sorgente.name)}-elaborato.${estensioneDi(formatoUscita.value)}`
     fase.value = null
@@ -201,6 +207,21 @@ const nomeSenzaEstensione = (nome: string): string => nome.replace(/\.[^.]+$/, '
 /** Sigla del formato scelto, per l'etichetta accanto al nome del file. */
 const estensioneCorrente = computed(() => (formato.value ? estensioneDi(formato.value) : ''))
 
+/**
+ * Passa il file elaborato a «Carica su Blossom», gia' nel modo podcast.
+ *
+ * Il `Blob` viaggia in memoria, non in una query string: la pagina dopo lo
+ * ritira all'apertura come se l'utente l'avesse scelto dal disco.
+ */
+function pubblicaComePodcast(): void {
+  if (!byteRisultato.value || !nomeRisultato.value) return
+  const file = new File([byteRisultato.value], nomeRisultato.value, {
+    type: formatoUscita.value,
+  })
+  consegna.deposita(file, 'audio')
+  void navigateTo('/media/nuovo?formato=podcast')
+}
+
 function scarica(): void {
   if (!urlRisultato.value || !nomeRisultato.value) return
   const a = document.createElement('a')
@@ -218,6 +239,8 @@ const pesoLeggibile = (b: number): string =>
 
 <template>
   <div class="flex flex-col gap-6">
+    <MediaSchede />
+
     <header class="flex flex-col gap-2">
       <h1 class="text-xl font-semibold tracking-tight">Audio</h1>
       <p class="text-sm text-[var(--testo-tenue)]">
@@ -448,13 +471,24 @@ const pesoLeggibile = (b: number): string =>
             {{ durataLeggibile(durataRisultato) }}
           </p>
 
-          <div>
-            <BaseButton variant="primario" @click="scarica">Scarica</BaseButton>
+          <!--
+            Due uscite alla pari: fermarsi qui portandosi via il file, oppure
+            proseguire. Nessuna delle due carica nulla senza un altro passo
+            esplicito nell'altra pagina.
+          -->
+          <div class="flex flex-wrap gap-2">
+            <BaseButton variant="primario" @click="pubblicaComePodcast">
+              Pubblica come podcast
+            </BaseButton>
+            <BaseButton @click="scarica">Scarica</BaseButton>
           </div>
 
           <BaseAlert tono="info">
-            Qui il percorso finisce. Il file elaborato è nel tuo browser e non è stato caricato da
-            nessuna parte: se vuoi pubblicarlo, scaricalo e caricalo dalla sezione Media.
+            Il file elaborato è nel tuo browser e non è stato caricato da nessuna parte. «Pubblica
+            come podcast» lo porta in
+            <strong>Carica su Blossom</strong>
+            con l’episodio già impostato: il caricamento parte solo lì, quando lo chiedi tu.
+            «Scarica» te lo dà e finisce qui.
           </BaseAlert>
         </div>
       </BaseCard>

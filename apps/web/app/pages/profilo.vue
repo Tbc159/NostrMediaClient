@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { getKindDefinition } from '@nmc/nostr-core'
+import { getKindDefinition, uploadBlob } from '@nmc/nostr-core'
 
 useHead({ title: 'Profilo · NostrMediaClient' })
 
 const identita = useIdentity()
 const bozza = useEventDraft()
 const esistente = useEventoEsistente()
+const configBlossom = useClientConfig()
 
 const nome = ref('')
 const nomeVisualizzato = ref('')
@@ -126,12 +127,53 @@ function componiPodcast(): void {
     bozzaPodcast.errore.value = 'Kind 10154 non registrato.'
     return
   }
+  // Descrizione e immagine le vuole NIP-F4: la `build` le rifiuta vuote, e il
+  // form le chiede prima invece di lasciar arrivare l'errore.
   bozzaPodcast.costruisci(definizione, {
     title: podcastTitolo.value.trim(),
-    ...(podcastDescrizione.value.trim() ? { description: podcastDescrizione.value.trim() } : {}),
-    ...(podcastImmagine.value.trim() ? { image: podcastImmagine.value.trim() } : {}),
+    description: podcastDescrizione.value.trim(),
+    image: podcastImmagine.value.trim(),
     ...(podcastSito.value.trim() ? { websites: [podcastSito.value.trim()] } : {}),
   })
+}
+
+const podcastCompleto = computed(
+  () =>
+    podcastTitolo.value.trim() !== '' &&
+    podcastDescrizione.value.trim() !== '' &&
+    podcastImmagine.value.trim() !== '',
+)
+
+const copertinaInCorso = ref(false)
+const erroreCopertina = ref<string | null>(null)
+
+/**
+ * Carica la copertina su Blossom e ne mette l'URL nel campo.
+ *
+ * Senza questo, per dichiarare un podcast bisognerebbe uscire dal profilo,
+ * caricare l'immagine dalla sezione Media, copiare l'indirizzo e tornare: e
+ * l'immagine e' obbligatoria, non un dettaglio.
+ */
+async function caricaCopertina(evento: Event): Promise<void> {
+  const target = evento.target as HTMLInputElement
+  const file = target.files?.[0]
+  target.value = ''
+  const server = configBlossom.value.blossomServers[0]
+  if (!file || !server || !identita.puoFirmare) return
+  copertinaInCorso.value = true
+  erroreCopertina.value = null
+  try {
+    const descrittore = await uploadBlob(server, file, {
+      firma: (t) => identita.firma(t),
+      pubkey: identita.pubkey ?? '',
+      mime: file.type,
+    })
+    podcastImmagine.value = descrittore.url
+  } catch (e) {
+    erroreCopertina.value = `Copertina non caricata: ${e instanceof Error ? e.message : String(e)}`
+  } finally {
+    copertinaInCorso.value = false
+  }
 }
 
 const campi = [
@@ -265,7 +307,12 @@ const valori = { nome, nomeVisualizzato, immagine, copertina, sito, nip05, lud16
                 <BaseInput :id="id" v-model="podcastTitolo" :described-by="describedBy" />
               </BaseField>
 
-              <BaseField v-slot="{ id, describedBy }" label="Descrizione">
+              <BaseField
+                v-slot="{ id, describedBy }"
+                label="Descrizione"
+                required
+                hint="Obbligatoria per NIP-F4: è quella che i lettori mostrano nell’elenco degli show."
+              >
                 <BaseTextarea
                   :id="id"
                   v-model="podcastDescrizione"
@@ -277,14 +324,41 @@ const valori = { nome, nomeVisualizzato, immagine, copertina, sito, nip05, lud16
               <BaseField
                 v-slot="{ id, describedBy }"
                 label="Copertina"
-                hint="URL. Puoi caricarla dalla sezione media."
+                required
+                hint="Obbligatoria per NIP-F4. Un indirizzo, oppure carica un’immagine: va su Blossom e l’indirizzo finisce qui."
               >
-                <BaseInput
-                  :id="id"
-                  v-model="podcastImmagine"
-                  placeholder="https://…"
-                  :described-by="describedBy"
+                <div class="flex flex-wrap items-center gap-2">
+                  <div class="min-w-64 flex-1">
+                    <BaseInput
+                      :id="id"
+                      v-model="podcastImmagine"
+                      placeholder="https://…"
+                      :described-by="describedBy"
+                    />
+                  </div>
+                  <label
+                    class="superficie cursor-pointer rounded-md border px-3 py-2 text-sm"
+                    :class="!identita.puoFirmare || copertinaInCorso ? 'opacity-50' : ''"
+                  >
+                    {{ copertinaInCorso ? 'Carico…' : 'Carica un’immagine' }}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      class="sr-only"
+                      :disabled="!identita.puoFirmare || copertinaInCorso"
+                      @change="caricaCopertina"
+                    />
+                  </label>
+                </div>
+                <img
+                  v-if="podcastImmagine"
+                  :src="podcastImmagine"
+                  alt=""
+                  class="mt-2 h-24 w-24 rounded-md border object-cover"
                 />
+                <p v-if="erroreCopertina" class="mt-1 text-xs text-[var(--pericolo)]">
+                  {{ erroreCopertina }}
+                </p>
               </BaseField>
 
               <BaseField v-slot="{ id, describedBy }" label="Sito">
@@ -292,7 +366,7 @@ const valori = { nome, nomeVisualizzato, immagine, copertina, sito, nip05, lud16
               </BaseField>
 
               <div class="flex flex-wrap gap-2">
-                <BaseButton type="submit" variant="primario" :disabled="!podcastTitolo.trim()">
+                <BaseButton type="submit" variant="primario" :disabled="!podcastCompleto">
                   Componi evento
                 </BaseButton>
                 <BaseButton

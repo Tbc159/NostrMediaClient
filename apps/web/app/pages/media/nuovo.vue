@@ -1,5 +1,15 @@
 <script setup lang="ts">
-import { getKindDefinition } from '@nmc/nostr-core'
+import {
+  completezzaEpisodio,
+  getKindDefinition,
+  leggiBozzaEpisodio,
+  mirrorBlob,
+  parsePublicKeyInput,
+  uploadBlob,
+  type BozzaEpisodio,
+  type DatiBozzaEpisodio,
+} from '@nmc/nostr-core'
+import { useConsegna } from '~/stores/consegna'
 
 useHead({ title: 'Carica media · NostrMediaClient' })
 
@@ -7,6 +17,9 @@ const identita = useIdentity()
 const upload = useUpload()
 const bozza = useEventDraft()
 const esistente = useEventoEsistente()
+const schedaPodcast = useEventoEsistente()
+const bozzeEpisodio = useBozzeEpisodio()
+const consegna = useConsegna()
 const rotta = useRoute()
 
 /** Vero quando si sta ricomponendo un evento a partire da uno già pubblicato. */
@@ -24,6 +37,10 @@ const daPrecedente = ref(false)
 const avanzate = ref(false)
 const titolo = ref('')
 const descrizione = ref('')
+/** Solo per gli episodi: le note lunghe, in Markdown, che vanno nel content. */
+const noteEpisodio = ref('')
+/** Solo per gli episodi: URL dell'immagine, scritto o ottenuto caricandola. */
+const immagineEpisodio = ref('')
 const hashtag = ref('')
 const avvisoContenuto = ref('')
 const conAvviso = ref(false)
@@ -100,9 +117,17 @@ const listaHashtag = computed(() =>
  * non il kind dedicato: e' l'unico che si vede ovunque, e un default che
  * pubblica qualcosa che nessuno mostra sarebbe una trappola.
  */
+/**
+ * Vero quando il formato l'ha deciso chi ci ha mandato qui — la pagina Audio,
+ * una bozza, una proposta — e il tipo del file non deve rimetterlo in
+ * discussione.
+ */
+const formatoForzato = ref(false)
+
 watch(
   () => upload.media.value.length,
   () => {
+    if (formatoForzato.value) return
     const primo = upload.media.value[0]
     if (!primo) return
     if (primo.mime.startsWith('image/')) formato.value = 'immagini'
@@ -162,11 +187,15 @@ function componi(): void {
   }
 
   if (kindScelto.value === 54) {
+    // Solo l'audio finisce nel tag `audio`: un'immagine caricata insieme e'
+    // la copertina, e va nel tag `image`, non fra le sorgenti.
+    const audio = allegati.filter((a) => (a.mime ?? '').startsWith('audio/'))
     bozza.costruisci(definizione, {
       title: titolo.value.trim(),
-      content: descrizione.value.trim(),
-      ...(descrizione.value.trim() ? { description: descrizione.value.trim() } : {}),
-      audio: allegati.map((a) => ({ url: a.url, ...(a.mime ? { mime: a.mime } : {}) })),
+      content: noteEpisodio.value.trim(),
+      description: descrizione.value.trim(),
+      ...(immagineEpisodio.value.trim() ? { image: immagineEpisodio.value.trim() } : {}),
+      audio: audio.map((a) => ({ url: a.url, ...(a.mime ? { mime: a.mime } : {}) })),
     })
     return
   }
@@ -205,10 +234,18 @@ function ricomincia(): void {
   esistente.errore.value = null
   titolo.value = ''
   descrizione.value = ''
+  noteEpisodio.value = ''
+  immagineEpisodio.value = ''
   hashtag.value = ''
   avvisoContenuto.value = ''
   conAvviso.value = false
   avanzate.value = false
+  formatoForzato.value = false
+  idBozza.value = null
+  bozzaSalvata.value = null
+  propostaImportata.value = null
+  perChiaveProposta.value = ''
+  erroreEpisodio.value = null
 }
 
 // ─── Ripresa di un evento già pubblicato ──────────────────────────────────
@@ -234,7 +271,9 @@ async function riprendi(id: string): Promise<void> {
     daPrecedente.value = true
     avanzate.value = true
 
-    descrizione.value = dati.content ?? ''
+    descrizione.value = trovato.kind === 54 ? (dati.description ?? '') : (dati.content ?? '')
+    noteEpisodio.value = trovato.kind === 54 ? (dati.content ?? '') : ''
+    immagineEpisodio.value = trovato.kind === 54 ? (dati.image ?? '') : ''
     titolo.value = dati.title ?? ''
     hashtag.value = (dati.hashtags ?? []).join(' ')
     if (dati.contentWarning) {
@@ -249,21 +288,31 @@ async function riprendi(id: string): Promise<void> {
           ? 'video'
           : trovato.kind === 22
             ? 'video-corto'
-            : 'file'
+            : trovato.kind === 54
+              ? 'podcast'
+              : 'file'
+    formatoForzato.value = true
 
+    // Un episodio dichiara l'audio con `audio`, non con `imeta`: niente hash
+    // ne' dimensione. Si adotta quel che c'e', e si dice.
     const allegati =
-      trovato.kind === 1063
-        ? [
-            {
-              url: dati.url,
-              mime: dati.mime,
-              sha256: dati.sha256,
-              size: dati.size,
-              dim: dati.dim,
-              alt: dati.alt,
-            },
-          ]
-        : (dati.images ?? dati.variants ?? [])
+      trovato.kind === 54
+        ? (dati.audio ?? []).map((a: { url: string; mime?: string }) => ({
+            url: a.url,
+            ...(a.mime ? { mime: a.mime } : {}),
+          }))
+        : trovato.kind === 1063
+          ? [
+              {
+                url: dati.url,
+                mime: dati.mime,
+                sha256: dati.sha256,
+                size: dati.size,
+                dim: dati.dim,
+                alt: dati.alt,
+              },
+            ]
+          : (dati.images ?? dati.variants ?? [])
 
     upload.adotta(
       allegati.map((a: Record<string, unknown>) => ({
@@ -287,14 +336,268 @@ async function riprendi(id: string): Promise<void> {
   }
 }
 
-onMounted(() => {
+// ─── Episodi: bozze, proposte, immagine ───────────────────────────────────
+/*
+ * La bozza di episodio e' i dati del form piu' i file gia' su Blossom. Un file
+ * scelto ma non ancora caricato non ci sta: non ha un indirizzo. Si dice
+ * quando si salva, invece di far credere che ci sia.
+ */
+const idBozza = ref<string | null>(null)
+const bozzaSalvata = ref<BozzaEpisodio | null>(null)
+const propostaImportata = ref<BozzaEpisodio | null>(null)
+/** npub, facoltativo, di chi dovrebbe pubblicare la proposta esportata. */
+const perChiaveProposta = ref('')
+const erroreEpisodio = ref<string | null>(null)
+const immagineInCorso = ref(false)
+const copiaInCorso = ref(false)
+/** `null` finche' non si e' guardato; poi se questa chiave ha una scheda 10154. */
+const haSchedaPodcast = ref<boolean | null>(null)
+
+const allegatiPerBozza = computed(() =>
+  upload.caricati.value.flatMap((m) =>
+    m.descrittore
+      ? [
+          {
+            nome: m.nome,
+            imeta: upload.imeta.value.find((i) => i.url === m.descrittore?.url) ?? {
+              url: m.descrittore.url,
+            },
+            descrittore: m.descrittore,
+            copie: m.copie,
+          },
+        ]
+      : [],
+  ),
+)
+
+const datiEpisodio = computed(() => ({
+  titolo: titolo.value.trim(),
+  descrizione: descrizione.value.trim(),
+  contenuto: noteEpisodio.value.trim(),
+  hashtag: listaHashtag.value,
+  ...(immagineEpisodio.value.trim() ? { immagine: immagineEpisodio.value.trim() } : {}),
+}))
+
+/** Cosa manca perche' l'episodio si possa pubblicare. Solo per il podcast. */
+const completezza = computed(() =>
+  completezzaEpisodio({ episodio: datiEpisodio.value, allegati: allegatiPerBozza.value }),
+)
+
+/** Quanti file scelti non sono ancora su Blossom, e quindi non entrano in una bozza. */
+const nonAncoraCaricati = computed(() => upload.daCaricare.value.length)
+
+function datiBozza(): DatiBozzaEpisodio {
+  return {
+    ...(idBozza.value ? { id: idBozza.value } : {}),
+    ...(bozzaSalvata.value ? { creataAlle: bozzaSalvata.value.creataAlle } : {}),
+    ...(identita.npub ? { preparataDa: identita.npub } : {}),
+    ...(perChiaveProposta.value.trim() ? { perChiave: perChiaveProposta.value.trim() } : {}),
+    episodio: datiEpisodio.value,
+    allegati: allegatiPerBozza.value,
+  }
+}
+
+function salvaBozza(): void {
+  erroreEpisodio.value = null
+  try {
+    const salvata = bozzeEpisodio.salva(datiBozza())
+    idBozza.value = salvata.id
+    bozzaSalvata.value = salvata
+  } catch (e) {
+    erroreEpisodio.value = e instanceof Error ? e.message : String(e)
+  }
+}
+
+/** Riempie il form da una bozza: i file tornano come «gia' su Blossom». */
+function applicaBozza(b: BozzaEpisodio): void {
+  formato.value = 'podcast'
+  formatoForzato.value = true
+  avanzate.value = true
+  titolo.value = b.episodio.titolo
+  descrizione.value = b.episodio.descrizione
+  noteEpisodio.value = b.episodio.contenuto
+  immagineEpisodio.value = b.episodio.immagine ?? ''
+  hashtag.value = b.episodio.hashtag.join(' ')
+  upload.adotta(b.allegati)
+}
+
+function caricaBozza(id: string): void {
+  const trovata = bozzeEpisodio.trova(id)
+  if (!trovata) {
+    erroreEpisodio.value = 'Bozza non trovata in questo browser.'
+    return
+  }
+  idBozza.value = trovata.id
+  bozzaSalvata.value = trovata
+  applicaBozza(trovata)
+}
+
+/**
+ * Scarica la bozza come proposta: chi la importa vede questi dati, i file gia'
+ * su Blossom, e firma con la propria chiave.
+ */
+function esportaProposta(): void {
+  erroreEpisodio.value = null
+  let contenuto: string
+  try {
+    if (perChiaveProposta.value.trim()) parsePublicKeyInput(perChiaveProposta.value.trim())
+    const proposta = bozzeEpisodio.salva(datiBozza())
+    idBozza.value = proposta.id
+    bozzaSalvata.value = proposta
+    contenuto = JSON.stringify(proposta, null, 2)
+  } catch (e) {
+    erroreEpisodio.value = e instanceof Error ? e.message : String(e)
+    return
+  }
+  const url = URL.createObjectURL(new Blob([contenuto], { type: 'application/json' }))
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `proposta-episodio-${(titolo.value.trim() || 'senza-titolo').replace(/[^\w-]+/g, '-').toLowerCase()}.json`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+async function importaProposta(evento: Event): Promise<void> {
+  const target = evento.target as HTMLInputElement
+  const file = target.files?.[0]
+  target.value = ''
+  if (!file) return
+  erroreEpisodio.value = null
+  try {
+    const letta = leggiBozzaEpisodio(await file.text())
+    propostaImportata.value = letta
+    // Una proposta importata e' una bozza nuova di *questa* identita': non
+    // eredita l'id, cosi' salvarla non sovrascrive nulla di chi l'ha scritta.
+    idBozza.value = null
+    bozzaSalvata.value = null
+    applicaBozza(letta)
+  } catch (e) {
+    erroreEpisodio.value = e instanceof Error ? e.message : String(e)
+  }
+}
+
+/** Pubkey esadecimale della chiave attesa dalla proposta, se leggibile. */
+const chiaveAttesa = computed(() => {
+  const p = propostaImportata.value?.perChiave
+  if (!p) return null
+  try {
+    return parsePublicKeyInput(p)
+  } catch {
+    return null
+  }
+})
+
+const propostaPerAltri = computed(
+  () =>
+    chiaveAttesa.value !== null &&
+    identita.pubkey !== null &&
+    chiaveAttesa.value !== identita.pubkey,
+)
+
+/**
+ * Copia i file della proposta sul proprio server Blossom.
+ *
+ * Su Blossom un file e' cancellabile solo da chi l'ha caricato: chi pubblica
+ * un episodio con file caricati da un altro dipende da lui. La copia mette i
+ * byte anche sotto la propria chiave — stesso hash, stesso URL finale con un
+ * altro host — e resta facoltativa.
+ */
+async function copiaSuMioServer(): Promise<void> {
+  const server = upload.server.value[0]
+  if (!server || !identita.puoFirmare) return
+  copiaInCorso.value = true
+  erroreEpisodio.value = null
+  try {
+    const aggiornati = await Promise.all(
+      allegatiPerBozza.value.map(async (a) => {
+        const copia = await mirrorBlob(server, a.descrittore.url, a.descrittore.sha256, {
+          firma: (t) => identita.firma(t),
+          pubkey: identita.pubkey ?? '',
+        })
+        return {
+          ...a,
+          copie: a.copie.includes(server) ? a.copie : [...a.copie, server],
+          imeta: { ...a.imeta, fallback: [...(a.imeta.fallback ?? []), copia.url] },
+        }
+      }),
+    )
+    upload.adotta(aggiornati)
+  } catch (e) {
+    erroreEpisodio.value = `Copia non riuscita: ${e instanceof Error ? e.message : String(e)}`
+  } finally {
+    copiaInCorso.value = false
+  }
+}
+
+/** Carica un'immagine su Blossom e ne mette l'URL nel campo, senza passare dall'elenco dei file. */
+async function caricaImmagineEpisodio(evento: Event): Promise<void> {
+  const target = evento.target as HTMLInputElement
+  const file = target.files?.[0]
+  target.value = ''
+  const server = upload.server.value[0]
+  if (!file || !server || !identita.puoFirmare) return
+  immagineInCorso.value = true
+  erroreEpisodio.value = null
+  try {
+    const descrittore = await uploadBlob(server, file, {
+      firma: (t) => identita.firma(t),
+      pubkey: identita.pubkey ?? '',
+      mime: file.type,
+    })
+    immagineEpisodio.value = descrittore.url
+  } catch (e) {
+    erroreEpisodio.value = `Immagine non caricata: ${e instanceof Error ? e.message : String(e)}`
+  } finally {
+    immagineInCorso.value = false
+  }
+}
+
+// La scheda 10154 si cerca solo quando serve: al primo passaggio su «podcast».
+watch(
+  formato,
+  async (f) => {
+    if (f !== 'podcast' || haSchedaPodcast.value !== null || !identita.pubkey) return
+    haSchedaPodcast.value = (await schedaPodcast.perCoordinata(10154)) !== null
+  },
+  { immediate: true },
+)
+
+onMounted(async () => {
   const da = rotta.query.da
-  if (typeof da === 'string' && da) void riprendi(da)
+  if (typeof da === 'string' && da) {
+    void riprendi(da)
+    return
+  }
+
+  const idDaRiprendere = rotta.query.bozza
+  if (typeof idDaRiprendere === 'string' && idDaRiprendere) {
+    caricaBozza(idDaRiprendere)
+    return
+  }
+
+  // Un file passato dalla pagina Audio: come se l'utente l'avesse scelto dal
+  // disco, ma con il modo gia' deciso.
+  const consegnato = consegna.ritira()
+  if (consegnato) {
+    formato.value = 'podcast'
+    formatoForzato.value = true
+    avanzate.value = true
+    await upload.seleziona([consegnato.file])
+    return
+  }
+
+  if (rotta.query.formato === 'podcast') {
+    formato.value = 'podcast'
+    formatoForzato.value = true
+    avanzate.value = true
+  }
 })
 </script>
 
 <template>
   <div class="flex flex-col gap-6">
+    <MediaSchede />
+
     <div>
       <h1 class="text-xl font-semibold tracking-tight">Carica media</h1>
       <p class="mt-1 text-sm text-[var(--testo-tenue)]">
@@ -318,6 +621,40 @@ onMounted(() => {
         : i kind media sono eventi regolari, immutabili come una nota, quindi ne uscirà uno nuovo
         con id diverso e senza le reazioni ricevute dall’originale. I file non vengono ricaricati —
         sono già su Blossom.
+      </BaseAlert>
+
+      <BaseAlert v-if="propostaImportata" :tono="propostaPerAltri ? 'avviso' : 'info'">
+        <strong>Proposta di episodio importata</strong>
+        <template v-if="propostaImportata.preparataDa">
+          , preparata da
+          <code class="break-all">{{ propostaImportata.preparataDa }}</code>
+        </template>
+        <template v-if="propostaImportata.perChiave">
+          per
+          <code class="break-all">{{ propostaImportata.perChiave }}</code>
+        </template>
+        . I file sono già su Blossom, caricati da chi l’ha preparata. Controlla i dati, poi firma e
+        pubblica: l’episodio sarà di
+        <strong>questa</strong>
+        identità.
+        <span v-if="propostaPerAltri" class="mt-1 block">
+          Attenzione: era pensata per un’altra chiave. Puoi pubblicarla lo stesso, ma l’episodio
+          apparterrà a te, non a quella.
+        </span>
+        <div class="mt-2 flex flex-wrap items-center gap-2">
+          <BaseButton
+            size="sm"
+            :loading="copiaInCorso"
+            :disabled="!identita.puoFirmare || !upload.server.value.length"
+            @click="copiaSuMioServer"
+          >
+            Copia i file sul tuo server Blossom
+          </BaseButton>
+          <span class="text-xs">
+            Facoltativo: su Blossom un file lo cancella solo chi l’ha caricato. Con la copia, i byte
+            stanno anche sotto la tua chiave.
+          </span>
+        </div>
       </BaseAlert>
 
       <BaseAlert v-if="identita.motivoNonFirmabile" tono="avviso">
@@ -365,6 +702,22 @@ onMounted(() => {
             @change="scegliFile"
           />
         </div>
+
+        <p class="text-xs text-[var(--testo-tenue)]">
+          Hai ricevuto una proposta di episodio da un’altra identità?
+          <label class="cursor-pointer underline">
+            Importala
+            <input
+              type="file"
+              accept="application/json,.json"
+              class="sr-only"
+              @change="importaProposta"
+            />
+          </label>
+          : i file sono già su Blossom, qui li controlli e li firmi tu.
+        </p>
+
+        <BaseAlert v-if="erroreEpisodio" tono="pericolo">{{ erroreEpisodio }}</BaseAlert>
 
         <ClientOnly>
           <p v-if="upload.fase.value.fase === 'analisi'" class="text-sm text-[var(--testo-tenue)]">
@@ -510,10 +863,18 @@ onMounted(() => {
               <strong>il podcast è la chiave stessa</strong>
               : pubblicando un episodio con questa identità, questa identità
               <em>diventa</em>
-              il podcast. I lettori si aspettano anche una descrizione dello show, che si compone
-              dal
-              <NuxtLink to="/profilo" class="underline">profilo</NuxtLink>
-              .
+              il podcast.
+              <template v-if="haSchedaPodcast === false">
+                <strong>Questa chiave non ha ancora una scheda del podcast</strong>
+                (kind 10154): i lettori mostrano gli episodi sotto quella. Si compone dal
+                <NuxtLink to="/profilo" class="underline">profilo</NuxtLink>
+                — puoi farlo anche dopo aver pubblicato.
+              </template>
+              <template v-else>
+                La scheda dello show (kind 10154) si compone dal
+                <NuxtLink to="/profilo" class="underline">profilo</NuxtLink>
+                .
+              </template>
             </BaseAlert>
 
             <BaseAlert v-else-if="formato === 'file'" tono="avviso">
@@ -541,9 +902,72 @@ onMounted(() => {
             <BaseField
               v-slot="{ id, describedBy }"
               :label="formato === 'nota' ? 'Testo della nota' : 'Descrizione'"
+              :required="formato === 'podcast'"
+              :hint="
+                formato === 'podcast'
+                  ? 'Obbligatoria per NIP-F4: i lettori la mostrano sotto il titolo.'
+                  : undefined
+              "
             >
               <BaseTextarea :id="id" v-model="descrizione" :rows="3" :described-by="describedBy" />
             </BaseField>
+
+            <template v-if="formato === 'podcast'">
+              <BaseField
+                v-slot="{ id, describedBy }"
+                label="Note dell’episodio"
+                hint="Facoltative, in Markdown: capitoli, link, ringraziamenti. Vanno nel corpo dell’evento."
+              >
+                <BaseTextarea
+                  :id="id"
+                  v-model="noteEpisodio"
+                  :rows="4"
+                  :described-by="describedBy"
+                />
+              </BaseField>
+
+              <BaseField
+                v-slot="{ id, describedBy }"
+                label="Immagine dell’episodio"
+                hint="Facoltativa. Un indirizzo, oppure carica un’immagine: va su Blossom e l’indirizzo finisce qui."
+              >
+                <div class="flex flex-wrap items-center gap-2">
+                  <div class="min-w-64 flex-1">
+                    <BaseInput
+                      :id="id"
+                      v-model="immagineEpisodio"
+                      placeholder="https://…/copertina.png"
+                      :described-by="describedBy"
+                    />
+                  </div>
+                  <label
+                    class="superficie cursor-pointer rounded-md border px-3 py-2 text-sm"
+                    :class="
+                      !identita.puoFirmare || !upload.server.value.length || immagineInCorso
+                        ? 'opacity-50'
+                        : ''
+                    "
+                  >
+                    {{ immagineInCorso ? 'Carico…' : 'Carica un’immagine' }}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      class="sr-only"
+                      :disabled="
+                        !identita.puoFirmare || !upload.server.value.length || immagineInCorso
+                      "
+                      @change="caricaImmagineEpisodio"
+                    />
+                  </label>
+                </div>
+                <img
+                  v-if="immagineEpisodio"
+                  :src="immagineEpisodio"
+                  alt=""
+                  class="mt-2 h-24 w-24 rounded-md border object-cover"
+                />
+              </BaseField>
+            </template>
 
             <BaseField
               v-slot="{ id, describedBy }"
@@ -563,6 +987,24 @@ onMounted(() => {
                 v-model="avvisoContenuto"
                 placeholder="Motivo dell’avviso"
               />
+            </div>
+
+            <!--
+              Si puo' mettere via il lavoro in qualunque momento, anche prima
+              del caricamento. I file non ancora su Blossom pero' non ci
+              stanno: non hanno un indirizzo, e si dice.
+            -->
+            <div v-if="formato === 'podcast'" class="flex flex-wrap items-center gap-2">
+              <BaseButton size="sm" @click="salvaBozza">Salva come bozza</BaseButton>
+              <span v-if="nonAncoraCaricati" class="text-xs text-[var(--testo-tenue)]">
+                {{ nonAncoraCaricati }}
+                {{ nonAncoraCaricati === 1 ? 'file non è' : 'file non sono' }}
+                ancora su Blossom e non entrano nella bozza: si ricaricano quando la riprendi.
+              </span>
+              <BaseBadge v-if="bozzaSalvata" tono="successo">
+                bozza salvata ·
+                <NuxtLink to="/media" class="underline">le tue bozze</NuxtLink>
+              </BaseBadge>
             </div>
           </div>
         </details>
@@ -646,8 +1088,19 @@ onMounted(() => {
             volta.
           </BaseAlert>
 
+          <BaseAlert v-if="formato === 'podcast' && !completezza.pronta" tono="avviso">
+            Per pubblicare l’episodio manca ancora: {{ completezza.manca.join(', ') }}. Puoi salvare
+            la bozza e tornare dopo.
+          </BaseAlert>
+
           <div class="flex flex-wrap gap-2">
-            <BaseButton type="submit" variant="primario">Componi evento</BaseButton>
+            <BaseButton
+              type="submit"
+              variant="primario"
+              :disabled="formato === 'podcast' && !completezza.pronta"
+            >
+              Componi evento
+            </BaseButton>
             <BaseButton
               v-if="bozza.template.value"
               variant="primario"
@@ -657,11 +1110,41 @@ onMounted(() => {
             >
               {{ bozza.firmato.value ? 'Pubblica' : 'Firma e pubblica' }}
             </BaseButton>
+            <template v-if="formato === 'podcast'">
+              <BaseButton @click="salvaBozza">Salva come bozza</BaseButton>
+              <BaseButton @click="esportaProposta">Prepara per un’altra identità</BaseButton>
+            </template>
           </div>
+
+          <!--
+            La proposta: gli stessi dati della bozza, scritti su file. Chi la
+            importa vede i file gia' su Blossom e firma con la sua chiave —
+            e' il modo di far pubblicare un episodio alla chiave del podcast
+            senza che quella chiave stia in questo browser.
+          -->
+          <BaseField
+            v-if="formato === 'podcast'"
+            v-slot="{ id, describedBy }"
+            label="Per quale chiave è pensata la proposta"
+            hint="Facoltativo, npub. Chi importa la proposta con un’altra identità viene avvisato. Non è un vincolo: firma chi importa."
+          >
+            <BaseInput
+              :id="id"
+              v-model="perChiaveProposta"
+              placeholder="npub1…"
+              :described-by="describedBy"
+            />
+          </BaseField>
+
+          <BaseBadge v-if="bozzaSalvata && formato === 'podcast'" tono="successo">
+            bozza salvata ·
+            <NuxtLink to="/media" class="underline">le tue bozze</NuxtLink>
+          </BaseBadge>
 
           <PublishProgress :invio="bozza.invio" />
 
           <BaseAlert v-if="bozza.errore.value" tono="pericolo">{{ bozza.errore.value }}</BaseAlert>
+          <BaseAlert v-if="erroreEpisodio" tono="pericolo">{{ erroreEpisodio }}</BaseAlert>
         </form>
       </BaseCard>
 
@@ -674,7 +1157,13 @@ onMounted(() => {
       </BaseCard>
     </ClientOnly>
 
-    <BaseAlert tono="info">
+    <BaseAlert v-if="formato === 'podcast'" tono="info">
+      Un episodio dichiara l’audio con il tag
+      <code>audio</code>
+      , come vuole NIP-F4: senza impronta né dimensione. Chi ascolta non può verificare che il file
+      sia quello pubblicato. È la specifica, non una scelta di questo client.
+    </BaseAlert>
+    <BaseAlert v-else tono="info">
       L’evento porta l’impronta SHA-256 di ogni file: chi lo legge può verificare che quello che
       scarica sia esattamente quello che hai pubblicato. È anche il motivo per cui replicare su più
       server è gratuito — lo stesso file ha lo stesso identificativo ovunque.

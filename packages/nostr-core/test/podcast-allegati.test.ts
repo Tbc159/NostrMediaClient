@@ -71,7 +71,11 @@ describe('nota con allegato (kind 1 + NIP-92)', () => {
 })
 
 describe('episodio di podcast (kind 54, NIP-F4)', () => {
-  const base = { title: 'Episodio 1', audio: [{ url: AUDIO.url, mime: AUDIO.mime }] }
+  const base = {
+    title: 'Episodio 1',
+    description: 'Di cosa parla.',
+    audio: [{ url: AUDIO.url, mime: AUDIO.mime }],
+  }
 
   it("dichiara l'audio con il tag audio, non con imeta", () => {
     // E' la specifica a volerlo cosi': niente hash e niente dimensione, quindi
@@ -102,6 +106,23 @@ describe('episodio di podcast (kind 54, NIP-F4)', () => {
     expect(() => podcastEpisodeDefinition.build({ ...base, title: '  ' }, CTX)).toThrow(/titolo/)
   })
 
+  it('rifiuta un episodio senza descrizione, che NIP-F4 vuole obbligatoria', () => {
+    // Il parse invece la tollera assente: gli eventi altrui non li scriviamo noi.
+    expect(() => podcastEpisodeDefinition.build({ ...base, description: ' ' }, CTX)).toThrow(
+      /descrizione/,
+    )
+    const letto = podcastEpisodeDefinition.parse(
+      evento({
+        kind: 54,
+        tags: [
+          ['title', 'x'],
+          ['audio', AUDIO.url],
+        ],
+      }),
+    )
+    expect(letto.description).toBeUndefined()
+  })
+
   it('e' + ' regolare, quindi non modificabile come una nota', () => {
     expect(podcastEpisodeDefinition.class).toBe('regular')
     expect(podcastEpisodeDefinition.editable).toBe(false)
@@ -129,10 +150,16 @@ describe('descrizione del podcast (kind 10154)', () => {
     expect(podcastMetadataDefinition.editable).toBe(true)
   })
 
+  const scheda = {
+    title: 'Il mio podcast',
+    description: 'Un podcast di prova.',
+    image: 'https://esempio.tld/copertina.png',
+  }
+
   it('conserva i siti e gli autori con il ruolo', () => {
     const t = podcastMetadataDefinition.build(
       {
-        title: 'Il mio podcast',
+        ...scheda,
         websites: ['https://esempio.tld'],
         authors: [{ pubkey: 'cc'.repeat(32), role: 'host' }],
       },
@@ -143,7 +170,14 @@ describe('descrizione del podcast (kind 10154)', () => {
     expect(letto.authors[0]).toEqual({ pubkey: 'cc'.repeat(32), role: 'host' })
   })
 
-  it('rifiuta una descrizione senza titolo', () => {
-    expect(() => podcastMetadataDefinition.build({ title: '' }, CTX)).toThrow(/titolo/)
+  it('rifiuta una scheda senza titolo', () => {
+    expect(() => podcastMetadataDefinition.build({ ...scheda, title: '' }, CTX)).toThrow(/titolo/)
+  })
+
+  it('rifiuta una scheda senza immagine o senza descrizione: NIP-F4 le vuole entrambe', () => {
+    expect(() => podcastMetadataDefinition.build({ ...scheda, image: '' }, CTX)).toThrow(/immagine/)
+    expect(() => podcastMetadataDefinition.build({ ...scheda, description: '' }, CTX)).toThrow(
+      /descrizione/,
+    )
   })
 })
