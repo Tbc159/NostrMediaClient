@@ -9,15 +9,6 @@ useHead({ title: 'Media · NostrMediaClient' })
  */
 const elenco = useEventiPropri([20, 21, 22, 1063, 54], { limite: 100 })
 
-/**
- * Le bozze di episodio stanno qui e non in una pagina a parte: sono lavoro
- * lasciato a meta', e il posto per ritrovarlo e' dove si vede il resto.
- */
-const bozze = useBozzeEpisodio()
-
-const quando = (secondi: number): string =>
-  new Date(secondi * 1000).toLocaleString('it-IT', { dateStyle: 'short', timeStyle: 'short' })
-
 const perKind = computed(() => {
   const conteggio = new Map<number, number>()
   for (const e of elenco.eventi.value) conteggio.set(e.kind, (conteggio.get(e.kind) ?? 0) + 1)
@@ -60,37 +51,6 @@ const nomiKind: Record<number, string> = {
     <BaseAlert v-if="elenco.errore.value" tono="pericolo">{{ elenco.errore.value }}</BaseAlert>
 
     <ClientOnly>
-      <!-- ─────────── Bozze di episodio ─────────── -->
-      <BaseCard
-        v-if="bozze.bozze.value.length"
-        title="Bozze di episodio"
-        subtitle="Lavoro lasciato a metà, salvato in questo browser. I file sono già su Blossom."
-      >
-        <ul class="flex flex-col gap-2">
-          <li
-            v-for="b in bozze.bozze.value"
-            :key="b.id"
-            class="superficie flex flex-wrap items-center gap-3 rounded-md border px-3 py-2 text-sm"
-          >
-            <span class="min-w-0 flex-1">
-              <strong>{{ b.episodio.titolo || 'Senza titolo' }}</strong>
-              <span class="block text-xs text-[var(--testo-tenue)]">
-                {{ b.allegati.length }}
-                {{ b.allegati.length === 1 ? 'file' : 'file' }} su Blossom · aggiornata
-                {{ quando(b.aggiornataAlle) }}
-                <template v-if="b.perChiave">· per {{ b.perChiave.slice(0, 16) }}…</template>
-              </span>
-            </span>
-            <BaseButton size="sm" variant="primario" :to="`/media/nuovo?bozza=${b.id}`">
-              Riprendi
-            </BaseButton>
-            <BaseButton size="sm" variant="fantasma" @click="bozze.elimina(b.id)">
-              Elimina
-            </BaseButton>
-          </li>
-        </ul>
-      </BaseCard>
-
       <SenzaIdentita v-if="elenco.senzaIdentita.value" cosa="i media" />
 
       <div

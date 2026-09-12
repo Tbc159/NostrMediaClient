@@ -219,7 +219,7 @@ function pubblicaComePodcast(): void {
     type: formatoUscita.value,
   })
   consegna.deposita(file, 'audio')
-  void navigateTo('/media/nuovo?formato=podcast')
+  void navigateTo('/media/podcast')
 }
 
 function scarica(): void {

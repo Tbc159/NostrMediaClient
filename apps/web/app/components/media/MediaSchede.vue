@@ -2,19 +2,22 @@
 /**
  * Le due schede della sezione Media.
  *
- * Una voce sola nel menu e due lavori dentro, perche' sono la stessa cosa
- * vista in due momenti: preparare un file e metterlo in rete. Chi arriva
- * dall'una trova l'altra a un clic, senza tornare al menu.
+ * Una voce sola nel menu e tre lavori dentro: mettere un file in rete,
+ * preparare un audio, pubblicare un episodio. Chi arriva dall'una trova le
+ * altre a un clic, senza tornare al menu.
  */
 const schede = [
   { to: '/media', etichetta: 'Carica su Blossom', esatto: false },
   { to: '/media/audio', etichetta: 'Audio', esatto: true },
+  { to: '/media/podcast', etichetta: 'Podcast', esatto: true },
 ]
 
 const rotta = useRoute()
-// «Carica su Blossom» copre /media e /media/nuovo; «Audio» solo se stesso.
+// «Carica su Blossom» copre /media e /media/nuovo; le altre solo se stesse.
 const attiva = (s: (typeof schede)[number]) =>
-  s.esatto ? rotta.path === s.to : rotta.path.startsWith('/media') && rotta.path !== '/media/audio'
+  s.esatto
+    ? rotta.path === s.to
+    : rotta.path.startsWith('/media') && !schede.some((x) => x.esatto && x.to === rotta.path)
 </script>
 
 <template>
