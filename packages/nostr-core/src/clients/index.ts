@@ -1,4 +1,4 @@
-import { naddrEncode, neventEncode, nprofileEncode } from 'nostr-tools/nip19'
+import { naddrEncode, neventEncode, nprofileEncode, npubEncode } from 'nostr-tools/nip19'
 
 import { classifyKind } from '../kinds/classify.js'
 import { identifier } from '../kinds/tags.js'
@@ -54,7 +54,15 @@ export interface ClientEsterno {
    * e trasformerebbe ogni novita' in un pulsante che sparisce.
    */
   kindsNonSupportati?: readonly number[]
-  /** Piattaforme per cui ha senso proporlo come predefinito. */
+  /**
+   * Kind per cui il client esiste, quando e' un lettore specializzato.
+   *
+   * L'opposto di `kindsNonSupportati`, e serve a un caso solo: un lettore di
+   * podcast sa mostrare episodi e schede dello show, e nient'altro. Proporlo
+   * per una nota sarebbe un pulsante che apre una pagina vuota.
+   */
+  soloKinds?: readonly number[]
+  /** Piattaforme per cui ha senso proporlo come predefinito. Vuoto: mai predefinito, solo ripiego. */
   piattaforme: PiattaformaClient[]
   nota?: string
 }
@@ -116,6 +124,17 @@ export const clientEsterniPredefiniti: readonly ClientEsterno[] = [
     // Sugli eventi con orario dice esplicitamente di non capire il kind.
     kindsNonSupportati: [31923],
     piattaforme: ['desktop'],
+  },
+  {
+    id: 'transmit',
+    nome: 'Transmit',
+    // Un lettore di podcast Nostr (NIP-F4): non ha una pagina per evento ma
+    // per *show*, che e' la chiave. Il segnaposto e' quindi l'npub dell'autore,
+    // e la stessa pagina vale per un episodio e per la scheda 10154.
+    template: 'https://www.transmit.fm/shows/{npub}',
+    soloKinds: [54, 10154],
+    piattaforme: [],
+    nota: 'Lettore di podcast Nostr. Apre la pagina dello show, non del singolo episodio, e legge da relay.damus.io: scheda ed episodi devono stare anche lì.',
   },
   {
     id: 'nostr-uri',
@@ -183,14 +202,21 @@ export function nip19PointerFor(evento: NostrEvent, relays: readonly string[] = 
 }
 
 /** Sostituisce il segnaposto nel modello. */
-export function componiLinkEsterno(template: string, pointer: string): string {
+export function componiLinkEsterno(
+  template: string,
+  pointer: string,
+  extra: { npub?: string } = {},
+): string {
   const modello = template.trim()
-  if (!modello.includes('{pointer}')) {
+  if (!modello.includes('{pointer}') && !modello.includes('{npub}')) {
     throw new Error(
-      'Il modello deve contenere {pointer}, che e’ il punto in cui viene inserito l’identificatore dell’evento.',
+      'Il modello deve contenere {pointer} — l’identificatore dell’evento — oppure {npub}, la chiave dell’autore.',
     )
   }
-  return modello.replace('{pointer}', pointer)
+  if (modello.includes('{npub}') && !extra.npub) {
+    throw new Error('Il modello usa {npub} ma non si conosce l’autore dell’evento.')
+  }
+  return modello.replace('{pointer}', pointer).replace('{npub}', extra.npub ?? '')
 }
 
 /**
@@ -202,6 +228,17 @@ export function componiLinkEsterno(template: string, pointer: string): string {
  * il colpevole. Questi due sono stati caricati con eventi veri di ogni tipo.
  */
 const RIPIEGHI: readonly string[] = ['coracle', 'njump']
+/** Per alcuni kind esiste un lettore fatto apposta: viene prima dei client sociali. */
+const RIPIEGHI_PER_KIND: Readonly<Record<number, readonly string[]>> = {
+  54: ['transmit', ...RIPIEGHI],
+  10154: ['transmit', ...RIPIEGHI],
+}
+
+/** Vero se il client, per sua dichiarazione, non mostra questo kind. */
+function nonMostra(client: ClientEsterno, kind: number): boolean {
+  if (client.soloKinds && !client.soloKinds.includes(kind)) return true
+  return client.kindsNonSupportati?.includes(kind) ?? false
+}
 
 /**
  * Il client con cui aprire davvero questo evento.
@@ -222,12 +259,21 @@ export function clientPerEvento(
   evento: NostrEvent,
   disponibili: readonly ClientEsterno[] = clientEsterniPredefiniti,
 ): { client: ClientEsterno; sostituito: ClientEsterno | null } {
-  if (!scelto.kindsNonSupportati?.includes(evento.kind)) return { client: scelto, sostituito: null }
+  const perKind = RIPIEGHI_PER_KIND[evento.kind]
+  // Un lettore fatto apposta vince sul client sociale scelto anche quando
+  // questo «non risulta rotto»: mostrare un episodio come testo non e'
+  // mostrarlo. Chi ha scelto proprio un lettore, invece, lo tiene.
+  const lettore = perKind ? disponibili.find((c) => c.id === perKind[0]) : undefined
+  if (lettore && lettore.id !== scelto.id && !nonMostra(lettore, evento.kind)) {
+    return { client: lettore, sostituito: scelto }
+  }
 
-  for (const id of RIPIEGHI) {
+  if (!nonMostra(scelto, evento.kind)) return { client: scelto, sostituito: null }
+
+  for (const id of perKind ?? RIPIEGHI) {
     const ripiego = disponibili.find((c) => c.id === id)
     if (!ripiego || ripiego.id === scelto.id) continue
-    if (ripiego.kindsNonSupportati?.includes(evento.kind)) continue
+    if (nonMostra(ripiego, evento.kind)) continue
     return { client: ripiego, sostituito: scelto }
   }
 
@@ -254,7 +300,9 @@ export function linkEventoEsterno(
   relays: readonly string[] = [],
 ): string {
   const modello = typeof client === 'string' ? client : templatePerEvento(client, evento)
-  return componiLinkEsterno(modello, nip19PointerFor(evento, relays))
+  return componiLinkEsterno(modello, nip19PointerFor(evento, relays), {
+    npub: npubEncode(evento.pubkey),
+  })
 }
 
 /**
@@ -267,7 +315,9 @@ export function linkEventoEsterno(
 export function validaTemplate(template: string): string | null {
   const t = template.trim()
   if (t === '') return 'Il modello e’ vuoto.'
-  if (!t.includes('{pointer}')) return 'Manca il segnaposto {pointer}.'
+  if (!t.includes('{pointer}') && !t.includes('{npub}')) {
+    return 'Manca il segnaposto {pointer} (o {npub}, per i client che hanno una pagina per autore).'
+  }
 
   const schema = t.slice(0, t.indexOf(':')).toLowerCase()
   if (t.indexOf(':') < 1) return 'Il modello deve iniziare con uno schema, per esempio https://.'

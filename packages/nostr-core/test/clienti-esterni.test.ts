@@ -175,8 +175,8 @@ describe('kind che il client scelto non sa mostrare', () => {
     }
   })
 
-  it('ripiega su Coracle anche per video e podcast', () => {
-    for (const kind of [21, 22, 54]) {
+  it('ripiega su Coracle anche per i video', () => {
+    for (const kind of [21, 22]) {
       expect(clientPerEvento(preset('nostrudel'), evento({ kind })).client.id).toBe('coracle')
     }
   })
@@ -260,5 +260,41 @@ describe('scelta del client', () => {
     for (const c of clientEsterniPredefiniti) {
       expect(validaTemplate(c.template), `${c.nome}: ${c.template}`).toBeNull()
     }
+  })
+})
+
+describe('lettore di podcast', () => {
+  const preset = (id: string): ClientEsterno =>
+    clientEsterniPredefiniti.find((c) => c.id === id) as ClientEsterno
+
+  it('per un episodio ripiega su Transmit, non su un client sociale', () => {
+    // Coracle mostra il kind 54 come evento grezzo; un lettore di podcast lo
+    // *suona*. Il ripiego dipende dal kind, non e' un elenco fisso.
+    const r = clientPerEvento(preset('nostrudel'), evento({ kind: 54 }))
+    expect(r.client.id).toBe('transmit')
+    expect(r.sostituito?.id).toBe('nostrudel')
+  })
+
+  it('apre la pagina dello show, che e' + "' la chiave dell'autore", () => {
+    // Transmit non ha una pagina per evento: il segnaposto e' {npub}.
+    const link = linkEventoEsterno(preset('transmit'), evento({ kind: 54 }), RELAYS)
+    expect(link).toMatch(/^https:\/\/www\.transmit\.fm\/shows\/npub1/)
+    expect(decode(link.split('/shows/')[1] as string).data).toBe(PUBKEY)
+  })
+
+  it('vale anche per la scheda dello show (10154)', () => {
+    expect(clientPerEvento(preset('nostrudel'), evento({ kind: 10154 })).client.id).toBe('transmit')
+  })
+
+  it('non viene mai proposto per una nota: e' + "' un lettore, non un client", () => {
+    // Un client scelto che sa mostrare la nota resta; Transmit non entra nei
+    // ripieghi delle note e non e' predefinito su nessuna piattaforma.
+    expect(clientPerEvento(preset('transmit'), evento({ kind: 1 })).client.id).not.toBe('transmit')
+    expect(preset('transmit').piattaforme).toEqual([])
+  })
+
+  it('un modello con {npub} e' + "' valido, uno senza segnaposti no", () => {
+    expect(validaTemplate('https://esempio.tld/autori/{npub}')).toBeNull()
+    expect(validaTemplate('https://esempio.tld/')).toMatch(/segnaposto/)
   })
 })
