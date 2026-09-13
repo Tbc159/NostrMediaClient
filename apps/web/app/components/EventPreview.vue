@@ -1,10 +1,15 @@
 <script setup lang="ts">
 import type { EventTemplate, NostrEvent } from '@nmc/nostr-core'
 
-const props = defineProps<{
-  template: EventTemplate | null
-  firmato: NostrEvent | null
-}>()
+const props = withDefaults(
+  defineProps<{
+    template: EventTemplate | null
+    firmato: NostrEvent | null
+    /** Senza la nota sulla ripubblicazione: dentro un elenco sarebbe ripetuta a ogni scheda. */
+    compatto?: boolean
+  }>(),
+  { compatto: false },
+)
 
 const mostrato = computed(() => props.firmato ?? props.template)
 const json = computed(() => (mostrato.value ? JSON.stringify(mostrato.value, null, 2) : ''))
@@ -38,7 +43,7 @@ async function copia(): Promise<void> {
       class="superficie max-h-96 overflow-auto rounded-lg border p-3 font-mono text-xs leading-relaxed"
       >{{ json }}</pre>
 
-    <BaseAlert v-if="firmato" tono="info">
+    <BaseAlert v-if="firmato && !compatto" tono="info">
       L’evento è firmato: l’id e la firma qui sopra sono definitivi. Ripubblicarlo sugli stessi
       relay non lo duplica — rispondono
       <code>duplicate</code>
