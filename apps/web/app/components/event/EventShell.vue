@@ -45,6 +45,34 @@ const mostraAzione = computed(() => props.azioni && propria.value)
 const spiegazione = ref(false)
 
 /*
+ * Il JSON con cui l'evento e' pubblicato, dentro la scheda, richiudibile.
+ *
+ * E' l'unica rappresentazione *vera* di cio' che sta sui relay — tag, firma,
+ * id — e chi pubblica ha il diritto di vederla senza cambiare pagina ne'
+ * client. Chiuso di default: aperto, mostra il testo in un'area a sola
+ * lettura che si seleziona con un clic e si incolla altrove.
+ */
+const mostraJson = ref(false)
+const json = computed(() => JSON.stringify(props.evento, null, 2))
+const areaJson = ref<HTMLTextAreaElement | null>(null)
+const copiato = ref(false)
+
+async function copiaJson(): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(json.value)
+    copiato.value = true
+    setTimeout(() => (copiato.value = false), 1500)
+  } catch {
+    // Appunti negati: resta «seleziona tutto».
+  }
+}
+
+function selezionaJson(): void {
+  areaJson.value?.focus()
+  areaJson.value?.select()
+}
+
+/*
  * Ridistribuire: lo stesso evento, gia' firmato, mandato ai relay di
  * scrittura di adesso. Non si rifirma — l'id resta quello — quindi non nasce
  * un duplicato: un relay che l'ha gia' risponde «gia' presente». Serve quando
@@ -143,7 +171,44 @@ const avviso = computed(() => ('avviso' in azione.value ? azione.value.avviso : 
           {{ invio.inCorso.value ? 'ridistribuisco…' : 'ridistribuisci sui relay' }}
         </button>
 
+        <button
+          type="button"
+          class="text-[var(--testo-tenue)] underline"
+          :aria-expanded="mostraJson"
+          @click="mostraJson = !mostraJson"
+        >
+          {{ mostraJson ? 'nascondi JSON' : 'JSON' }}
+        </button>
+
         <p v-if="spiegazione" class="w-full text-[var(--testo-tenue)]">{{ avviso }}</p>
+
+        <div v-if="mostraJson" class="flex w-full flex-col gap-2 pt-1">
+          <div class="flex flex-wrap items-center gap-2">
+            <BaseBadge>kind {{ evento.kind }}</BaseBadge>
+            <BaseBadge>{{ evento.tags.length }} tag</BaseBadge>
+            <div class="ml-auto flex gap-2">
+              <BaseButton size="sm" variant="fantasma" @click="selezionaJson">
+                seleziona tutto
+              </BaseButton>
+              <BaseButton size="sm" @click="copiaJson">
+                {{ copiato ? 'copiato' : 'copia JSON' }}
+              </BaseButton>
+            </div>
+          </div>
+          <!--
+            Una textarea in sola lettura, non un <pre>: si seleziona tutto con
+            un clic e su telefono scorre senza rompere la scheda. La firma
+            copre ogni byte, quindi non si modifica.
+          -->
+          <textarea
+            ref="areaJson"
+            readonly
+            :value="json"
+            :rows="Math.min(24, json.split('\n').length + 1)"
+            spellcheck="false"
+            class="superficie w-full rounded-lg border p-3 font-mono text-xs leading-relaxed"
+          />
+        </div>
         <p v-if="ridistribuito" class="w-full text-[var(--testo-tenue)]">{{ ridistribuito }}</p>
         <p v-if="invio.errore.value" class="w-full text-[var(--pericolo)]">
           {{ invio.errore.value }}
