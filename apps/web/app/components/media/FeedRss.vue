@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {
   chiama,
+  episodiFuoriDalFeed,
   riassumiFeedPodcast,
   spiegaStato,
   urlFeedPodcast,
@@ -30,6 +31,24 @@ const url = computed(() => {
   }
 })
 
+/*
+ * Gli episodi che *questo client* vede sui relay di lettura: il termine di
+ * paragone per il feed. Un episodio qui e non la' sta su un relay da cui il
+ * servizio non legge — e il rimedio e' ridistribuirlo, non ripubblicarlo.
+ */
+const pubblicati = useEventiPropri([54], { limite: 200 })
+const titoloDi = (e: { tags: string[][]; id: string }): string =>
+  e.tags.find((t) => t[0] === 'title')?.[1] ?? e.id.slice(0, 12)
+
+const fuoriDalFeed = computed(() =>
+  riassunto.value
+    ? episodiFuoriDalFeed(
+        riassunto.value,
+        pubblicati.eventi.value.map((e) => ({ id: e.id, titolo: titoloDi(e) })),
+      )
+    : [],
+)
+
 const verificaInCorso = ref(false)
 const riassunto = ref<RiassuntoFeed | null>(null)
 const errore = ref<string | null>(null)
@@ -41,6 +60,8 @@ async function verifica(): Promise<void> {
   errore.value = null
   riassunto.value = null
   try {
+    // Prima gli episodi dai relay, cosi' il confronto e' pronto insieme al feed.
+    if (!pubblicati.eventi.value.length) await pubblicati.carica()
     const risposta = await chiama(url.value, { headers: { accept: 'application/rss+xml' } })
     if (risposta.status === 404) {
       // Il servizio distingue «nessuna scheda» da «endpoint assente»: il
@@ -137,11 +158,24 @@ const dataLeggibile = (d: Date | null): string =>
             <li v-for="(p, i) in riassunto.problemi" :key="i">{{ p }}</li>
           </ul>
 
-          <BaseAlert v-if="!riassunto.episodi.length" tono="info">
-            Zero episodi nel feed. Se ne hai pubblicati, controlla che stiano sui relay da cui il
-            servizio legge (sopra): «ridistribuisci sui relay» in
+          <BaseAlert v-if="fuoriDalFeed.length" tono="avviso">
+            <strong>
+              {{ fuoriDalFeed.length }}
+              {{
+                fuoriDalFeed.length === 1
+                  ? 'episodio pubblicato non è'
+                  : 'episodi pubblicati non sono'
+              }}
+              nel feed
+            </strong>
+            : {{ fuoriDalFeed.map((e) => `«${e.titolo}»`).join(', ') }}. Quasi sempre stanno su un
+            relay da cui il servizio non legge. In
             <NuxtLink to="/media" class="underline">I tuoi media</NuxtLink>
-            li porta anche lì.
+            , «ridistribuisci sui relay» li porta anche lì; poi verifica di nuovo.
+          </BaseAlert>
+          <BaseAlert v-else-if="!riassunto.episodi.length" tono="info">
+            Zero episodi nel feed, e nessuno visto sui tuoi relay di lettura: pubblica il primo
+            dalla scheda qui sopra.
           </BaseAlert>
         </template>
 

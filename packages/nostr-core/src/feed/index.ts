@@ -23,6 +23,8 @@ export function urlFeedPodcast(radiceServizio: string, pubkey: string, lingua?: 
 }
 
 export interface EpisodioFeed {
+  /** Il `guid`: per il nostro servizio e' l'id dell'evento kind 54. */
+  id: string | null
   titolo: string
   data: Date | null
   audioUrl: string | null
@@ -103,6 +105,7 @@ export function riassumiFeedPodcast(xml: string): RiassuntoFeed {
     const dataGrezza = tagIn(b, 'pubDate')
     const data = dataGrezza ? new Date(dataGrezza) : null
     return {
+      id: tagIn(b, 'guid'),
       titolo: tagIn(b, 'title') ?? '(senza titolo)',
       data: data && !Number.isNaN(data.getTime()) ? data : null,
       audioUrl: attributo(b, 'enclosure', 'url'),
@@ -124,4 +127,19 @@ export function riassumiFeedPodcast(xml: string): RiassuntoFeed {
   }
 
   return { titolo, descrizione, immagine: immagine || null, lingua, episodi, relays, problemi }
+}
+
+/**
+ * Confronta il feed con gli episodi che il client vede sui relay.
+ *
+ * E' la diagnosi che conta: un feed con meno episodi di quelli pubblicati
+ * significa quasi sempre che un episodio sta su un relay da cui il servizio
+ * non legge — e il rimedio e' ridistribuirlo, non ripubblicarlo.
+ */
+export function episodiFuoriDalFeed(
+  feed: Pick<RiassuntoFeed, 'episodi'>,
+  pubblicati: readonly { id: string; titolo: string }[],
+): { id: string; titolo: string }[] {
+  const nelFeed = new Set(feed.episodi.map((e) => e.id).filter((id): id is string => !!id))
+  return pubblicati.filter((p) => !nelFeed.has(p.id))
 }

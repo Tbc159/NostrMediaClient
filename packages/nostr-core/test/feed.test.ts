@@ -1,6 +1,13 @@
+import { readFileSync } from 'node:fs'
+
 import { describe, expect, it } from 'vitest'
 
-import { riassumiFeedPodcast, urlFeedPodcast } from '../src/feed/index.js'
+import { episodiFuoriDalFeed, riassumiFeedPodcast, urlFeedPodcast } from '../src/feed/index.js'
+
+const FEED_VERO = readFileSync(
+  new URL('./fixtures/feed-media-manager.xml', import.meta.url),
+  'utf8',
+)
 
 const PUBKEY = 'ab'.repeat(32)
 
@@ -82,5 +89,32 @@ describe('riassunto di un feed', () => {
 
   it('rifiuta cio' + "' che non e' RSS, dicendolo", () => {
     expect(() => riassumiFeedPodcast('<html>404</html>')).toThrow(/Non e’ un feed RSS/)
+  })
+})
+
+describe('il feed prodotto dal media-manager', () => {
+  // La fixture e' quella del repository del servizio: quello che il lettore
+  // capisce qui e' quello che arriva davvero.
+  it('si legge per intero', () => {
+    const r = riassumiFeedPodcast(FEED_VERO)
+    expect(r.titolo).toBe('Radio Satoshi')
+    expect(r.immagine).toBe('https://cdn.example.org/radio-satoshi.png')
+    expect(r.lingua).toBe('it')
+    expect(r.relays).toEqual(['wss://damus.example', 'wss://nos.example'])
+    expect(r.episodi).toHaveLength(1)
+    expect(r.episodi[0]?.id).toBe(
+      '33d25dddc45e7ef190ec3c7bda204023651457887b0b055668cd89040539e203',
+    )
+    expect(r.episodi[0]?.byte).toBe(51200)
+    expect(r.problemi).toEqual(['1 episodi saltati dal servizio perché senza audio'])
+  })
+
+  it('dice quali episodi pubblicati non stanno nel feed', () => {
+    const r = riassumiFeedPodcast(FEED_VERO)
+    const fuori = episodiFuoriDalFeed(r, [
+      { id: '33d25dddc45e7ef190ec3c7bda204023651457887b0b055668cd89040539e203', titolo: 'Ep 2' },
+      { id: 'ff'.repeat(32), titolo: 'Ep 3, solo su nos.lol' },
+    ])
+    expect(fuori.map((e) => e.titolo)).toEqual(['Ep 3, solo su nos.lol'])
   })
 })
