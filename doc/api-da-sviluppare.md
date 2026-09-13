@@ -403,6 +403,112 @@ accanto a quello autenticato. Non rendere pubblici i byte per default.
 
 ---
 
+### Prompt F — Il feed RSS dei podcast Nostr (dominio `feed`)
+
+Perché serve: **nessuno genera RSS dai kind 54** — né Transmit né njump — e
+senza un feed il podcast non esiste per Fountain, Apple, Podcast Index e
+qualunque app che non parli Nostr. Il client su GitHub Pages non può servirlo
+(è statico) e Blossom nemmeno (l'URL cambia a ogni modifica). Serve un dominio
+del media-manager, **pubblico e senza chiave**: le app di podcast non mandano
+`X-API-Key`.
+
+```
+Repository: microservice-media-manager, contract-first, branch develop.
+Nuovo dominio pubblico `feed`: un feed RSS 2.0 per ogni podcast Nostr
+(NIP-F4), generato dai kind 10154 e 54 di una chiave.
+
+ENDPOINT
+  GET /v0/feed/health
+  GET /v0/feed/{npub}.xml          -> application/rss+xml; charset=utf-8
+      ?lang=it   (default: it)     lingua del canale: NIP-F4 non la prevede
+      ?relays=wss://a,wss://b      da leggere in aggiunta a quelli scoperti
+  {npub} in bech32 oppure 64 esadecimali.
+
+DIVERSO DAGLI ALTRI DOMINI, E VA DETTO NEL CONTRATTO
+  - NESSUNA autenticazione: il feed lo scaricano le app di podcast, che non
+    conoscono X-API-Key. Il resto dei domini resta com'e'.
+  - Cache obbligatoria: Cache-Control: public, max-age=300 ed ETag (hash del
+    corpo); rispondere 304 a If-None-Match. Podcast Index rilegge ogni ora,
+    Apple piu' spesso: senza cache ogni lettura interroga i relay.
+  - Rate limit per IP, perche' e' pubblico.
+  - CORS aperto (Access-Control-Allow-Origin: *): il client lo verifica dal
+    browser, e non c'e' nulla da proteggere in un feed pubblico.
+
+DA DOVE SI LEGGE
+  1. Relay: la lista NIP-65 (kind 10002) della chiave, presa da un elenco di
+     relay indicizzatori (purplepag.es, user.kindpag.es) piu' un elenco fisso
+     di ripiego (relay.damus.io, nos.lol, relay.primal.net), piu' ?relays=.
+     Un feed che legge dal relay sbagliato e' vuoto: e' il difetto piu'
+     probabile, e la risposta deve dire quali relay ha interrogato in un
+     commento XML in testa (<!-- relays: ... -->) per poterlo diagnosticare.
+  2. Kind 10154 (una versione, la piu' recente): senza -> 404 con corpo
+     {detail: "nessuna scheda podcast (kind 10154) per questa chiave sui
+     relay interrogati", relays: [...]}. Non inventare un canale dal kind 0.
+  3. Kind 0: solo per <itunes:author> e <itunes:owner>, se ci sono.
+  4. Kind 54 della chiave, ordinati per created_at decrescente. Zero
+     episodi -> 200 con canale e nessun item: un feed vuoto e' valido.
+
+MAPPATURA
+  canale
+    <title>            10154 title
+    <description>      10154 description
+    <link>             primo tag website; altrimenti https://njump.me/<npub>
+    <image><url>       10154 image   (anche <itunes:image href>)
+    <language>         ?lang, default it
+    <itunes:author>    kind 0 name/display_name, altrimenti npub
+    <itunes:explicit>  false (non esiste in NIP-F4)
+    <itunes:category>  omessa se non si sa: NON inventare
+    <podcast:guid>     UUIDv5 nel namespace di Podcasting 2.0
+                       (ead4c236-bf58-58c6-a2c6-a6b28d128cb6) dell'URL del
+                       feed senza schema — e' cosi' che Podcast Index lo
+                       deduplica; deve restare stabile fra le risposte
+    <generator>        media-manager feed
+    <atom:link rel="self">  l'URL del feed stesso
+  item, uno per kind 54
+    <title>            title
+    <description>      description
+    <content:encoded>  content (Markdown -> HTML, sanificato; se vuoto, description)
+    <guid isPermaLink="false">  l'id dell'evento
+    <pubDate>          created_at in RFC 822
+    <link>             https://njump.me/<nevent con relay hint>
+    <itunes:image>     image, se c'e'
+    <enclosure url type length>
+                       url e type dal PRIMO tag audio con MIME audio/*;
+                       length: NON e' nell'evento (NIP-F4 non lo prevede).
+                       Farlo con una HEAD sull'URL, Content-Length, con cache
+                       persistente per URL: gli URL Blossom sono
+                       content-addressed, quindi il valore non cambia mai.
+                       Se la HEAD fallisce: length="0" e un commento XML che
+                       lo dice; non omettere l'enclosure.
+    <itunes:duration>  omessa. Non c'e' nell'evento e calcolarla costa un
+                       ffprobe per episodio; se un giorno si fa, con la
+                       stessa cache per URL.
+  Gli altri tag audio oltre il primo: <podcast:alternateEnclosure>, uno per
+  ciascuno, se vuoi; altrimenti ignorali. Un episodio senza alcun tag audio
+  con MIME audio/* si salta e si conta in un commento XML in coda
+  (<!-- saltati: N senza audio -->).
+
+TEST DI CONTRATTO E DI VALIDITA'
+  - Il feed passa il validatore di podcastindex.org (/validate) e quello di
+    castfeedvalidator: metti in CI almeno un controllo di buona formazione
+    XML e la presenza dei tag obbligatori per Apple: title, description,
+    language, itunes:image, itunes:explicit, almeno un item con enclosure.
+  - Fixture: tre eventi (10154, 0, due 54 di cui uno senza audio) e il feed
+    atteso, confrontato ignorando gli spazi.
+  - 304 con If-None-Match giusto; corpo identico a parita' di eventi (l'ETag
+    non deve cambiare se non cambia nulla: niente timestamp di generazione
+    nel corpo, o l'ETag e' inutile).
+
+FUORI PERIMETRO
+  Nessuna scrittura su Nostr. Nessuna sottomissione automatica a Podcast
+  Index: la fa l'utente, una volta, con l'URL che il client gli mostra.
+```
+
+Lato client (in `main`): una scheda «Feed RSS» in _Media → Podcast_ che
+mostra l'URL per la chiave attiva, lo verifica dal browser (scarica, legge,
+riassume: quanti episodi, l'ultimo, cosa manca) e spiega dove sottoporlo. Il
+client non genera il feed: lo governa.
+
 ## 4. Dal repository vecchio: cosa vale la pena portare
 
 `microservices-media` (branch `dev`, servizio `ffmpeg`) espone oggi:

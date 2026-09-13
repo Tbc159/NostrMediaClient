@@ -51,5 +51,9 @@ const elencoVisibile = computed(() => bozze.bozze.value.length > 0 && !rotta.que
     </ClientOnly>
 
     <MediaCaricaMedia modalita="podcast" />
+
+    <ClientOnly>
+      <MediaFeedRss />
+    </ClientOnly>
   </div>
 </template>
