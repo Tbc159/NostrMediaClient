@@ -504,6 +504,13 @@ FUORI PERIMETRO
   Index: la fa l'utente, una volta, con l'URL che il client gli mostra.
 ```
 
+**Verificato il 13 settembre 2026 contro il dominio deployato**: feed valido,
+`length` misurati, ETag/304, CORS `*`, relay dalla NIP-65. Una correzione da
+chiedere: `<atom:link rel="self">` esce in `http://` perché il servizio
+compone il proprio URL dallo schema del proxy interno; deve rispettare
+`X-Forwarded-Proto` (l'nginx di sistema lo manda), altrimenti self-link e
+`podcast:guid` non coincidono con l'URL che le app usano.
+
 Lato client (in `main`): una scheda «Feed RSS» in _Media → Podcast_ che
 mostra l'URL per la chiave attiva, lo verifica dal browser (scarica, legge,
 riassume: quanti episodi, l'ultimo, cosa manca) e spiega dove sottoporlo. Il

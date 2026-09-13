@@ -292,9 +292,19 @@ function componiPodcast(): void {
     title: podcastTitolo.value.trim(),
     description: podcastDescrizione.value.trim(),
     image: podcastImmagine.value.trim(),
-    ...(podcastSito.value.trim() ? { websites: [podcastSito.value.trim()] } : {}),
+    ...(podcastSito.value.trim() ? { websites: [conSchema(podcastSito.value)] } : {}),
     ...(podcastAutori.value.length ? { authors: podcastAutori.value } : {}),
   })
+}
+
+/**
+ * Un sito scritto senza schema — «tbc159.github.io/…» — finisce nel feed RSS
+ * come `<link>`, e i validatori lo rifiutano perche' non e' un URL. Meglio
+ * completarlo qui che scoprirlo su Podcast Index.
+ */
+const conSchema = (sito: string): string => {
+  const s = sito.trim()
+  return /^[a-z][a-z0-9+.-]*:\/\//i.test(s) ? s : `https://${s}`
 }
 
 const podcastCompleto = computed(
