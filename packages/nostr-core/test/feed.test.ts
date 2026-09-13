@@ -2,7 +2,12 @@ import { readFileSync } from 'node:fs'
 
 import { describe, expect, it } from 'vitest'
 
-import { episodiFuoriDalFeed, riassumiFeedPodcast, urlFeedPodcast } from '../src/feed/index.js'
+import {
+  episodiFuoriDalFeed,
+  opmlPerFeed,
+  riassumiFeedPodcast,
+  urlFeedPodcast,
+} from '../src/feed/index.js'
 
 const FEED_VERO = readFileSync(
   new URL('./fixtures/feed-media-manager.xml', import.meta.url),
@@ -116,5 +121,23 @@ describe('il feed prodotto dal media-manager', () => {
       { id: 'ff'.repeat(32), titolo: 'Ep 3, solo su nos.lol' },
     ])
     expect(fuori.map((e) => e.titolo)).toEqual(['Ep 3, solo su nos.lol'])
+  })
+})
+
+describe('OPML', () => {
+  it('contiene il feed come outline rss, con titolo e sito', () => {
+    const o = opmlPerFeed({
+      titolo: 'News & Test',
+      urlFeed: 'https://mm.example/v0/feed/npub1abc.xml',
+      sito: 'https://esempio.tld',
+    })
+    expect(o).toContain('<opml version="2.0">')
+    expect(o).toContain(
+      '<outline type="rss" text="News &amp; Test" title="News &amp; Test" xmlUrl="https://mm.example/v0/feed/npub1abc.xml" htmlUrl="https://esempio.tld"/>',
+    )
+  })
+
+  it('senza titolo non produce un outline vuoto', () => {
+    expect(opmlPerFeed({ titolo: '  ', urlFeed: 'https://x/f.xml' })).toContain('text="Podcast"')
   })
 })

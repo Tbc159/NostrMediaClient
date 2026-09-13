@@ -2,6 +2,7 @@
 import {
   chiama,
   episodiFuoriDalFeed,
+  opmlPerFeed,
   riassumiFeedPodcast,
   spiegaStato,
   urlFeedPodcast,
@@ -100,6 +101,29 @@ async function copia(): Promise<void> {
   }
 }
 
+/**
+ * L'OPML: il feed impacchettato come abbonamento.
+ *
+ * Fountain e le altre app lo importano dalla libreria; chi lo riceve segue
+ * il podcast senza cercarlo in una directory. Il titolo viene dal feed
+ * verificato, se c'e'; altrimenti un nome generico, che l'app sostituisce
+ * con quello del feed alla prima lettura.
+ */
+function scaricaOpml(): void {
+  if (!url.value) return
+  const opml = opmlPerFeed({
+    titolo: riassunto.value?.titolo ?? 'Podcast',
+    urlFeed: url.value,
+  })
+  const blob = new Blob([opml], { type: 'text/x-opml' })
+  const href = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = href
+  a.download = `${(riassunto.value?.titolo ?? 'podcast').replace(/[^\w-]+/g, '-').toLowerCase()}.opml`
+  a.click()
+  URL.revokeObjectURL(href)
+}
+
 const ultimo = computed(() => riassunto.value?.episodi[0] ?? null)
 const dataLeggibile = (d: Date | null): string =>
   d ? d.toLocaleDateString('it-IT', { dateStyle: 'medium' }) : 'data assente'
@@ -131,6 +155,7 @@ const dataLeggibile = (d: Date | null): string =>
           <BaseButton size="sm" variant="primario" :loading="verificaInCorso" @click="verifica">
             Verifica
           </BaseButton>
+          <BaseButton size="sm" @click="scaricaOpml">Scarica OPML</BaseButton>
         </div>
 
         <p class="text-xs text-[var(--testo-tenue)]">
@@ -203,6 +228,14 @@ const dataLeggibile = (d: Date | null): string =>
             <li>
               Apple Podcasts e Spotify vanno sottoposti a parte, con un loro account: usano lo
               stesso URL.
+            </li>
+            <li>
+              Per farlo seguire
+              <strong>subito</strong>
+              a qualcuno, senza aspettare una directory: «Scarica OPML» e mandagli il file. In
+              Fountain si importa dalla Libreria (menu della pagina → Importa podcast, oppure
+              Impostazioni → Libreria); Apple Podcasts, Overcast e Podcast Addict lo leggono allo
+              stesso modo.
             </li>
           </ol>
           <p class="mt-2 text-xs text-[var(--testo-tenue)]">

@@ -143,3 +143,32 @@ export function episodiFuoriDalFeed(
   const nelFeed = new Set(feed.episodi.map((e) => e.id).filter((id): id is string => !!id))
   return pubblicati.filter((p) => !nelFeed.has(p.id))
 }
+
+const xmlEsc = (t: string): string =>
+  t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+
+/**
+ * Un OPML con il solo feed del podcast.
+ *
+ * E' il formato con cui le app di podcast si scambiano gli abbonamenti:
+ * Fountain, Apple, Overcast lo importano. Contiene l'URL del feed e il
+ * titolo, nient'altro — chi lo importa segue il podcast senza cercarlo in una
+ * directory, ed e' il modo per condividerlo anche prima che una directory lo
+ * indicizzi.
+ */
+export function opmlPerFeed(dati: { titolo: string; urlFeed: string; sito?: string }): string {
+  const titolo = xmlEsc(dati.titolo.trim() || 'Podcast')
+  const html = dati.sito ? ` htmlUrl="${xmlEsc(dati.sito)}"` : ''
+  return [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<opml version="2.0">',
+    '  <head>',
+    `    <title>${titolo}</title>`,
+    '  </head>',
+    '  <body>',
+    `    <outline type="rss" text="${titolo}" title="${titolo}" xmlUrl="${xmlEsc(dati.urlFeed)}"${html}/>`,
+    '  </body>',
+    '</opml>',
+    '',
+  ].join('\n')
+}
