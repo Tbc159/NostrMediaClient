@@ -104,22 +104,29 @@ async function copia(): Promise<void> {
 /**
  * L'OPML: il feed impacchettato come abbonamento.
  *
- * Fountain e le altre app lo importano dalla libreria; chi lo riceve segue
- * il podcast senza cercarlo in una directory. Il titolo viene dal feed
- * verificato, se c'e'; altrimenti un nome generico, che l'app sostituisce
- * con quello del feed alla prima lettura.
+ * Il titolo e' **sempre** quello letto dal feed: se non e' stato verificato
+ * si verifica prima. Un titolo generico qui non e' innocuo — Fountain cerca
+ * ogni voce dell'OPML nel proprio catalogo *per titolo*, e un OPML con
+ * «Podcast» ha fatto iscrivere a 127 show che si chiamano cosi'. E' successo.
  */
-function scaricaOpml(): void {
+const erroreOpml = ref<string | null>(null)
+
+async function scaricaOpml(): Promise<void> {
   if (!url.value) return
-  const opml = opmlPerFeed({
-    titolo: riassunto.value?.titolo ?? 'Podcast',
-    urlFeed: url.value,
-  })
+  erroreOpml.value = null
+  if (!riassunto.value) await verifica()
+  const titolo = riassunto.value?.titolo.trim()
+  if (!titolo) {
+    erroreOpml.value =
+      'Prima serve un feed verificato con un titolo: senza, l’OPML porterebbe un nome generico e le app iscriverebbero a show sbagliati.'
+    return
+  }
+  const opml = opmlPerFeed({ titolo, urlFeed: url.value })
   const blob = new Blob([opml], { type: 'text/x-opml' })
   const href = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = href
-  a.download = `${(riassunto.value?.titolo ?? 'podcast').replace(/[^\w-]+/g, '-').toLowerCase()}.opml`
+  a.download = `${titolo.replace(/[^\w-]+/g, '-').toLowerCase()}.opml`
   a.click()
   URL.revokeObjectURL(href)
 }
@@ -155,8 +162,12 @@ const dataLeggibile = (d: Date | null): string =>
           <BaseButton size="sm" variant="primario" :loading="verificaInCorso" @click="verifica">
             Verifica
           </BaseButton>
-          <BaseButton size="sm" @click="scaricaOpml">Scarica OPML</BaseButton>
+          <BaseButton size="sm" :loading="verificaInCorso" @click="scaricaOpml">
+            Scarica OPML
+          </BaseButton>
         </div>
+
+        <BaseAlert v-if="erroreOpml" tono="pericolo">{{ erroreOpml }}</BaseAlert>
 
         <p class="text-xs text-[var(--testo-tenue)]">
           Il feed si costruisce da solo dai tuoi eventi: la scheda del podcast (kind 10154) diventa
@@ -214,7 +225,8 @@ const dataLeggibile = (d: Date | null): string =>
               .
             </li>
             <li>
-              Sottoponi l’URL a
+              <strong>Prima di tutto</strong>
+              , sottoponi l’URL a
               <a
                 href="https://podcastindex.org/add"
                 target="_blank"
@@ -223,19 +235,33 @@ const dataLeggibile = (d: Date | null): string =>
               >
                 Podcast Index
               </a>
-              : da lì lo prendono Fountain e la maggior parte delle app aperte.
+              . Fountain non segue indirizzi arbitrari: segue solo show del suo catalogo, che è
+              Podcast Index. Finché il feed non è lì, in Fountain non si trova — né cercandolo, né
+              importandolo.
+            </li>
+            <li>
+              Dopo qualche ora, cerca lo show in Fountain per titolo; poi
+              <a
+                href="https://support.fountain.fm/article/56-how-to-claim-your-show-on-fountain"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="underline"
+              >
+                rivendicalo
+              </a>
+              come tuo.
             </li>
             <li>
               Apple Podcasts e Spotify vanno sottoposti a parte, con un loro account: usano lo
               stesso URL.
             </li>
             <li>
-              Per farlo seguire
-              <strong>subito</strong>
-              a qualcuno, senza aspettare una directory: «Scarica OPML» e mandagli il file. In
-              Fountain si importa dalla Libreria (menu della pagina → Importa podcast, oppure
-              Impostazioni → Libreria); Apple Podcasts, Overcast e Podcast Addict lo leggono allo
-              stesso modo.
+              L’OPML serve per far seguire lo show a qualcuno con un file, ma vale la stessa regola:
+              le app che seguono solo il proprio catalogo (Fountain) lo trovano
+              <em>dopo</em>
+              l’indicizzazione, per titolo; quelle che seguono l’URL (Overcast, Podcast Addict,
+              AntennaPod) lo seguono subito. Per questo l’OPML porta sempre il titolo vero del feed,
+              mai uno generico.
             </li>
           </ol>
           <p class="mt-2 text-xs text-[var(--testo-tenue)]">
