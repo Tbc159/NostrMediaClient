@@ -505,11 +505,53 @@ FUORI PERIMETRO
 ```
 
 **Verificato il 13 settembre 2026 contro il dominio deployato**: feed valido,
-`length` misurati, ETag/304, CORS `*`, relay dalla NIP-65. Una correzione da
-chiedere: `<atom:link rel="self">` esce in `http://` perché il servizio
-compone il proprio URL dallo schema del proxy interno; deve rispettare
-`X-Forwarded-Proto` (l'nginx di sistema lo manda), altrimenti self-link e
-`podcast:guid` non coincidono con l'URL che le app usano.
+`length` misurati, ETag/304, CORS `*`, relay dalla NIP-65. Resta un difetto,
+oggetto del Prompt G.
+
+### Prompt G — Il self-link del feed rispetti `X-Forwarded-Proto`
+
+Delta rispetto al Prompt F, già svolto. Una correzione sola.
+
+```
+Repository: microservice-media-manager, dominio feed, branch develop.
+
+DIFETTO, VERIFICATO
+  GET https://mediamanager-dev.duckdns.org/v0/feed/<npub>.xml risponde con
+    <atom:link href="http://mediamanager-dev.duckdns.org/v0/feed/<npub>.xml" rel="self" .../>
+  cioe' in http, mentre l'URL con cui il feed viene chiesto — e sottoposto
+  a Podcast Index — e' in https. Il servizio compone il proprio URL dallo
+  schema con cui lo raggiunge il proxy interno (http), non da quello con cui
+  lo raggiunge il mondo.
+
+CAUSA
+  Due proxy in fila: l'nginx di sistema termina il TLS e manda
+  X-Forwarded-Proto: https; il proxy del media-manager (deploy/proxy) lo
+  sovrascrive con il proprio $scheme, che e' http. L'app quindi non vede mai
+  https.
+
+CORREZIONE
+  1. deploy/proxy/gen-nginx-conf.sh: proxy_set_header X-Forwarded-Proto deve
+     PROPAGARE il valore ricevuto quando c'e', e usare $scheme solo se manca:
+       map $http_x_forwarded_proto $proto_esterno {
+         default $http_x_forwarded_proto;
+         ""      $scheme;
+       }
+       proxy_set_header X-Forwarded-Proto $proto_esterno;
+     Vale per tutti i domini, non solo feed: e' lo stesso header che serve a
+     chiunque componga URL assoluti (signed_url di media, per esempio).
+  2. src/domains/feed: l'URL di se' stesso si compone da X-Forwarded-Proto e
+     X-Forwarded-Host (o Host) — mai da request.scheme — e va usato SIA per
+     <atom:link rel="self"> SIA per il podcast:guid, che e' l'UUIDv5 dell'URL
+     senza schema: oggi coincidono per caso, e devono coincidere per
+     costruzione.
+  3. Test: una richiesta con X-Forwarded-Proto: https deve produrre un
+     self-link https; senza l'header, lo schema della richiesta. Il
+     podcast:guid nei due casi e' lo stesso (lo schema non entra nel guid).
+
+VERIFICA DAL VIVO
+  curl -s https://mediamanager-dev.duckdns.org/v0/feed/<npub>.xml | grep atom:link
+  deve mostrare href="https://…".
+```
 
 Lato client (in `main`): una scheda «Feed RSS» in _Media → Podcast_ che
 mostra l'URL per la chiave attiva, lo verifica dal browser (scarica, legge,
