@@ -1,5 +1,8 @@
 <script setup lang="ts">
+import { useProfiloProprio } from '~/stores/profiloProprio'
+
 const identita = useIdentity()
+const profilo = useProfiloProprio()
 
 // Lo stato dell'identita' vive in localStorage: va riletto solo nel browser.
 onMounted(() => identita.ripristina())
@@ -55,7 +58,19 @@ const attiva = (to: string) => (to === '/' ? rotta.path === '/' : rotta.path.sta
               <BaseBadge :tono="identita.puoFirmare ? 'successo' : 'avviso'">
                 {{ identita.puoFirmare ? 'può pubblicare' : 'sola lettura' }}
               </BaseBadge>
-              <code class="text-[var(--testo-tenue)]">{{ identita.npub?.slice(0, 12) }}…</code>
+              <!--
+                Il nome del profilo, quando c'e'; l'npub resta nel title, e
+                come testo quando il profilo non ha un nome — un'identita'
+                senza kind 0 e' comunque un'identita'.
+              -->
+              <NuxtLink
+                to="/profilo"
+                class="max-w-40 truncate text-[var(--testo-tenue)] hover:underline"
+                :title="identita.npub ?? undefined"
+              >
+                <template v-if="profilo.daProfilo">{{ profilo.nome }}</template>
+                <code v-else>{{ identita.npub?.slice(0, 12) }}…</code>
+              </NuxtLink>
             </template>
             <BaseButton v-else to="/impostazioni" size="sm" variant="primario">Accedi</BaseButton>
           </ClientOnly>
