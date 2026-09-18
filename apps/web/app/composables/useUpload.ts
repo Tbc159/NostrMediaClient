@@ -2,6 +2,7 @@ import {
   dimensioni,
   mirrorBlob,
   uploadBlob,
+  urlConEstensione,
   BlossomError,
   type BlobDescriptor,
   type ImetaInput,
@@ -99,6 +100,25 @@ async function misura(file: File): Promise<{ dim?: string; duration?: number }> 
         })
       video.onerror = () => chiudi({})
       video.src = url
+    })
+  }
+
+  // Anche l'audio ha una durata, e per un episodio di podcast e' un dato che
+  // le app mostrano (itunes:duration): senza, la riga dell'episodio resta
+  // senza minuti. Si misura come per i video, dai soli metadati.
+  if (file.type.startsWith('audio/')) {
+    return new Promise((risolvi) => {
+      const audio = document.createElement('audio')
+      const url = URL.createObjectURL(file)
+      const chiudi = (valore: { duration?: number }): void => {
+        URL.revokeObjectURL(url)
+        risolvi(valore)
+      }
+      audio.preload = 'metadata'
+      audio.onloadedmetadata = () =>
+        chiudi(Number.isFinite(audio.duration) ? { duration: audio.duration } : {})
+      audio.onerror = () => chiudi({})
+      audio.src = url
     })
   }
 
@@ -210,10 +230,13 @@ export function useUpload() {
       delete m.errore
       try {
         fase.value = { fase: 'invio', nome: m.nome, server: primario }
+        // Il nome serve a scegliere l'estensione nell'URL: un «.mp3» resta
+        // «.mp3», invece del «.mpga» con cui il server risponderebbe.
         const descrittore = await uploadBlob(primario, m.file, {
           firma: (template) => identita.firma(template),
           pubkey: identita.pubkey ?? '',
           mime: m.mime,
+          nome: m.nome,
         })
 
         const copie = [primario]
@@ -223,6 +246,8 @@ export function useUpload() {
             await mirrorBlob(altro, descrittore.url, descrittore.sha256, {
               firma: (template) => identita.firma(template),
               pubkey: identita.pubkey ?? '',
+              mime: m.mime,
+              nome: m.nome,
             })
             copie.push(altro)
           } catch {
@@ -264,7 +289,11 @@ export function useUpload() {
       // Le copie oltre la prima diventano fallback: se il primario sparisce
       // l'evento gia' pubblicato continua a puntare a qualcosa di vivo.
       ...(m.copie.length > 1
-        ? { fallback: m.copie.slice(1).map((s) => `${s}/${m.descrittore?.sha256}`) }
+        ? {
+            fallback: m.copie
+              .slice(1)
+              .map((s) => urlConEstensione(`${s}/${m.descrittore?.sha256}`, m.mime, m.nome)),
+          }
         : {}),
     }
   }

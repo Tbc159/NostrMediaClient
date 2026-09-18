@@ -37,6 +37,12 @@ export interface RiassuntoFeed {
   descrizione: string
   immagine: string | null
   lingua: string | null
+  /** La categoria primaria (`itunes:category`), se il feed la dichiara. */
+  categoria: string | null
+  /** L'email dell'owner (`itunes:email`), se c'e': e' li' che Spotify, Amazon e YouTube verificano. */
+  email: string | null
+  /** Vero se il feed dichiara <itunes:explicit>true</itunes:explicit>. */
+  explicit: boolean
   episodi: EpisodioFeed[]
   /** Relay interrogati dal servizio, se li dichiara in un commento in testa. */
   relays: string[]
@@ -94,8 +100,26 @@ export function riassumiFeedPodcast(xml: string): RiassuntoFeed {
   if (descrizione === '') problemi.push('il canale non ha una descrizione')
   if (!immagine) problemi.push('manca l’immagine del canale: Apple e Podcast Index la pretendono')
   if (!lingua) problemi.push('manca la lingua del canale')
-  if (!/<itunes:explicit>/i.test(canale))
-    problemi.push('manca <itunes:explicit>, obbligatorio per Apple')
+  const explicitGrezzo = tagIn(canale, 'itunes:explicit')
+  if (explicitGrezzo === null) problemi.push('manca <itunes:explicit>, obbligatorio per Apple')
+  const explicit = /^(true|yes)$/i.test(explicitGrezzo ?? '')
+
+  const categoria = attributo(canale, 'itunes:category', 'text')
+  if (!categoria)
+    problemi.push('manca la categoria (itunes:category): Apple e Amazon la pretendono')
+  const email = tagIn(canale, 'itunes:email')
+  if (!email) {
+    problemi.push(
+      'manca l’email dell’owner (itunes:email): Spotify, Amazon e YouTube verificano lì',
+    )
+  }
+  // Un <itunes:owner> senza email e' un errore per il validatore: se c'e' il
+  // blocco, dentro deve esserci l'email.
+  if (/<itunes:owner>/i.test(canale) && !email) {
+    problemi.push(
+      '<itunes:owner> senza <itunes:email>: il validatore lo rifiuta, va omesso o completato',
+    )
+  }
 
   const relays = [...xml.matchAll(/<!--\s*relays:\s*([^>]*?)-->/gi)]
     .flatMap((m) => (m[1] ?? '').split(/[\s,]+/))
@@ -126,7 +150,25 @@ export function riassumiFeedPodcast(xml: string): RiassuntoFeed {
     problemi.push(`${saltati[1]} episodi saltati dal servizio perché senza audio`)
   }
 
-  return { titolo, descrizione, immagine: immagine || null, lingua, episodi, relays, problemi }
+  const senzaDurata = episodi.length
+    ? blocchiItem.filter((b) => !tagIn(b, 'itunes:duration')).length
+    : 0
+  if (senzaDurata) {
+    problemi.push(`${senzaDurata} episodi senza itunes:duration: le app mostrano una durata vuota`)
+  }
+
+  return {
+    titolo,
+    descrizione,
+    immagine: immagine || null,
+    lingua,
+    categoria,
+    email,
+    explicit,
+    episodi,
+    relays,
+    problemi,
+  }
 }
 
 /**

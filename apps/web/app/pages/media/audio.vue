@@ -476,6 +476,20 @@ const pesoLeggibile = (b: number): string =>
             proseguire. Nessuna delle due carica nulla senza un altro passo
             esplicito nell'altra pagina.
           -->
+          <!--
+            Un wav come podcast e' un errore che si scopre solo nelle app, che
+            lo lasciano muto: si dice qui, dove basta cambiare il formato in
+            uscita e rielaborare.
+          -->
+          <BaseAlert v-if="formatoUscita === 'audio/wav'" tono="avviso">
+            Il risultato è un
+            <strong>wav</strong>
+            : va bene per lavorarci, non per un podcast — Apple, Spotify, Amazon e YouTube leggono
+            solo mp3 e m4a. Se vuoi pubblicarlo come episodio, scegli
+            <strong>mp3</strong>
+            nei parametri e rielabora.
+          </BaseAlert>
+
           <div class="flex flex-wrap gap-2">
             <BaseButton variant="primario" @click="pubblicaComePodcast">
               Pubblica come podcast
@@ -485,8 +499,8 @@ const pesoLeggibile = (b: number): string =>
 
           <BaseAlert tono="info">
             Il file elaborato è nel tuo browser e non è stato caricato da nessuna parte. «Pubblica
-            come podcast» lo porta in
-            <strong>Carica su Blossom</strong>
+            come podcast» lo porta nella scheda
+            <strong>Podcast</strong>
             con l’episodio già impostato: il caricamento parte solo lì, quando lo chiedi tu.
             «Scarica» te lo dà e finisce qui.
           </BaseAlert>

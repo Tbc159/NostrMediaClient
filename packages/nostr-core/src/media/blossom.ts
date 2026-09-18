@@ -1,6 +1,7 @@
 import { blossomAuthDefinition, type VerboBlossom } from '../kinds/definitions/blossom-auth.js'
 import type { EventTemplate, NostrEvent } from '../kinds/types.js'
 import { sha256Hex } from '../utils/hash.js'
+import { urlConEstensione } from './estensioni.js'
 
 /**
  * Client Blossom (BUD-01/02/04/11).
@@ -157,7 +158,26 @@ export interface OpzioniUpload {
   pubkey?: string
   /** Tipo MIME dichiarato. Predefinito: quello del blob. */
   mime?: string
+  /**
+   * Nome del file originale: serve a scegliere l'estensione nell'URL.
+   *
+   * Il server decide l'estensione con cui risponde e la decide a modo suo
+   * (`audio/mpeg` → `.mpga` su yakihonne): BUD-01 lo obbliga ad accettare
+   * qualunque estensione in lettura, quindi la si riscrive qui con quella
+   * che i lettori si aspettano — `.mp3` — preferendo quella del nome
+   * originale quando e' coerente col MIME. Verificato su due server.
+   */
+  nome?: string
   segnale?: AbortSignal
+}
+
+/** Il descrittore com'e' arrivato, ma con l'estensione scelta dal client. */
+function conEstensioneScelta(
+  descrittore: BlobDescriptor,
+  mime: string,
+  nome?: string,
+): BlobDescriptor {
+  return { ...descrittore, url: urlConEstensione(descrittore.url, descrittore.type || mime, nome) }
 }
 
 /**
@@ -221,7 +241,7 @@ export async function uploadBlob(
       base,
     )
   }
-  return descrittore
+  return conEstensioneScelta(descrittore, intestazioni['Content-Type'] as string, opzioni.nome)
 }
 
 /**
@@ -257,7 +277,8 @@ export async function mirrorBlob(
     ...(opzioni.segnale ? { signal: opzioni.segnale } : {}),
   })
   if (!risposta.ok) throw await errore(risposta, base)
-  return (await risposta.json()) as BlobDescriptor
+  const descrittore = (await risposta.json()) as BlobDescriptor
+  return conEstensioneScelta(descrittore, opzioni.mime ?? descrittore.type, opzioni.nome)
 }
 
 /** Elenca i blob caricati da una pubkey (BUD-12, `GET /list/<pubkey>`). */

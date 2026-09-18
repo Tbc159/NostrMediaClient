@@ -88,6 +88,8 @@ describe('riassunto di un feed', () => {
       'manca l’immagine del canale: Apple e Podcast Index la pretendono',
       'manca la lingua del canale',
       'manca <itunes:explicit>, obbligatorio per Apple',
+      'manca la categoria (itunes:category): Apple e Amazon la pretendono',
+      'manca l’email dell’owner (itunes:email): Spotify, Amazon e YouTube verificano lì',
     ])
     expect(r.episodi).toEqual([])
   })
@@ -111,6 +113,39 @@ describe('il feed prodotto dal media-manager', () => {
       '33d25dddc45e7ef190ec3c7bda204023651457887b0b055668cd89040539e203',
     )
     expect(r.episodi[0]?.byte).toBe(51200)
+    // Il feed di oggi, prima del Prompt H: e' esattamente cio' che le
+    // piattaforme rifiuterebbero, e il riassunto lo deve dire tutto.
+    expect(r.problemi).toEqual([
+      'manca la categoria (itunes:category): Apple e Amazon la pretendono',
+      'manca l’email dell’owner (itunes:email): Spotify, Amazon e YouTube verificano lì',
+      '<itunes:owner> senza <itunes:email>: il validatore lo rifiuta, va omesso o completato',
+      '1 episodi saltati dal servizio perché senza audio',
+      '1 episodi senza itunes:duration: le app mostrano una durata vuota',
+    ])
+    expect(r.categoria).toBeNull()
+    expect(r.email).toBeNull()
+    expect(r.explicit).toBe(false)
+  })
+
+  it('con categoria, email, explicit e durata il riassunto li riporta e non li segnala', () => {
+    // La forma che il feed avra' dopo il Prompt H.
+    const completo = FEED_VERO.replace(
+      '<itunes:explicit>false</itunes:explicit>',
+      `<itunes:category text="Society &amp; Culture"><itunes:category text="Documentary"/></itunes:category>
+    <itunes:explicit>true</itunes:explicit>`,
+    )
+      .replace(
+        '<itunes:owner>\n      <itunes:name>Alice Rossi</itunes:name>\n    </itunes:owner>',
+        '<itunes:owner>\n      <itunes:name>Alice Rossi</itunes:name>\n      <itunes:email>alice@esempio.tld</itunes:email>\n    </itunes:owner>',
+      )
+      .replace(
+        '<pubDate>Fri, 05 Sep 2025 19:20:00 +0000</pubDate>\n      <link>',
+        '<pubDate>Fri, 05 Sep 2025 19:20:00 +0000</pubDate>\n      <itunes:duration>1235</itunes:duration>\n      <link>',
+      )
+    const r = riassumiFeedPodcast(completo)
+    expect(r.categoria).toBe('Society & Culture')
+    expect(r.email).toBe('alice@esempio.tld')
+    expect(r.explicit).toBe(true)
     expect(r.problemi).toEqual(['1 episodi saltati dal servizio perché senza audio'])
   })
 

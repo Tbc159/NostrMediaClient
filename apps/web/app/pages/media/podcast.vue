@@ -54,6 +54,7 @@ const elencoVisibile = computed(() => bozze.bozze.value.length > 0 && !rotta.que
 
     <ClientOnly>
       <MediaFeedRss />
+      <MediaPiattaforme />
     </ClientOnly>
   </div>
 </template>

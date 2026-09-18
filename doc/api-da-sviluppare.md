@@ -558,6 +558,104 @@ mostra l'URL per la chiave attiva, lo verifica dal browser (scarica, legge,
 riassume: quanti episodi, l'ultimo, cosa manca) e spiega dove sottoporlo. Il
 client non genera il feed: lo governa.
 
+### Prompt H — Il feed legge ciò che le piattaforme pretendono
+
+Provando il feed contro le piattaforme vere (18 settembre 2026): Apple e
+Amazon rifiutano un feed senza `itunes:category`; Spotify, Amazon e YouTube
+verificano la proprietà mandando un codice all'`itunes:email`, che non c'è;
+il validatore W3C segnala `<itunes:owner>` senza `<itunes:email>` come
+**errore**. NIP-F4 non prevede nessuno di questi dati, quindi il client li
+scrive nel 10154 con tag semplici — e il servizio deve leggerli. Questo prompt
+è il delta. Si consegna **solo il blocco** qui sotto.
+
+```
+Repository: microservice-media-manager, dominio feed, branch develop.
+Delta rispetto ai Prompt F e G: leggere dai kind 10154 e 54 quattro dati che
+NIP-F4 non prevede e che il client scrive con tag propri. Fixture aggiornate,
+comportamento invariato quando i tag mancano.
+
+TAG NUOVI NEL 10154 (tutti facoltativi; la scheda resta valida senza)
+  ["category", "News", "Daily News"]   principale + sotto-categoria facoltativa,
+                                       fino a 3 tag; il primo è la categoria primaria.
+                                       Nomi ESATTI di Apple, con la & non escapata.
+  ["language", "it"]                   ISO 639-1
+  ["email", "owner@esempio.tld"]
+  ["content-warning", "…"]             NIP-36: la sua presenza (anche vuoto) = explicit
+
+TAG NUOVI NEL 54 (facoltativi)
+  ["duration", "3600"]                 secondi interi
+  ["content-warning", "…"]             explicit del singolo episodio
+
+MAPPATURA
+  category  -> <itunes:category text="News"><itunes:category text="Daily News"/></itunes:category>
+               uno per tag, nell'ordine; con & scritta &amp; nell'attributo.
+               Senza tag: NESSUN <itunes:category> (non inventare "Technology").
+  language  -> <language>: il tag vince su ?lang; ?lang vince sul default "it".
+  email     -> <itunes:owner><itunes:name>…</itunes:name><itunes:email>…</itunes:email></itunes:owner>
+               SENZA email: OMETTERE DEL TUTTO <itunes:owner>. Oggi esce con il solo
+               <itunes:name>, e per il validatore W3C è un errore ("Missing
+               itunes:owner element: itunes:email"). Un owner vuoto è peggio di
+               nessun owner.
+  content-warning nel 10154 -> <itunes:explicit>true</itunes:explicit>; assente -> false (come oggi)
+  duration        nel 54    -> <itunes:duration>3600</itunes:duration>; assente -> omesso (come oggi)
+  content-warning nel 54    -> <itunes:explicit>true</itunes:explicit> nell'item; assente -> omesso
+  podcast:alternateEnclosure -> aggiungere length (HEAD sull'URL, stessa cache dell'enclosure)
+
+TEST
+  - fixture con un 10154 COMPLETO (3 categorie di cui una con sotto-categoria e una &,
+    language "en", email, content-warning) e uno SENZA nulla: entrambi producono un
+    feed che passa il validatore W3C (feedvalidator.org / validator.w3.org/feed).
+  - un 54 con duration e uno senza: il primo ha itunes:duration, il secondo no.
+  - ETag: a parità di eventi il corpo non cambia.
+  - la categoria "Kids & Family" esce come text="Kids &amp; Family".
+
+FUORI PERIMETRO
+  Nessuna validazione dei nomi di categoria contro l'elenco Apple: la fa il
+  client prima di pubblicare. Il servizio riporta quello che trova.
+```
+
+### Prompt I — L'audio esce pronto per i lettori: mp3 CBR con ID3
+
+Bitrate e tag ID3 vivono **nel file**, non nel feed: l'RSS dichiara solo il
+MIME (`type` dell'enclosure) e, in Podcasting 2.0, `bitrate`/`codecs`
+nell'`alternateEnclosure`. Quindi è il dominio `audio` — che i file li
+produce — a doverli mettere. Si consegna **solo il blocco**.
+
+```
+Repository: microservice-media-manager, dominio audio, branch develop.
+Delta rispetto al Prompt C: il file mp3 prodotto da normalize/silence/convert
+deve essere quello che i lettori di podcast si aspettano.
+
+1. BITRATE COSTANTE. Per format audio/mpeg codificare in CBR a 128 kbps
+   (`-b:a 128k`, senza `-q:a`/VBR). Motivo: molti lettori stimano la durata
+   dal bitrate del primo frame, e con un VBR la barra di avanzamento sbaglia
+   e la durata mostrata è diversa da quella reale. Rendere il bitrate un
+   parametro del job (`bitrate_kbps`, default 128, ammessi 64–320).
+
+2. TAG ID3v2.3 (non v2.4: è quello che tutti leggono). Scrivere:
+     TIT2 (titolo)     dal `title` del job
+     TPE1 (artista) e TALB (album)  dal nuovo campo facoltativo `show_title`
+     APIC (copertina)  dal nuovo campo facoltativo `cover` (MediaRef a
+                       un'immagine in archivio), ridotta a 1400×1400 JPEG
+     TLEN (durata ms)  misurata da ffprobe sul risultato
+   Con ffmpeg: `-id3v2_version 3 -metadata title=… -metadata artist=… -metadata album=…`
+   e la copertina come secondo input con `-map 1 -disposition:v attached_pic`.
+   Se un campo manca, il tag corrispondente non si scrive: niente "Unknown".
+
+3. CONTRATTO. Aggiungere a normalize/silence/convert i campi `bitrate_kbps`,
+   `show_title`, `cover` (tutti facoltativi) in openapi/audio/api.yaml, con
+   la spiegazione del perché in description.
+
+4. TEST. Un job normalize con show_title e cover: `ffprobe -show_format`
+   sul risultato riporta bit_rate 128000 (±2%), i tag title/artist/album e
+   uno stream video attached_pic. Senza show_title: nessun TPE1/TALB.
+
+FUORI PERIMETRO
+  ID3 su file caricati direttamente dall'utente senza elaborazione: non
+  passano dal servizio, e non si modificano byte che l'utente non ha chiesto
+  di toccare.
+```
+
 ## 4. Dal repository vecchio: cosa vale la pena portare
 
 `microservices-media` (branch `dev`, servizio `ffmpeg`) espone oggi:

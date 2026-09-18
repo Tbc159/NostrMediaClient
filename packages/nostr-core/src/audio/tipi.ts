@@ -1,3 +1,4 @@
+import { estensioneDelNome, estensionePer } from '../media/estensioni.js'
 import type { MediaItem } from '../mediamanager/types.js'
 
 /**
@@ -95,9 +96,7 @@ export interface ServizioAudio {
 
 /** Estensione consueta di un formato, per comporre un nome di file. */
 export function estensioneDi(formato: FormatoAudio): string {
-  if (formato === 'audio/mpeg') return 'mp3'
-  if (formato === 'audio/m4a') return 'm4a'
-  return 'wav'
+  return estensionePer(formato) ?? 'bin'
 }
 
 /**
@@ -107,7 +106,7 @@ export function estensioneDi(formato: FormatoAudio): string {
  * `audio/mp3` come alias, ma non c'e' ragione di propagare un nome sbagliato.
  */
 export function formatoDaNome(nome: string): FormatoAudio | null {
-  const ext = nome.toLowerCase().split('.').pop() ?? ''
+  const ext = estensioneDelNome(nome)
   if (ext === 'mp3') return 'audio/mpeg'
   if (ext === 'm4a') return 'audio/m4a'
   if (ext === 'wav') return 'audio/wav'

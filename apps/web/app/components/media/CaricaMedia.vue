@@ -5,7 +5,7 @@ import {
   leggiBozzaEpisodio,
   mirrorBlob,
   parsePublicKeyInput,
-  uploadBlob,
+  audioAdattoAlPodcast,
   type BozzaEpisodio,
   type DatiBozzaEpisodio,
   type Firmatario,
@@ -244,12 +244,17 @@ function componi(): void {
     // Solo l'audio finisce nel tag `audio`: un'immagine caricata insieme e'
     // la copertina, e va nel tag `image`, non fra le sorgenti.
     const audio = allegati.filter((a) => (a.mime ?? '').startsWith('audio/'))
+    // La durata la misura il browser alla scelta del file; NIP-F4 non la
+    // prevede, ma le app la mostrano (itunes:duration) e senza la riga
+    // dell'episodio resta senza minuti.
+    const durata = audio.find((a) => a.duration !== undefined)?.duration
     bozza.costruisci(definizione, {
       title: titolo.value.trim(),
       content: noteEpisodio.value.trim(),
       description: descrizione.value.trim(),
       ...(immagineEpisodio.value.trim() ? { image: immagineEpisodio.value.trim() } : {}),
       audio: audio.map((a) => ({ url: a.url, ...(a.mime ? { mime: a.mime } : {}) })),
+      ...(durata ? { duration: durata } : {}),
     })
     return
   }
@@ -402,7 +407,6 @@ const propostaImportata = ref<BozzaEpisodio | null>(null)
 /** npub, facoltativo, di chi dovrebbe pubblicare la proposta esportata. */
 const perChiaveProposta = ref('')
 const erroreEpisodio = ref<string | null>(null)
-const immagineInCorso = ref(false)
 const copiaInCorso = ref(false)
 /** `null` finche' non si e' guardato; poi se questa chiave ha una scheda 10154. */
 const haSchedaPodcast = ref<boolean | null>(null)
@@ -583,28 +587,16 @@ async function copiaSuMioServer(): Promise<void> {
   }
 }
 
-/** Carica un'immagine su Blossom e ne mette l'URL nel campo, senza passare dall'elenco dei file. */
-async function caricaImmagineEpisodio(evento: Event): Promise<void> {
-  const target = evento.target as HTMLInputElement
-  const file = target.files?.[0]
-  target.value = ''
-  const server = upload.server.value[0]
-  if (!file || !server || !identita.puoFirmare) return
-  immagineInCorso.value = true
-  erroreEpisodio.value = null
-  try {
-    const descrittore = await uploadBlob(server, file, {
-      firma: (t) => identita.firma(t),
-      pubkey: identita.pubkey ?? '',
-      mime: file.type,
-    })
-    immagineEpisodio.value = descrittore.url
-  } catch (e) {
-    erroreEpisodio.value = `Immagine non caricata: ${e instanceof Error ? e.message : String(e)}`
-  } finally {
-    immagineInCorso.value = false
-  }
-}
+/**
+ * Gli audio che le piattaforme non accettano negli enclosure.
+ *
+ * Il feed li dichiara col MIME giusto, ma Apple, Spotify, Amazon e YouTube
+ * leggono mp3 e m4a: un wav o un ogg finirebbe nel feed e resterebbe muto
+ * nelle app. Si dice qui, dove si puo' ancora tornare alla scheda Audio.
+ */
+const audioNonAdatti = computed(() =>
+  upload.media.value.filter((m) => m.mime.startsWith('audio/') && !audioAdattoAlPodcast(m.mime)),
+)
 
 // La scheda 10154 si cerca solo quando serve: al primo passaggio su «podcast».
 watch(
@@ -774,6 +766,18 @@ onMounted(async () => {
         </p>
 
         <BaseAlert v-if="erroreEpisodio" tono="pericolo">{{ erroreEpisodio }}</BaseAlert>
+
+        <BaseAlert v-if="perPodcast && audioNonAdatti.length" tono="avviso">
+          <strong>
+            {{ audioNonAdatti.map((m) => m.nome).join(', ') }}
+            {{ audioNonAdatti.length === 1 ? 'non è' : 'non sono' }} in mp3 o m4a
+          </strong>
+          ({{ [...new Set(audioNonAdatti.map((m) => m.mime))].join(', ') }}). Il feed li dichiarerà
+          col tipo giusto, ma Apple, Spotify, Amazon e YouTube leggono solo mp3 e m4a: nelle loro
+          app l’episodio resterebbe muto. Convertilo dalla
+          <NuxtLink to="/media/audio" class="underline">scheda Audio</NuxtLink>
+          , scegliendo mp3 come formato in uscita.
+        </BaseAlert>
 
         <ClientOnly>
           <p v-if="upload.fase.value.fase === 'analisi'" class="text-sm text-[var(--testo-tenue)]">
@@ -990,47 +994,11 @@ onMounted(async () => {
                 />
               </BaseField>
 
-              <BaseField
-                v-slot="{ id, describedBy }"
+              <MediaCopertinaQuadrata
+                v-model="immagineEpisodio"
                 label="Immagine dell’episodio"
-                hint="Facoltativa. Un indirizzo, oppure carica un’immagine: va su Blossom e l’indirizzo finisce qui."
-              >
-                <div class="flex flex-wrap items-center gap-2">
-                  <div class="min-w-64 flex-1">
-                    <BaseInput
-                      :id="id"
-                      v-model="immagineEpisodio"
-                      placeholder="https://…/copertina.png"
-                      :described-by="describedBy"
-                    />
-                  </div>
-                  <label
-                    class="superficie cursor-pointer rounded-md border px-3 py-2 text-sm"
-                    :class="
-                      !identita.puoFirmare || !upload.server.value.length || immagineInCorso
-                        ? 'opacity-50'
-                        : ''
-                    "
-                  >
-                    {{ immagineInCorso ? 'Carico…' : 'Carica un’immagine' }}
-                    <input
-                      type="file"
-                      accept="image/*"
-                      class="sr-only"
-                      :disabled="
-                        !identita.puoFirmare || !upload.server.value.length || immagineInCorso
-                      "
-                      @change="caricaImmagineEpisodio"
-                    />
-                  </label>
-                </div>
-                <img
-                  v-if="immagineEpisodio"
-                  :src="immagineEpisodio"
-                  alt=""
-                  class="mt-2 h-24 w-24 rounded-md border object-cover"
-                />
-              </BaseField>
+                hint="Facoltativa. Un indirizzo, oppure carica un’immagine: passa dal ritaglio quadrato e va su Blossom."
+              />
             </template>
 
             <BaseField

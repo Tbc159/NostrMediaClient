@@ -213,3 +213,103 @@ describe('podcast di cui sono autore (kind 10064)', () => {
     )
   })
 })
+
+describe('oltre NIP-F4: cio’ che le piattaforme pretendono', () => {
+  const scheda = {
+    title: 'Show',
+    description: 'D.',
+    image: 'https://b.example/c.png',
+  }
+
+  it('la scheda porta categoria, lingua, email ed explicit, e li rilegge', () => {
+    const t = podcastMetadataDefinition.build(
+      {
+        ...scheda,
+        categories: [{ principale: 'News', sotto: 'Daily News' }, { principale: 'Technology' }],
+        language: 'IT',
+        email: 'owner@esempio.tld',
+        contentWarning: '',
+        websites: ['https://esempio.tld', 'https://podcasts.apple.com/x', 'https://esempio.tld'],
+      },
+      CTX,
+    )
+    expect(t.tags).toContainEqual(['category', 'News', 'Daily News'])
+    expect(t.tags).toContainEqual(['category', 'Technology'])
+    expect(t.tags).toContainEqual(['language', 'it'])
+    expect(t.tags).toContainEqual(['email', 'owner@esempio.tld'])
+    expect(t.tags).toContainEqual(['content-warning', ''])
+    // I siti: senza doppioni, nell'ordine — il primo e' il <link> del feed.
+    expect(t.tags.filter((x) => x[0] === 'website')).toEqual([
+      ['website', 'https://esempio.tld'],
+      ['website', 'https://podcasts.apple.com/x'],
+    ])
+
+    const letto = podcastMetadataDefinition.parse(evento({ kind: 10154, tags: t.tags }))
+    expect(letto.categories).toEqual([
+      { principale: 'News', sotto: 'Daily News' },
+      { principale: 'Technology' },
+    ])
+    expect(letto.language).toBe('it')
+    expect(letto.email).toBe('owner@esempio.tld')
+    expect(letto.contentWarning).toBe('')
+  })
+
+  it('rifiuta una categoria che Apple non ha, una lingua non ISO, un’email storta', () => {
+    expect(() =>
+      podcastMetadataDefinition.build({ ...scheda, categories: [{ principale: 'Podcast' }] }, CTX),
+    ).toThrow(/non e’ una categoria/)
+    expect(() =>
+      podcastMetadataDefinition.build(
+        { ...scheda, categories: [{ principale: 'News', sotto: 'Improv' }] },
+        CTX,
+      ),
+    ).toThrow(/non e’ una categoria/)
+    expect(() => podcastMetadataDefinition.build({ ...scheda, language: 'italiano' }, CTX)).toThrow(
+      /ISO 639-1/,
+    )
+    expect(() =>
+      podcastMetadataDefinition.build({ ...scheda, email: 'senza-chiocciola' }, CTX),
+    ).toThrow(/email/)
+  })
+
+  it('accetta al massimo tre categorie', () => {
+    const quattro = ['News', 'Technology', 'History', 'Government'].map((principale) => ({
+      principale,
+    }))
+    expect(() => podcastMetadataDefinition.build({ ...scheda, categories: quattro }, CTX)).toThrow(
+      /massimo 3/,
+    )
+  })
+
+  it('legge una scheda altrui con una categoria sconosciuta senza rompersi', () => {
+    // Tollerante in lettura: non siamo noi ad averla scritta.
+    const letto = podcastMetadataDefinition.parse(
+      evento({
+        kind: 10154,
+        tags: [
+          ['title', 'X'],
+          ['category', 'Boh'],
+        ],
+      }),
+    )
+    expect(letto.categories).toEqual([{ principale: 'Boh' }])
+  })
+
+  it('l’episodio porta la durata in secondi interi e l’explicit', () => {
+    const t = podcastEpisodeDefinition.build(
+      {
+        title: 'E',
+        description: 'D',
+        audio: [{ url: AUDIO.url, mime: AUDIO.mime }],
+        duration: 1234.6,
+        contentWarning: 'linguaggio',
+      },
+      CTX,
+    )
+    expect(t.tags).toContainEqual(['duration', '1235'])
+    expect(t.tags).toContainEqual(['content-warning', 'linguaggio'])
+    const letto = podcastEpisodeDefinition.parse(evento({ kind: 54, tags: t.tags }))
+    expect(letto.duration).toBe(1235)
+    expect(letto.contentWarning).toBe('linguaggio')
+  })
+})

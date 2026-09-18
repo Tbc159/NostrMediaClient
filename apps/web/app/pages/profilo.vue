@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import {
+  CATEGORIE_APPLE,
+  MAX_CATEGORIE,
+  PIATTAFORME,
   getKindDefinition,
   parsePublicKeyInput,
   toNpub,
-  uploadBlob,
+  type CategoriaPodcast,
   type Firmatario,
 } from '@nmc/nostr-core'
 import { useDeleghe } from '~/stores/deleghe'
@@ -13,7 +16,6 @@ useHead({ title: 'Profilo · NostrMediaClient' })
 const identita = useIdentity()
 const bozza = useEventDraft()
 const esistente = useEventoEsistente()
-const configBlossom = useClientConfig()
 
 const nome = ref('')
 const nomeVisualizzato = ref('')
@@ -172,9 +174,79 @@ const podcastEsistente = useEventoEsistente()
 const podcastTitolo = ref('')
 const podcastDescrizione = ref('')
 const podcastImmagine = ref('')
-const podcastSito = ref('')
+/**
+ * I siti dello show: il primo e' il `<link>` del feed, gli altri sono i link
+ * dello show sulle piattaforme (Apple, Spotify…). NIP-F4 ammette piu'
+ * `website`, quindi non serve un tag apposta: si riconoscono dal dominio.
+ */
+const podcastSiti = ref<string[]>([])
+const nuovoSito = ref('')
 const haPodcast = ref(false)
 const mostraPodcast = ref(false)
+
+/*
+ * Oltre NIP-F4: cio' che le piattaforme pretendono nel feed.
+ *
+ * Categoria (Apple, Amazon), lingua, email per la verifica della proprieta'
+ * (Spotify, Amazon, YouTube), explicit. NIP-F4 non li prevede; stanno nel
+ * 10154 con tag semplici che il servizio del feed sa leggere.
+ */
+const podcastCategorie = ref<CategoriaPodcast[]>([])
+const nuovaPrincipale = ref('')
+const nuovaSotto = ref('')
+const podcastLingua = ref('it')
+const podcastEmail = ref('')
+const podcastEsplicito = ref(false)
+
+const principaliApple = Object.keys(CATEGORIE_APPLE).map((c) => ({ value: c, label: c }))
+const sottoDisponibili = computed(() =>
+  (CATEGORIE_APPLE[nuovaPrincipale.value] ?? []).map((c) => ({ value: c, label: c })),
+)
+watch(nuovaPrincipale, () => (nuovaSotto.value = ''))
+
+function aggiungiCategoria(): void {
+  if (!nuovaPrincipale.value || podcastCategorie.value.length >= MAX_CATEGORIE) return
+  const c: CategoriaPodcast = {
+    principale: nuovaPrincipale.value,
+    ...(nuovaSotto.value ? { sotto: nuovaSotto.value } : {}),
+  }
+  const stessa = (x: CategoriaPodcast) => x.principale === c.principale && x.sotto === c.sotto
+  if (!podcastCategorie.value.some(stessa)) podcastCategorie.value = [...podcastCategorie.value, c]
+  nuovaPrincipale.value = ''
+  nuovaSotto.value = ''
+}
+
+function togliCategoria(i: number): void {
+  podcastCategorie.value = podcastCategorie.value.filter((_, k) => k !== i)
+}
+
+const etichettaCategoria = (c: CategoriaPodcast): string =>
+  c.sotto ? `${c.principale} › ${c.sotto}` : c.principale
+
+/** Il nome della piattaforma a cui un sito appartiene, dal dominio; altrimenti «sito». */
+function etichettaSito(url: string): string {
+  try {
+    const host = new URL(url).hostname.toLowerCase()
+    const p = PIATTAFORME.find((x) =>
+      x.dominiShow.some((d) => host === d || host.endsWith(`.${d}`)),
+    )
+    return p ? p.nome : 'sito'
+  } catch {
+    return 'sito'
+  }
+}
+
+function aggiungiSito(): void {
+  const s = nuovoSito.value.trim()
+  if (!s) return
+  const url = conSchema(s)
+  if (!podcastSiti.value.includes(url)) podcastSiti.value = [...podcastSiti.value, url]
+  nuovoSito.value = ''
+}
+
+function togliSito(url: string): void {
+  podcastSiti.value = podcastSiti.value.filter((x) => x !== url)
+}
 
 /**
  * Gli autori dichiarati dalla scheda, con il ruolo (`host`, `cohost`,
@@ -248,8 +320,12 @@ function svuotaPodcast(): void {
   podcastTitolo.value = ''
   podcastDescrizione.value = ''
   podcastImmagine.value = ''
-  podcastSito.value = ''
+  podcastSiti.value = []
   podcastAutori.value = []
+  podcastCategorie.value = []
+  podcastLingua.value = 'it'
+  podcastEmail.value = ''
+  podcastEsplicito.value = false
   haPodcast.value = false
 }
 
@@ -268,11 +344,18 @@ async function caricaPodcast(): Promise<void> {
     podcastTitolo.value = dati.title
     podcastDescrizione.value = dati.description ?? ''
     podcastImmagine.value = dati.image ?? ''
-    podcastSito.value = dati.websites[0] ?? ''
+    podcastSiti.value = [...dati.websites]
     podcastAutori.value = dati.authors.map((a: { pubkey: string; role?: string }) => ({
       pubkey: a.pubkey,
       role: a.role ?? 'host',
     }))
+    podcastCategorie.value = dati.categories.map((c: CategoriaPodcast) => ({
+      principale: c.principale,
+      ...(c.sotto ? { sotto: c.sotto } : {}),
+    }))
+    podcastLingua.value = dati.language ?? 'it'
+    podcastEmail.value = dati.email ?? ''
+    podcastEsplicito.value = dati.contentWarning !== undefined
     haPodcast.value = true
     mostraPodcast.value = true
   } catch {
@@ -292,8 +375,12 @@ function componiPodcast(): void {
     title: podcastTitolo.value.trim(),
     description: podcastDescrizione.value.trim(),
     image: podcastImmagine.value.trim(),
-    ...(podcastSito.value.trim() ? { websites: [conSchema(podcastSito.value)] } : {}),
+    ...(podcastSiti.value.length ? { websites: podcastSiti.value } : {}),
     ...(podcastAutori.value.length ? { authors: podcastAutori.value } : {}),
+    ...(podcastCategorie.value.length ? { categories: podcastCategorie.value } : {}),
+    ...(podcastLingua.value.trim() ? { language: podcastLingua.value.trim() } : {}),
+    ...(podcastEmail.value.trim() ? { email: podcastEmail.value.trim() } : {}),
+    ...(podcastEsplicito.value ? { contentWarning: '' } : {}),
   })
 }
 
@@ -313,38 +400,6 @@ const podcastCompleto = computed(
     podcastDescrizione.value.trim() !== '' &&
     podcastImmagine.value.trim() !== '',
 )
-
-const copertinaInCorso = ref(false)
-const erroreCopertina = ref<string | null>(null)
-
-/**
- * Carica la copertina su Blossom e ne mette l'URL nel campo.
- *
- * Senza questo, per dichiarare un podcast bisognerebbe uscire dal profilo,
- * caricare l'immagine dalla sezione Media, copiare l'indirizzo e tornare: e
- * l'immagine e' obbligatoria, non un dettaglio.
- */
-async function caricaCopertina(evento: Event): Promise<void> {
-  const target = evento.target as HTMLInputElement
-  const file = target.files?.[0]
-  target.value = ''
-  const server = configBlossom.value.blossomServers[0]
-  if (!file || !server || !identita.puoFirmare) return
-  copertinaInCorso.value = true
-  erroreCopertina.value = null
-  try {
-    const descrittore = await uploadBlob(server, file, {
-      firma: (t) => identita.firma(t),
-      pubkey: identita.pubkey ?? '',
-      mime: file.type,
-    })
-    podcastImmagine.value = descrittore.url
-  } catch (e) {
-    erroreCopertina.value = `Copertina non caricata: ${e instanceof Error ? e.message : String(e)}`
-  } finally {
-    copertinaInCorso.value = false
-  }
-}
 
 const campi = [
   { modello: 'nome', label: 'Nome breve', hint: 'Senza spazi, come uno username.' },
@@ -491,49 +546,143 @@ const valori = { nome, nomeVisualizzato, immagine, copertina, sito, nip05, lud16
                 />
               </BaseField>
 
-              <BaseField
-                v-slot="{ id, describedBy }"
+              <MediaCopertinaQuadrata
+                v-model="podcastImmagine"
                 label="Copertina"
                 required
-                hint="Obbligatoria per NIP-F4. Un indirizzo, oppure carica un’immagine: va su Blossom e l’indirizzo finisce qui."
-              >
-                <div class="flex flex-wrap items-center gap-2">
-                  <div class="min-w-64 flex-1">
-                    <BaseInput
-                      :id="id"
-                      v-model="podcastImmagine"
-                      placeholder="https://…"
-                      :described-by="describedBy"
-                    />
-                  </div>
-                  <label
-                    class="superficie cursor-pointer rounded-md border px-3 py-2 text-sm"
-                    :class="!identita.puoFirmare || copertinaInCorso ? 'opacity-50' : ''"
-                  >
-                    {{ copertinaInCorso ? 'Carico…' : 'Carica un’immagine' }}
-                    <input
-                      type="file"
-                      accept="image/*"
-                      class="sr-only"
-                      :disabled="!identita.puoFirmare || copertinaInCorso"
-                      @change="caricaCopertina"
-                    />
-                  </label>
-                </div>
-                <img
-                  v-if="podcastImmagine"
-                  :src="podcastImmagine"
-                  alt=""
-                  class="mt-2 h-24 w-24 rounded-md border object-cover"
-                />
-                <p v-if="erroreCopertina" class="mt-1 text-xs text-[var(--pericolo)]">
-                  {{ erroreCopertina }}
-                </p>
-              </BaseField>
+                hint="Obbligatoria per NIP-F4. Le piattaforme la vogliono quadrata, da 1400 a 3000 px: «Carica» e «Ritaglia» la sistemano."
+              />
 
-              <BaseField v-slot="{ id, describedBy }" label="Sito">
-                <BaseInput :id="id" v-model="podcastSito" :described-by="describedBy" />
-              </BaseField>
+              <!-- ── Categoria, lingua, explicit ── -->
+              <div class="flex flex-col gap-2">
+                <p class="text-sm font-medium">
+                  Categoria
+                  <span class="font-normal text-[var(--testo-tenue)]">
+                    — Apple e Amazon la pretendono; fino a {{ MAX_CATEGORIE }}, la prima è la
+                    principale
+                  </span>
+                </p>
+                <ul v-if="podcastCategorie.length" class="flex flex-wrap gap-2 text-sm">
+                  <li
+                    v-for="(c, i) in podcastCategorie"
+                    :key="etichettaCategoria(c)"
+                    class="superficie flex items-center gap-2 rounded-md border px-3 py-1"
+                  >
+                    <span>{{ etichettaCategoria(c) }}</span>
+                    <BaseBadge v-if="i === 0">principale</BaseBadge>
+                    <button
+                      type="button"
+                      class="text-xs underline"
+                      :aria-label="`Togli ${etichettaCategoria(c)}`"
+                      @click="togliCategoria(i)"
+                    >
+                      togli
+                    </button>
+                  </li>
+                </ul>
+                <div
+                  v-if="podcastCategorie.length < MAX_CATEGORIE"
+                  class="flex flex-wrap items-end gap-2"
+                >
+                  <BaseField v-slot="{ id }" label="Categoria Apple">
+                    <BaseSelect
+                      :id="id"
+                      v-model="nuovaPrincipale"
+                      :options="[{ value: '', label: '— scegli —' }, ...principaliApple]"
+                    />
+                  </BaseField>
+                  <BaseField v-if="sottoDisponibili.length" v-slot="{ id }" label="Sotto-categoria">
+                    <BaseSelect
+                      :id="id"
+                      v-model="nuovaSotto"
+                      :options="[{ value: '', label: '— nessuna —' }, ...sottoDisponibili]"
+                    />
+                  </BaseField>
+                  <BaseButton :disabled="!nuovaPrincipale" @click="aggiungiCategoria">
+                    Aggiungi
+                  </BaseButton>
+                </div>
+              </div>
+
+              <div class="grid gap-3 sm:grid-cols-2">
+                <BaseField
+                  v-slot="{ id, describedBy }"
+                  label="Lingua"
+                  hint="Codice ISO 639-1: it, en, es… Va nel feed come <language>."
+                >
+                  <BaseInput
+                    :id="id"
+                    v-model="podcastLingua"
+                    placeholder="it"
+                    :described-by="describedBy"
+                  />
+                </BaseField>
+                <BaseField
+                  v-slot="{ id, describedBy }"
+                  label="Email per le piattaforme"
+                  hint="Spotify, Amazon e YouTube mandano lì la verifica di proprietà. È pubblica: finisce nel feed e su Nostr."
+                >
+                  <BaseInput
+                    :id="id"
+                    v-model="podcastEmail"
+                    type="email"
+                    placeholder="podcast@esempio.tld"
+                    :described-by="describedBy"
+                  />
+                </BaseField>
+              </div>
+
+              <label class="flex items-start gap-2 text-sm">
+                <input v-model="podcastEsplicito" type="checkbox" class="mt-1" />
+                <span>
+                  Contenuti espliciti
+                  <span class="block text-xs text-[var(--testo-tenue)]">
+                    Diventa
+                    <code>itunes:explicit</code>
+                    nel feed e un tag
+                    <code>content-warning</code>
+                    (NIP-36) nella scheda. Apple lo chiede sempre, anche per dire di no.
+                  </span>
+                </span>
+              </label>
+
+              <!-- ── Siti ── -->
+              <div class="flex flex-col gap-2">
+                <p class="text-sm font-medium">Siti</p>
+                <p class="text-xs text-[var(--testo-tenue)]">
+                  Il primo è il sito del podcast, quello che il feed usa come link. Gli altri sono i
+                  link dello show sulle piattaforme, una volta accettato: si riconoscono da soli.
+                </p>
+                <ul v-if="podcastSiti.length" class="flex flex-col gap-1 text-sm">
+                  <li
+                    v-for="s in podcastSiti"
+                    :key="s"
+                    class="superficie flex items-center gap-2 rounded-md border px-3 py-2"
+                  >
+                    <BaseBadge>{{ etichettaSito(s) }}</BaseBadge>
+                    <code class="min-w-0 flex-1 truncate text-xs">{{ s }}</code>
+                    <BaseButton size="sm" variant="fantasma" @click="togliSito(s)">
+                      Togli
+                    </BaseButton>
+                  </li>
+                </ul>
+                <div class="flex flex-wrap items-end gap-2">
+                  <div class="min-w-64 flex-1">
+                    <BaseField v-slot="{ id, describedBy }" label="Aggiungi un sito">
+                      <BaseInput
+                        :id="id"
+                        v-model="nuovoSito"
+                        placeholder="https://… oppure podcasts.apple.com/…"
+                        :described-by="describedBy"
+                        @keydown.enter.prevent="aggiungiSito"
+                      />
+                    </BaseField>
+                  </div>
+                  <BaseButton :disabled="!nuovoSito.trim()" @click="aggiungiSito">
+                    Aggiungi
+                  </BaseButton>
+                </div>
+              </div>
 
               <!-- ── Autori ── -->
               <div class="flex flex-col gap-2">

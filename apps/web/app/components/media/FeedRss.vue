@@ -3,6 +3,7 @@ import {
   chiama,
   episodiFuoriDalFeed,
   opmlPerFeed,
+  getKindDefinition,
   riassumiFeedPodcast,
   spiegaStato,
   urlFeedPodcast,
@@ -38,6 +39,40 @@ const url = computed(() => {
  * servizio non legge — e il rimedio e' ridistribuirlo, non ripubblicarlo.
  */
 const pubblicati = useEventiPropri([54], { limite: 200 })
+
+/*
+ * La scheda 10154 come sta sui relay: serve a distinguere «il dato manca»
+ * da «il dato c'e' ma il servizio non lo legge ancora». Sono due cose
+ * diverse, con due rimedi diversi — il profilo, oppure il Prompt H.
+ */
+const schedaEsistente = useEventoEsistente()
+const tagNellaScheda = ref<{ categoria: boolean; email: boolean } | null>(null)
+
+async function leggiScheda(): Promise<void> {
+  const trovato = await schedaEsistente.perCoordinata(10154)
+  const definizione = getKindDefinition(10154)
+  if (!trovato || !definizione) {
+    tagNellaScheda.value = null
+    return
+  }
+  try {
+    const dati = definizione.parse(trovato) as { categories: unknown[]; email?: string }
+    tagNellaScheda.value = { categoria: dati.categories.length > 0, email: !!dati.email }
+  } catch {
+    tagNellaScheda.value = null
+  }
+}
+
+/** I dati che stanno nella scheda ma non nel feed: il servizio non li legge ancora. */
+const nonLettiDalServizio = computed(() => {
+  const r = riassunto.value
+  const t = tagNellaScheda.value
+  if (!r || !t) return []
+  const mancanti: string[] = []
+  if (t.categoria && !r.categoria) mancanti.push('la categoria')
+  if (t.email && !r.email) mancanti.push('l’email')
+  return mancanti
+})
 const titoloDi = (e: { tags: string[][]; id: string }): string =>
   e.tags.find((t) => t[0] === 'title')?.[1] ?? e.id.slice(0, 12)
 
@@ -61,8 +96,11 @@ async function verifica(): Promise<void> {
   errore.value = null
   riassunto.value = null
   try {
-    // Prima gli episodi dai relay, cosi' il confronto e' pronto insieme al feed.
-    if (!pubblicati.eventi.value.length) await pubblicati.carica()
+    // Prima gli episodi e la scheda dai relay, cosi' il confronto e' pronto insieme al feed.
+    await Promise.all([
+      pubblicati.eventi.value.length ? Promise.resolve() : pubblicati.carica(),
+      leggiScheda(),
+    ])
     const risposta = await chiama(url.value, { headers: { accept: 'application/rss+xml' } })
     if (risposta.status === 404) {
       // Il servizio distingue «nessuna scheda» da «endpoint assente»: il
@@ -193,6 +231,15 @@ const dataLeggibile = (d: Date | null): string =>
           <ul v-if="riassunto.problemi.length" class="list-inside list-disc text-sm">
             <li v-for="(p, i) in riassunto.problemi" :key="i">{{ p }}</li>
           </ul>
+
+          <BaseAlert v-if="nonLettiDalServizio.length" tono="info">
+            {{ nonLettiDalServizio.join(' e ') }}
+            {{ nonLettiDalServizio.length === 1 ? 'sta' : 'stanno' }} nella scheda del podcast ma
+            non nel feed: il servizio non legge ancora quei tag. Non è un dato da aggiungere — è il
+            servizio da aggiornare (Prompt H in
+            <code>doc/api-da-sviluppare.md</code>
+            ).
+          </BaseAlert>
 
           <BaseAlert v-if="fuoriDalFeed.length" tono="avviso">
             <strong>
