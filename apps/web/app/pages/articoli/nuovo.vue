@@ -428,7 +428,7 @@ onMounted(() => {
           </ClientOnly>
           <ClientOnly>
             <BaseButton
-              v-if="bozza.template.value"
+              v-if="bozza.template.value && !bozza.pubblicato.value"
               variant="primario"
               :loading="bozza.inCorso.value || bozza.invio.inCorso.value"
               :disabled="!identita.puoFirmare"

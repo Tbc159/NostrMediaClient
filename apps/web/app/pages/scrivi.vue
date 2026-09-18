@@ -141,7 +141,7 @@ function nuovo(): void {
             Componi evento
           </BaseButton>
           <ClientOnly>
-            <template v-if="bozza.template.value">
+            <template v-if="bozza.template.value && !bozza.pubblicato.value">
               <BaseButton
                 variant="primario"
                 :loading="bozza.inCorso.value || bozza.invio.inCorso.value"

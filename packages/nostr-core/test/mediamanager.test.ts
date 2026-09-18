@@ -124,3 +124,30 @@ describe('errori che il browser rende incomprensibili', () => {
     )
   })
 })
+
+describe('scaricare un URL dal lato del servizio', () => {
+  it('crea il media da un URL e la seconda volta riusa quello esistente (409)', async () => {
+    const primo = await client.caricaMediaDaUrl(
+      'https://immagini.esempio.tld/copertina.png',
+      'copertina-da-url',
+      'image/png',
+    )
+    expect(primo.id).toBeGreaterThan(0)
+    expect(servizio.richieste.at(-1)).toMatchObject({
+      from_url: 'https://immagini.esempio.tld/copertina.png',
+      title: 'copertina-da-url',
+    })
+
+    const secondo = await client.caricaMediaDaUrl(
+      'https://immagini.esempio.tld/copertina.png',
+      'copertina-da-url',
+    )
+    expect(secondo.id).toBe(primo.id)
+  })
+
+  it('un URL non http viene rifiutato dal servizio, e l’errore lo dice', async () => {
+    await expect(client.caricaMediaDaUrl('ftp://x/y.png', 'ftp-prova')).rejects.toThrow(
+      /rifiutata|non consentito/,
+    )
+  })
+})

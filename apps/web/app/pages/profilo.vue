@@ -476,7 +476,7 @@ const valori = { nome, nomeVisualizzato, immagine, copertina, sito, nip05, lud16
             <div class="flex flex-wrap gap-2">
               <BaseButton type="submit" variant="primario">Componi evento</BaseButton>
               <BaseButton
-                v-if="bozza.template.value"
+                v-if="bozza.template.value && !bozza.pubblicato.value"
                 variant="primario"
                 :loading="bozza.inCorso.value || bozza.invio.inCorso.value"
                 :disabled="!identita.puoFirmare"
@@ -751,7 +751,7 @@ const valori = { nome, nomeVisualizzato, immagine, copertina, sito, nip05, lud16
                   Componi evento
                 </BaseButton>
                 <BaseButton
-                  v-if="bozzaPodcast.template.value"
+                  v-if="bozzaPodcast.template.value && !bozzaPodcast.pubblicato.value"
                   variant="primario"
                   :loading="bozzaPodcast.inCorso.value || bozzaPodcast.invio.inCorso.value"
                   :disabled="!identita.puoFirmare"
@@ -845,7 +845,7 @@ const valori = { nome, nomeVisualizzato, immagine, copertina, sito, nip05, lud16
                   Componi evento
                 </BaseButton>
                 <BaseButton
-                  v-if="bozzaAutore.template.value"
+                  v-if="bozzaAutore.template.value && !bozzaAutore.pubblicato.value"
                   variant="primario"
                   :loading="bozzaAutore.inCorso.value || bozzaAutore.invio.inCorso.value"
                   :disabled="!identita.puoFirmare"

@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { COPERTINA_MAX, COPERTINA_MIN } from '@nmc/nostr-core'
+import { COPERTINA_MAX, COPERTINA_MIN, scaricaImmagine } from '@nmc/nostr-core'
+import { useMediaManager } from '~/stores/mediamanager'
 
 /**
  * Ritaglio quadrato con anteprima, per le copertine.
@@ -13,6 +14,11 @@ import { COPERTINA_MAX, COPERTINA_MIN } from '@nmc/nostr-core'
  * di uscita e' il lato minore dell'originale, stretto fra 1400 e 3000: sotto
  * i 1400 si ingrandisce e lo si dice, perche' rifiutare sarebbe peggio (la
  * piattaforma la accetta, ma sfocata; senza copertina non accetta nulla).
+ *
+ * Da un URL l'immagine si scarica prima di tutto: direttamente se il server
+ * lo consente, altrimenti tramite il media-manager, che la legge dal suo
+ * lato. Solo se non arriva in nessuno dei due modi si rinuncia, e lo si
+ * dice: a quel punto resta il file dal disco.
  */
 
 const props = defineProps<{
@@ -28,12 +34,16 @@ const emit = defineEmits<{
 
 const ANTEPRIMA = 320
 
+const servizio = useMediaManager()
+
 const tela = ref<HTMLCanvasElement | null>(null)
 const immagine = shallowRef<HTMLImageElement | ImageBitmap | null>(null)
 const larghezza = ref(0)
 const altezza = ref(0)
 const errore = ref<string | null>(null)
 const caricamento = ref(true)
+/** Da dove e' arrivata l'immagine, quando viene da un URL: si dice solo se e' passata dal servizio. */
+const provenienza = ref<'diretta' | 'servizio' | null>(null)
 
 /** Zoom relativo al riquadro che contiene tutto: 1 = il lato minore riempie il quadrato. */
 const zoom = ref(1)
@@ -65,13 +75,17 @@ const scalaBase = computed(() =>
 async function carica(): Promise<void> {
   caricamento.value = true
   errore.value = null
+  provenienza.value = null
   try {
     if (typeof props.sorgente === 'string') {
-      // Da un URL serve una risposta con CORS, altrimenti la tela resta
-      // «sporca» e non si puo' esportare: si prova, e se non si puo' si dice.
-      const risposta = await fetch(props.sorgente, { mode: 'cors' })
-      if (!risposta.ok) throw new Error(`il server ha risposto ${risposta.status}`)
-      immagine.value = await createImageBitmap(await risposta.blob())
+      // Una tela disegnata da un'immagine senza CORS resta «sporca» e non si
+      // esporta: i byte vanno letti davvero, direttamente o tramite il
+      // servizio. Se non si puo', si dice e resta il file dal disco.
+      const scaricata = await scaricaImmagine(props.sorgente, {
+        mediaManager: servizio.client,
+      })
+      provenienza.value = scaricata.via
+      immagine.value = await createImageBitmap(scaricata.blob)
     } else {
       immagine.value = await createImageBitmap(props.sorgente)
     }
@@ -80,16 +94,17 @@ async function carica(): Promise<void> {
     zoom.value = 1
     dx.value = 0
     dy.value = 0
-    await nextTick()
-    disegna()
   } catch (e) {
     errore.value =
       typeof props.sorgente === 'string'
-        ? `Non riesco a leggere l’immagine da quell’indirizzo (${e instanceof Error ? e.message : String(e)}): il server non permette di usarla da un’altra pagina. Scegli il file dal disco.`
+        ? `Non riesco a elaborare l’immagine da quell’indirizzo — ${e instanceof Error ? e.message : String(e)} Scegli il file dal disco.`
         : `Immagine non leggibile: ${e instanceof Error ? e.message : String(e)}`
   } finally {
     caricamento.value = false
   }
+  // La tela compare solo a caricamento finito: si disegna dopo, non prima.
+  await nextTick()
+  disegna()
 }
 
 /** Il riquadro sorgente (in pixel dell'originale) corrispondente al quadrato dell'anteprima. */
@@ -204,6 +219,10 @@ async function conferma(): Promise<void> {
             Originale {{ larghezza }}×{{ altezza }} → esce un quadrato di
             <strong>{{ latoUscita }}×{{ latoUscita }}</strong>
             px, JPEG.
+            <span v-if="provenienza === 'servizio'" class="block">
+              Scaricata tramite il servizio: il server dell’immagine non la lascia leggere da
+              un’altra pagina.
+            </span>
           </p>
 
           <BaseAlert v-if="troppoPiccola" tono="avviso">

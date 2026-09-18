@@ -60,6 +60,15 @@ export interface ClientMediaManager {
   ): Promise<ElencoMedia>
   caricaMedia(file: Blob, titolo: string, mediaType: string, durataS?: number): Promise<MediaItem>
   /**
+   * Fa scaricare un URL al servizio, che lo mette in archivio (`POST /media/from-url`).
+   *
+   * E' il modo di leggere un file che il browser non puo' leggere: un'immagine
+   * su un server senza CORS si vede in un `<img>` ma non si tocca da script.
+   * Il servizio non ha questo limite. Un 409 e' «ce l'ho gia'»: si ritrova
+   * per titolo e si restituisce quello, come fa il client audio.
+   */
+  caricaMediaDaUrl(url: string, titolo: string, mediaType?: string): Promise<MediaItem>
+  /**
    * Scarica i byte di un media dal servizio.
    *
    * Passa da qui e non da un `fetch` diretto perche' anche i byte sono dietro
@@ -134,6 +143,27 @@ export function creaClientMediaManager(opzioni: OpzioniClientMediaManager): Clie
       return esito<MediaItem>(
         await chiama('/media', { method: 'POST', headers: intestazioni(), body: modulo }),
       )
+    },
+
+    async caricaMediaDaUrl(url, titolo, mediaType) {
+      const risposta = await chiama('/media/from-url', {
+        method: 'POST',
+        headers: intestazioni({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({
+          url,
+          title: titolo,
+          ...(mediaType ? { media_type: mediaType } : {}),
+        }),
+      })
+      if (risposta.status === 409) {
+        const q = new URLSearchParams({ title: titolo })
+        const elenco = await esito<ElencoMedia>(
+          await chiama(`/media?${q}`, { headers: intestazioni() }),
+        )
+        const esistente = elenco.items.find((m) => m.title === titolo)
+        if (esistente) return esistente
+      }
+      return esito<MediaItem>(risposta)
     },
 
     async scaricaContenuto(percorsoRelativo) {

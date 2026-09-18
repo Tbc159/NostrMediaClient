@@ -89,6 +89,15 @@ const verificaInCorso = ref(false)
 const riassunto = ref<RiassuntoFeed | null>(null)
 const errore = ref<string | null>(null)
 const copiato = ref(false)
+/**
+ * Per quanto il servizio tiene una copia del feed (`max-age`), in secondi.
+ *
+ * Conta per leggere l'esito: un episodio appena pubblicato, o un relay
+ * lento al momento in cui il servizio ha costruito il feed, restano fuori
+ * per tutta la durata della copia. Non e' un guasto e non si rimedia
+ * ripubblicando: si aspetta.
+ */
+const copiaServizioS = ref<number | null>(null)
 
 async function verifica(): Promise<void> {
   if (!url.value) return
@@ -101,7 +110,13 @@ async function verifica(): Promise<void> {
       pubblicati.eventi.value.length ? Promise.resolve() : pubblicati.carica(),
       leggiScheda(),
     ])
-    const risposta = await chiama(url.value, { headers: { accept: 'application/rss+xml' } })
+    // `no-store`: il browser terrebbe la copia per `max-age` e «Verifica» dopo
+    // una pubblicazione mostrerebbe il feed di prima. La copia del servizio
+    // invece resta, e si dice.
+    const risposta = await chiama(url.value, {
+      headers: { accept: 'application/rss+xml' },
+      cache: 'no-store',
+    })
     if (risposta.status === 404) {
       // Il servizio distingue «nessuna scheda» da «endpoint assente»: il
       // corpo lo dice, e vale la pena ripeterlo.
@@ -120,6 +135,8 @@ async function verifica(): Promise<void> {
       errore.value = spiegaStato(risposta.status)
       return
     }
+    const maxAge = /max-age=(\d+)/.exec(risposta.headers.get('cache-control') ?? '')?.[1]
+    copiaServizioS.value = maxAge ? Number(maxAge) : null
     riassunto.value = riassumiFeedPodcast(await risposta.text())
   } catch (e) {
     errore.value = e instanceof Error ? e.message : String(e)
@@ -170,6 +187,11 @@ async function scaricaOpml(): Promise<void> {
 }
 
 const ultimo = computed(() => riassunto.value?.episodi[0] ?? null)
+const copiaLeggibile = computed(() => {
+  const s = copiaServizioS.value
+  if (!s) return null
+  return s >= 120 ? `${Math.round(s / 60)} minuti` : `${s} secondi`
+})
 const dataLeggibile = (d: Date | null): string =>
   d ? d.toLocaleDateString('it-IT', { dateStyle: 'medium' }) : 'data assente'
 </script>
@@ -251,10 +273,23 @@ const dataLeggibile = (d: Date | null): string =>
               }}
               nel feed
             </strong>
-            : {{ fuoriDalFeed.map((e) => `«${e.titolo}»`).join(', ') }}. Quasi sempre stanno su un
-            relay da cui il servizio non legge. In
-            <NuxtLink to="/media" class="underline">I tuoi media</NuxtLink>
-            , «ridistribuisci sui relay» li porta anche lì; poi verifica di nuovo.
+            : {{ fuoriDalFeed.map((e) => `«${e.titolo}»`).join(', ') }}. Due cause possibili, in
+            ordine di probabilità:
+            <ol class="mt-1 list-inside list-decimal">
+              <li>
+                un relay non ha risposto in tempo quando il servizio ha costruito il feed
+                <template v-if="copiaLeggibile">
+                  — e il servizio ne tiene una copia per {{ copiaLeggibile }}
+                </template>
+                : se l’episodio nel feed c’era fino a poco fa, non è sparito. Riprova fra qualche
+                minuto.
+              </li>
+              <li>
+                l’episodio sta su un relay da cui il servizio non legge (qui sopra c’è l’elenco). In
+                <NuxtLink to="/media" class="underline">I tuoi media</NuxtLink>
+                , «ridistribuisci sui relay» lo porta anche lì; poi verifica di nuovo.
+              </li>
+            </ol>
           </BaseAlert>
           <BaseAlert v-else-if="!riassunto.episodi.length" tono="info">
             Zero episodi nel feed, e nessuno visto sui tuoi relay di lettura: pubblica il primo

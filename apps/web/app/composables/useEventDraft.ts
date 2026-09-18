@@ -18,6 +18,17 @@ export function useEventDraft() {
   const errore = ref<string | null>(null)
   const inCorso = ref(false)
 
+  /**
+   * Vero quando l'evento in mano e' stato accettato da almeno un relay.
+   *
+   * E' il momento in cui il pulsante «Pubblica» deve sparire: rifarlo
+   * comparire dopo un esito positivo lascia pensare che qualcosa manchi.
+   * Chi vuole spingere l'evento anche sui relay che non l'hanno preso lo fa
+   * dall'esito, relay per relay; chi vuole cambiarlo ricompone, e la
+   * ricomposizione azzera l'esito.
+   */
+  const pubblicato = computed(() => invio.esito.value?.riuscita === true)
+
   function azzera(): void {
     template.value = null
     firmato.value = null
@@ -35,6 +46,8 @@ export function useEventDraft() {
   function costruisci(definizione: AnyKindDefinition, input: unknown): boolean {
     errore.value = null
     firmato.value = null
+    // Un template nuovo e' una pubblicazione nuova: l'esito di prima non la riguarda.
+    invio.azzera()
     try {
       template.value = definizione.build(input, {
         pubkey: identita.pubkey ?? '00'.repeat(32),
@@ -95,6 +108,7 @@ export function useEventDraft() {
     firmato,
     errore,
     inCorso,
+    pubblicato,
     costruisci,
     firma,
     azzera,

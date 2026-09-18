@@ -601,6 +601,17 @@ MAPPATURA
   content-warning nel 54    -> <itunes:explicit>true</itunes:explicit> nell'item; assente -> omesso
   podcast:alternateEnclosure -> aggiungere length (HEAD sull'URL, stessa cache dell'enclosure)
 
+CACHE E RELAY LENTI (visto dal vero: il feed è uscito con il solo episodio più recente)
+  Oggi _gather scarta i relay che non rispondono entro FEED_RELAY_TIMEOUT_S e il feed
+  costruito con ciò che è arrivato finisce in cache per FEED_CACHE_TTL_S intero. Se i
+  relay dove stanno gli episodi vecchi sono lenti, per 5 minuti il feed mostra solo
+  quelli nuovi, e chi lo verifica in quel momento crede di averli persi.
+  - se almeno un relay interrogato non ha risposto (reached < queried), mettere in
+    cache il risultato per al massimo 30 secondi (o non metterlo affatto);
+  - Cache-Control coerente: max-age=30 in quel caso, invece di 300;
+  - nel commento <!-- relays: … --> segnare i relay che non hanno risposto, ad esempio
+    "wss://relay.damus.io (nessuna risposta)": è l'unico modo per capirlo dal client.
+
 TEST
   - fixture con un 10154 COMPLETO (3 categorie di cui una con sotto-categoria e una &,
     language "en", email, content-warning) e uno SENZA nulla: entrambi producono un
@@ -608,6 +619,8 @@ TEST
   - un 54 con duration e uno senza: il primo ha itunes:duration, il secondo no.
   - ETag: a parità di eventi il corpo non cambia.
   - la categoria "Kids & Family" esce come text="Kids &amp; Family".
+  - un relay che va in timeout: il feed esce comunque, ma con TTL breve e il relay
+    segnato nel commento.
 
 FUORI PERIMETRO
   Nessuna validazione dei nomi di categoria contro l'elenco Apple: la fa il
