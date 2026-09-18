@@ -67,7 +67,7 @@ leggere i casi d'uso:
 | Caricare e pubblicare un episodio              | _Media → Podcast_                      | 54                                               |
 | Bozze di episodio lasciate a metà              | _Media → Podcast_ (elenco in testa)    | 54                                               |
 | Concedere/chiedere una firma delegata (NIP-46) | _Firme_                                | qualunque kind delegabile, 54 e 10154 di default |
-| Verificare il feed RSS e scaricarlo come OPML  | _Media → Podcast → Feed RSS_           | derivato da 54 + 10154                           |
+| Verificare il feed RSS e scaricarlo come OPML  | _Profilo → Feed RSS_ (sotto la scheda) | derivato da 54 + 10154                           |
 
 ## Due modi di far firmare un'altra chiave
 
@@ -327,7 +327,7 @@ scoprire quando gli ascoltatori spariscono.
 
 ## Il feed RSS: la stessa storia vista da fuori Nostr
 
-Il feed (_Media → Podcast → Feed RSS_) non è un settimo caso d'uso: è una
+Il feed (_Profilo → Feed RSS_, sotto la scheda del podcast) non è un settimo caso d'uso: è una
 **proiezione in sola lettura** dei kind 54 e 10154 di una chiave, generata da
 un servizio esterno (non da questo client — vedi
 [`doc/api-da-sviluppare.md`](../doc/api-da-sviluppare.md), Prompt F/G) perché
@@ -340,8 +340,12 @@ composto; sa solo di chi è firmato.
 
 La scheda "Feed RSS" verifica il feed scaricandolo davvero e confronta gli
 episodi che contiene con quelli che il client vede sui relay: se manca
-qualcosa, è quasi sempre perché è finito su un relay da cui il servizio non
-legge — la stessa regola "tutti i relay per il podcast" spiegata sopra.
+qualcosa, o un relay era lento quando il servizio ha costruito il feed (che
+ne tiene una copia per qualche minuto), oppure l'evento è finito su un relay
+da cui il servizio non legge — la stessa regola "tutti i relay per il
+podcast" spiegata sopra. Per il secondo caso c'è «Ridistribuisci sui relay»,
+nella stessa scheda e in quella del podcast: rimanda scheda ed episodi, già
+firmati, a tutti i relay di scrittura.
 
 ## Cosa non è coperto oggi
 

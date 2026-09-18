@@ -48,6 +48,26 @@ const pubblicati = useEventiPropri([54], { limite: 200 })
 const schedaEsistente = useEventoEsistente()
 const tagNellaScheda = ref<{ categoria: boolean; email: boolean } | null>(null)
 
+/*
+ * Ridistribuire tutto cio' che il feed legge — la scheda e gli episodi — a
+ * tutti i relay di scrittura. E' l'azione «a prescindere»: non serve un
+ * episodio nuovo per accorgersi che la scheda modificata ieri sta su un
+ * relay solo, e da «Eventi» il collegamento e' facile da non vedere.
+ */
+const ridistribuzione = useRidistribuzione()
+const titoloEvento = (e: { tags: string[][]; id: string }): string =>
+  e.tags.find((t) => t[0] === 'title')?.[1] ?? e.id.slice(0, 12)
+
+async function ridistribuisciTutto(): Promise<void> {
+  if (!pubblicati.eventi.value.length) await pubblicati.carica()
+  if (!schedaEsistente.evento.value) await leggiScheda()
+  const scheda = schedaEsistente.evento.value
+  await ridistribuzione.ridistribuisci([
+    ...(scheda ? [{ evento: scheda, etichetta: 'Scheda del podcast' }] : []),
+    ...pubblicati.eventi.value.map((e) => ({ evento: e, etichetta: `«${titoloEvento(e)}»` })),
+  ])
+}
+
 async function leggiScheda(): Promise<void> {
   const trovato = await schedaEsistente.perCoordinata(10154)
   const definizione = getKindDefinition(10154)
@@ -73,14 +93,11 @@ const nonLettiDalServizio = computed(() => {
   if (t.email && !r.email) mancanti.push('l’email')
   return mancanti
 })
-const titoloDi = (e: { tags: string[][]; id: string }): string =>
-  e.tags.find((t) => t[0] === 'title')?.[1] ?? e.id.slice(0, 12)
-
 const fuoriDalFeed = computed(() =>
   riassunto.value
     ? episodiFuoriDalFeed(
         riassunto.value,
-        pubblicati.eventi.value.map((e) => ({ id: e.id, titolo: titoloDi(e) })),
+        pubblicati.eventi.value.map((e) => ({ id: e.id, titolo: titoloEvento(e) })),
       )
     : [],
 )
@@ -199,7 +216,7 @@ const dataLeggibile = (d: Date | null): string =>
 <template>
   <BaseCard
     title="Feed RSS"
-    subtitle="L’indirizzo che dà il tuo podcast alle app che non parlano Nostr: Fountain, Apple, Podcast Index."
+    subtitle="La scheda qui sopra e gli episodi, visti dalle app che non parlano Nostr: Fountain, Apple, Podcast Index."
   >
     <div class="flex flex-col gap-4">
       <BaseAlert v-if="!identita.pubkey" tono="avviso">
@@ -225,7 +242,30 @@ const dataLeggibile = (d: Date | null): string =>
           <BaseButton size="sm" :loading="verificaInCorso" @click="scaricaOpml">
             Scarica OPML
           </BaseButton>
+          <BaseButton
+            size="sm"
+            :loading="ridistribuzione.inCorso.value"
+            :disabled="!identita.puoFirmare"
+            title="Manda la scheda del podcast e tutti gli episodi, già firmati, a tutti i relay di scrittura: chi li ha già lo dice, nessun duplicato."
+            @click="ridistribuisciTutto"
+          >
+            Ridistribuisci sui relay
+          </BaseButton>
         </div>
+
+        <template v-if="ridistribuzione.esiti.value.length">
+          <ul class="text-xs text-[var(--testo-tenue)]">
+            <li v-for="e in ridistribuzione.esiti.value" :key="e.id">
+              {{ e.etichetta }}: {{ ridistribuzione.riga(e) }}
+            </li>
+          </ul>
+          <p class="text-xs text-[var(--testo-tenue)]">
+            Il servizio tiene una copia del feed per qualche minuto: verifica di nuovo fra poco.
+          </p>
+        </template>
+        <BaseAlert v-if="ridistribuzione.errore.value" tono="pericolo">
+          {{ ridistribuzione.errore.value }}
+        </BaseAlert>
 
         <BaseAlert v-if="erroreOpml" tono="pericolo">{{ erroreOpml }}</BaseAlert>
 
@@ -285,9 +325,8 @@ const dataLeggibile = (d: Date | null): string =>
                 minuto.
               </li>
               <li>
-                l’episodio sta su un relay da cui il servizio non legge (qui sopra c’è l’elenco). In
-                <NuxtLink to="/media" class="underline">I tuoi media</NuxtLink>
-                , «ridistribuisci sui relay» lo porta anche lì; poi verifica di nuovo.
+                l’episodio sta su un relay da cui il servizio non legge (qui sopra c’è l’elenco):
+                «Ridistribuisci sui relay» lo porta anche lì; poi verifica di nuovo.
               </li>
             </ol>
           </BaseAlert>

@@ -170,6 +170,23 @@ onMounted(() => {
  */
 const bozzaPodcast = useEventDraft()
 const podcastEsistente = useEventoEsistente()
+/*
+ * La scheda si ridistribuisce da qui, non solo da «Eventi»: e' il posto dove
+ * la si modifica, ed e' dopo una modifica che ci si accorge che sta su un
+ * relay solo. Si manda la versione piu' recente che questa pagina conosce —
+ * quella appena pubblicata, se c'e', altrimenti quella letta dai relay.
+ */
+const ridistribuzionePodcast = useRidistribuzione()
+const schedaDaRidistribuire = computed(() =>
+  bozzaPodcast.pubblicato.value && bozzaPodcast.firmato.value
+    ? bozzaPodcast.firmato.value
+    : podcastEsistente.evento.value,
+)
+async function ridistribuisciPodcast(): Promise<void> {
+  const evento = schedaDaRidistribuire.value
+  if (!evento) return
+  await ridistribuzionePodcast.ridistribuisci([{ evento, etichetta: 'Scheda del podcast' }])
+}
 
 const podcastTitolo = ref('')
 const podcastDescrizione = ref('')
@@ -761,7 +778,30 @@ const valori = { nome, nomeVisualizzato, immagine, copertina, sito, nip05, lud16
                   <template v-else-if="delegaPodcast">Chiedi la firma e pubblica</template>
                   <template v-else>Firma e pubblica</template>
                 </BaseButton>
+                <BaseButton
+                  v-if="
+                    schedaDaRidistribuire &&
+                    !(bozzaPodcast.template.value && !bozzaPodcast.pubblicato.value)
+                  "
+                  variant="fantasma"
+                  :loading="ridistribuzionePodcast.inCorso.value"
+                  title="Manda la scheda così com’è, già firmata, a tutti i relay di scrittura: chi ce l’ha già lo dice, nessun duplicato."
+                  @click="ridistribuisciPodcast"
+                >
+                  Ridistribuisci sui relay
+                </BaseButton>
               </div>
+
+              <p
+                v-if="ridistribuzionePodcast.esiti.value.length"
+                class="text-xs text-[var(--testo-tenue)]"
+              >
+                Scheda del podcast:
+                {{ ridistribuzionePodcast.riga(ridistribuzionePodcast.esiti.value[0]!) }}.
+              </p>
+              <BaseAlert v-if="ridistribuzionePodcast.errore.value" tono="pericolo">
+                {{ ridistribuzionePodcast.errore.value }}
+              </BaseAlert>
 
               <PublishProgress :invio="bozzaPodcast.invio" />
 
@@ -776,6 +816,12 @@ const valori = { nome, nomeVisualizzato, immagine, copertina, sito, nip05, lud16
             </form>
           </details>
         </BaseCard>
+
+        <!--
+          Il feed sta qui e non fra i media: e' la scheda del podcast vista da
+          fuori Nostr, e si verifica subito dopo averla modificata.
+        -->
+        <MediaFeedRss />
 
         <!-- ─────────── Podcast di cui sono autore (NIP-F4) ─────────── -->
         <BaseCard
