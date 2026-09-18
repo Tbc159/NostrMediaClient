@@ -601,17 +601,6 @@ MAPPATURA
   content-warning nel 54    -> <itunes:explicit>true</itunes:explicit> nell'item; assente -> omesso
   podcast:alternateEnclosure -> aggiungere length (HEAD sull'URL, stessa cache dell'enclosure)
 
-CACHE E RELAY LENTI (visto dal vero: il feed è uscito con il solo episodio più recente)
-  Oggi _gather scarta i relay che non rispondono entro FEED_RELAY_TIMEOUT_S e il feed
-  costruito con ciò che è arrivato finisce in cache per FEED_CACHE_TTL_S intero. Se i
-  relay dove stanno gli episodi vecchi sono lenti, per 5 minuti il feed mostra solo
-  quelli nuovi, e chi lo verifica in quel momento crede di averli persi.
-  - se almeno un relay interrogato non ha risposto (reached < queried), mettere in
-    cache il risultato per al massimo 30 secondi (o non metterlo affatto);
-  - Cache-Control coerente: max-age=30 in quel caso, invece di 300;
-  - nel commento <!-- relays: … --> segnare i relay che non hanno risposto, ad esempio
-    "wss://relay.damus.io (nessuna risposta)": è l'unico modo per capirlo dal client.
-
 TEST
   - fixture con un 10154 COMPLETO (3 categorie di cui una con sotto-categoria e una &,
     language "en", email, content-warning) e uno SENZA nulla: entrambi producono un
@@ -619,8 +608,6 @@ TEST
   - un 54 con duration e uno senza: il primo ha itunes:duration, il secondo no.
   - ETag: a parità di eventi il corpo non cambia.
   - la categoria "Kids & Family" esce come text="Kids &amp; Family".
-  - un relay che va in timeout: il feed esce comunque, ma con TTL breve e il relay
-    segnato nel commento.
 
 FUORI PERIMETRO
   Nessuna validazione dei nomi di categoria contro l'elenco Apple: la fa il
@@ -667,6 +654,52 @@ FUORI PERIMETRO
   ID3 su file caricati direttamente dall'utente senza elaborazione: non
   passano dal servizio, e non si modificano byte che l'utente non ha chiesto
   di toccare.
+```
+
+### Prompt J — Il feed non perde episodi per un relay lento
+
+Visto dal vero il 18 settembre 2026, subito dopo aver pubblicato un episodio:
+il feed è uscito con il **solo episodio nuovo**, i quattro precedenti spariti.
+Non erano spariti: stanno su nos.lol, damus e primal, che in quel momento non
+hanno risposto entro il timeout, e il servizio ha messo in cache per cinque
+minuti il feed costruito con quello che era arrivato. Chi lo verifica in quel
+momento crede di aver perso gli episodi. È un delta rispetto a H, che va
+consegnato **a parte** perché H è già stato consegnato. Solo il blocco.
+
+```
+Repository: microservice-media-manager, dominio feed, branch develop.
+Delta rispetto al Prompt H, indipendente da esso: un feed costruito senza la
+risposta di tutti i relay non deve restare in cache per il TTL pieno.
+
+COSA SUCCEDE OGGI
+  relay_client._gather scarta i relay che non rispondono entro FEED_RELAY_TIMEOUT_S
+  (6 s) e restituisce ciò che è arrivato; feed_service._generate costruisce il feed
+  con quegli eventi e lo mette in cache per FEED_CACHE_TTL_S (300 s), con
+  Cache-Control: max-age=300. Se i relay che tengono gli episodi vecchi sono lenti,
+  per cinque minuti il feed mostra solo gli episodi che stanno anche altrove.
+  Osservato: 1 episodio su 5.
+
+COSA DEVE SUCCEDERE
+  - RelayQueryResult ha già queried e reached: se reached < queried, il risultato
+    è PARZIALE.
+  - un feed parziale si mette in cache per al massimo FEED_PARTIAL_CACHE_TTL_S
+    (default 30), oppure non si mette affatto se il valore è 0;
+  - Cache-Control coerente con la cache: max-age=30 (o no-cache) per il feed
+    parziale, max-age=300 per quello completo;
+  - nel commento <!-- relays: … --> i relay che non hanno risposto vanno segnati,
+    ad esempio "wss://relay.damus.io (nessuna risposta)": è l'unico modo che il
+    client ha per capire perché un episodio manca;
+  - il feed parziale esce comunque, con lo stesso corpo di prima: meglio un feed
+    con pochi episodi che un 503. Cambia solo per quanto lo si tiene.
+  - facoltativo, se costa poco: quando un relay va in timeout, un secondo
+    tentativo con timeout doppio prima di dichiararlo non raggiunto.
+
+TEST
+  - relay finto che non risponde: il feed esce, il commento lo segna, max-age=30,
+    e alla richiesta successiva (dopo 30 s, o subito con TTL 0) si rigenera.
+  - tutti i relay rispondono: comportamento di oggi, max-age=300, ETag stabile.
+  - un feed parziale e uno completo con gli stessi eventi hanno lo stesso ETag
+    (l'ETag è del corpo, non della cache).
 ```
 
 ## 4. Dal repository vecchio: cosa vale la pena portare
