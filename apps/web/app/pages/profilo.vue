@@ -30,6 +30,24 @@ const bot = ref(false)
 /** Vero quando si e' partiti da un profilo gia' pubblicato. */
 const daPubblicato = ref(false)
 
+/*
+ * Cio' che nel profilo pubblicato non ha un campo qui.
+ *
+ * Il kind 0 e' un JSON libero e i client ci scrivono quello che vogliono —
+ * `pronouns`, `birthday`, estensioni proprie. Il profilo e' sostituibile:
+ * salvarlo da questa pagina riscrive tutto, e senza tenerli da parte quei
+ * campi sparirebbero al primo salvataggio. Non si mostrano modificabili
+ * perche' un valore puo' essere un oggetto, non una riga di testo: si
+ * elencano e si ripubblicano com'erano.
+ */
+const campiEstranei = ref<Record<string, unknown>>({})
+const nomiCampiEstranei = computed(() => Object.keys(campiEstranei.value))
+
+/** I tag del profilo: il kind 0 non ne scrive, quindi tutto cio' che c'era resta. */
+const nomiDelFormProfilo = ['client']
+const conservatiProfilo = useTagConservati(nomiDelFormProfilo)
+const tagExtraProfilo = conservatiProfilo.tags
+
 /**
  * Il profilo e' **replaceable**: esiste una sola versione per pubkey, e
  * ripubblicarlo sostituisce quella precedente per intero.
@@ -56,6 +74,24 @@ async function carica(): Promise<void> {
     nip05.value = dati.nip05 ?? ''
     lud16.value = dati.lud16 ?? ''
     bot.value = dati.bot === true
+    // Tutto quello che non ha un campo in questa pagina: si conserva e si
+    // riscrive identico, senza provare a interpretarlo.
+    const noti = new Set([
+      'name',
+      'display_name',
+      'about',
+      'picture',
+      'banner',
+      'website',
+      'nip05',
+      'lud16',
+      'lud06',
+      'bot',
+    ])
+    campiEstranei.value = Object.fromEntries(
+      Object.entries(dati as Record<string, unknown>).filter(([k]) => !noti.has(k)),
+    )
+    conservatiProfilo.fotografa(definizione, trovato, dati)
     daPubblicato.value = true
   } catch (e) {
     esistente.errore.value = `Il profilo pubblicato non è interpretabile: ${e instanceof Error ? e.message : String(e)}`
@@ -83,17 +119,24 @@ function componi(): void {
 
   // I campi vuoti non vengono scritti: la definizione li scarta, e un campo
   // presente ma vuoto verrebbe letto come "impostato a niente".
-  bozza.costruisci(definizione, {
-    name: nome.value.trim() || undefined,
-    display_name: nomeVisualizzato.value.trim() || undefined,
-    about: descrizione.value.trim() || undefined,
-    picture: immagine.value.trim() || undefined,
-    banner: copertina.value.trim() || undefined,
-    website: sito.value.trim() || undefined,
-    nip05: nip05.value.trim() || undefined,
-    lud16: lud16.value.trim() || undefined,
-    bot: bot.value || undefined,
-  })
+  bozza.costruisci(
+    definizione,
+    {
+      // Prima i campi altrui: quelli qui sotto hanno la precedenza se per caso
+      // un client ha usato lo stesso nome con un valore diverso.
+      ...campiEstranei.value,
+      name: nome.value.trim() || undefined,
+      display_name: nomeVisualizzato.value.trim() || undefined,
+      about: descrizione.value.trim() || undefined,
+      picture: immagine.value.trim() || undefined,
+      banner: copertina.value.trim() || undefined,
+      website: sito.value.trim() || undefined,
+      nip05: nip05.value.trim() || undefined,
+      lud16: lud16.value.trim() || undefined,
+      bot: bot.value || undefined,
+    },
+    { aggiuntivi: tagExtraProfilo.value },
+  )
 }
 
 // ─── Podcast di cui sono autore (NIP-F4, kind 10064) ──────────────────────
@@ -105,6 +148,10 @@ function componi(): void {
  */
 const bozzaAutore = useEventDraft()
 const autoreEsistente = useEventoEsistente()
+/** Il 10064 scrive solo `p`: qualunque altra cosa ci fosse resta. */
+const nomiDelFormAutore = ['p', 'client']
+const conservatiAutore = useTagConservati(nomiDelFormAutore)
+const tagExtraAutore = conservatiAutore.tags
 const podcastDiCuiSonoAutore = ref<string[]>([])
 const nuovoPodcast = ref('')
 const erroreAutore = ref<string | null>(null)
@@ -118,6 +165,7 @@ async function caricaAutore(): Promise<void> {
   if (!definizione) return
   try {
     podcastDiCuiSonoAutore.value = definizione.parse(trovato).podcasts
+    conservatiAutore.fotografa(definizione, trovato, { podcasts: podcastDiCuiSonoAutore.value })
     mostraAutore.value = podcastDiCuiSonoAutore.value.length > 0
   } catch {
     // Lista malformata: si riparte da vuoto invece di bloccare il profilo.
@@ -147,7 +195,11 @@ function componiAutore(): void {
     bozzaAutore.errore.value = 'Kind 10064 non registrato.'
     return
   }
-  bozzaAutore.costruisci(definizione, { podcasts: podcastDiCuiSonoAutore.value })
+  bozzaAutore.costruisci(
+    definizione,
+    { podcasts: podcastDiCuiSonoAutore.value },
+    { aggiuntivi: tagExtraAutore.value },
+  )
 }
 
 // Arrivando da una delega appena collegata (`?autore-di=<npub>`), la chiave
@@ -170,6 +222,21 @@ onMounted(() => {
  */
 const bozzaPodcast = useEventDraft()
 const podcastEsistente = useEventoEsistente()
+/** I tag della scheda del podcast che questo form non scrive. */
+const nomiDelFormPodcast = [
+  'title',
+  'description',
+  'image',
+  'website',
+  'category',
+  'language',
+  'email',
+  'content-warning',
+  'p',
+  'client',
+]
+const conservatiPodcast = useTagConservati(nomiDelFormPodcast)
+const tagExtraPodcast = conservatiPodcast.tags
 /*
  * La scheda si ridistribuisce da qui, non solo da «Eventi»: e' il posto dove
  * la si modifica, ed e' dopo una modifica che ci si accorge che sta su un
@@ -343,6 +410,7 @@ function svuotaPodcast(): void {
   podcastLingua.value = 'it'
   podcastEmail.value = ''
   podcastEsplicito.value = false
+  conservatiPodcast.azzera()
   haPodcast.value = false
 }
 
@@ -373,6 +441,17 @@ async function caricaPodcast(): Promise<void> {
     podcastLingua.value = dati.language ?? 'it'
     podcastEmail.value = dati.email ?? ''
     podcastEsplicito.value = dati.contentWarning !== undefined
+    conservatiPodcast.fotografa(definizione, trovato, {
+      title: dati.title,
+      description: dati.description ?? '',
+      image: dati.image ?? '',
+      ...(podcastSiti.value.length ? { websites: podcastSiti.value } : {}),
+      ...(podcastAutori.value.length ? { authors: podcastAutori.value } : {}),
+      ...(podcastCategorie.value.length ? { categories: podcastCategorie.value } : {}),
+      ...(dati.language ? { language: dati.language } : {}),
+      ...(dati.email ? { email: dati.email } : {}),
+      ...(dati.contentWarning !== undefined ? { contentWarning: dati.contentWarning } : {}),
+    })
     haPodcast.value = true
     mostraPodcast.value = true
   } catch {
@@ -388,17 +467,21 @@ function componiPodcast(): void {
   }
   // Descrizione e immagine le vuole NIP-F4: la `build` le rifiuta vuote, e il
   // form le chiede prima invece di lasciar arrivare l'errore.
-  bozzaPodcast.costruisci(definizione, {
-    title: podcastTitolo.value.trim(),
-    description: podcastDescrizione.value.trim(),
-    image: podcastImmagine.value.trim(),
-    ...(podcastSiti.value.length ? { websites: podcastSiti.value } : {}),
-    ...(podcastAutori.value.length ? { authors: podcastAutori.value } : {}),
-    ...(podcastCategorie.value.length ? { categories: podcastCategorie.value } : {}),
-    ...(podcastLingua.value.trim() ? { language: podcastLingua.value.trim() } : {}),
-    ...(podcastEmail.value.trim() ? { email: podcastEmail.value.trim() } : {}),
-    ...(podcastEsplicito.value ? { contentWarning: '' } : {}),
-  })
+  bozzaPodcast.costruisci(
+    definizione,
+    {
+      title: podcastTitolo.value.trim(),
+      description: podcastDescrizione.value.trim(),
+      image: podcastImmagine.value.trim(),
+      ...(podcastSiti.value.length ? { websites: podcastSiti.value } : {}),
+      ...(podcastAutori.value.length ? { authors: podcastAutori.value } : {}),
+      ...(podcastCategorie.value.length ? { categories: podcastCategorie.value } : {}),
+      ...(podcastLingua.value.trim() ? { language: podcastLingua.value.trim() } : {}),
+      ...(podcastEmail.value.trim() ? { email: podcastEmail.value.trim() } : {}),
+      ...(podcastEsplicito.value ? { contentWarning: '' } : {}),
+    },
+    { aggiuntivi: tagExtraPodcast.value },
+  )
 }
 
 /**
@@ -489,6 +572,29 @@ const valori = { nome, nomeVisualizzato, immagine, copertina, sito, nip05, lud16
               <input v-model="bot" type="checkbox" />
               Dichiara che questo account è un bot
             </label>
+
+            <EventTagAggiuntivi
+              v-model="tagExtraProfilo"
+              :nomi-del-form="nomiDelFormProfilo"
+              :da-evento-esistente="daPubblicato"
+            />
+
+            <!--
+              I campi JSON di altri client non si modificano da qui: un valore
+              puo' essere un oggetto, e un editor JSON in mezzo al profilo
+              sarebbe un invito a romperlo. Si dice che ci sono e che
+              restano — che e' cio' che conta sapere.
+            -->
+            <p v-if="nomiCampiEstranei.length" class="text-xs text-[var(--testo-tenue)]">
+              Nel profilo pubblicato ci sono anche
+              <template v-for="(c, i) in nomiCampiEstranei" :key="c">
+                <template v-if="i > 0">,</template>
+                <code>{{ c }}</code>
+              </template>
+              : campi scritti da un altro client, che questa pagina non mostra ma
+              <strong>conserva</strong>
+              così come sono.
+            </p>
 
             <div class="flex flex-wrap gap-2">
               <BaseButton type="submit" variant="primario">Componi evento</BaseButton>
@@ -763,6 +869,12 @@ const valori = { nome, nomeVisualizzato, immagine, copertina, sito, nip05, lud16
                 : sostituisce la sua, non la tua. Dall’altra parte qualcuno deve approvarla.
               </BaseAlert>
 
+              <EventTagAggiuntivi
+                v-model="tagExtraPodcast"
+                :nomi-del-form="nomiDelFormPodcast"
+                :da-evento-esistente="haPodcast"
+              />
+
               <div class="flex flex-wrap gap-2">
                 <BaseButton type="submit" variant="primario" :disabled="!podcastCompleto">
                   Componi evento
@@ -881,6 +993,12 @@ const valori = { nome, nomeVisualizzato, immagine, copertina, sito, nip05, lud16
                 </BaseButton>
               </div>
               <BaseAlert v-if="erroreAutore" tono="pericolo">{{ erroreAutore }}</BaseAlert>
+
+              <EventTagAggiuntivi
+                v-model="tagExtraAutore"
+                :nomi-del-form="nomiDelFormAutore"
+                :da-evento-esistente="podcastDiCuiSonoAutore.length > 0"
+              />
 
               <div class="flex flex-wrap gap-2">
                 <BaseButton

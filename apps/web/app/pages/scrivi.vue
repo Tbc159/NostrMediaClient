@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { getKindDefinition } from '@nmc/nostr-core'
+import { getKindDefinition, normalizeHashtag } from '@nmc/nostr-core'
 
 useHead({ title: 'Scrivi · NostrMediaClient' })
 
@@ -17,10 +17,13 @@ const LIMITE_CONSIGLIATO = 2000
 const lunghezza = computed(() => contenuto.value.length)
 const oltreLimite = computed(() => lunghezza.value > LIMITE_CONSIGLIATO)
 
+// La convenzione minuscola si applica qui, a cio' che l'utente scrive: il
+// kind scrive i tag `t` come li riceve, perche' puo' riceverli da un evento
+// di un altro client dove riscriverli sarebbe un danno.
 const hashtagList = computed(() =>
   hashtag.value
     .split(/[,\s]+/)
-    .map((t) => t.trim())
+    .map((t) => normalizeHashtag(t))
     .filter(Boolean),
 )
 

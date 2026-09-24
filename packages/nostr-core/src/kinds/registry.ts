@@ -1,4 +1,5 @@
 import { classifyKind, isReplaceableClass } from './classify.js'
+import { conTagClient } from './client.js'
 import type { AnyKindDefinition, KindDefinition } from './types.js'
 
 /**
@@ -80,11 +81,28 @@ export function registerKinds(defs: readonly AnyKindDefinition[]): void {
 /**
  * Identita' tipizzata: valida la forma della definizione in fase di scrittura
  * e ne preserva i parametri di tipo, che un letterale nudo perderebbe.
+ *
+ * **E anche il punto in cui ogni evento dichiara il client che l'ha scritto.**
+ * Il tag `client` (NIP-89) sta qui e non nelle singole `build()` perche' qui
+ * ci passano tutte le definizioni, comprese quelle prodotte da una factory, e
+ * perche' la firma copre i tag: aggiungerlo dopo — al momento di pubblicare —
+ * invaliderebbe la firma. Nessun modo di comporre un evento aggira questo
+ * punto, nemmeno importando la definizione direttamente invece di chiederla
+ * al registry.
+ *
+ * Gli `ephemeral` restano fuori: l'unico e' il 24242 di Blossom, che non e'
+ * un evento pubblicato ma un'autorizzazione dentro un header HTTP. NIP-89
+ * dice di non marcare cio' che non e' una pubblicazione, e un tag in piu' in
+ * un token di autenticazione e' solo rumore che il server deve ignorare.
  */
 export function defineKind<TParsed, TInput>(
   def: KindDefinition<TParsed, TInput>,
 ): KindDefinition<TParsed, TInput> {
-  return def
+  if (def.class === 'ephemeral') return def
+  return {
+    ...def,
+    build: (input, ctx) => conTagClient(def.build(input, ctx)),
+  }
 }
 
 /** Definizione registrata per un kind, o `undefined` se sconosciuto. */

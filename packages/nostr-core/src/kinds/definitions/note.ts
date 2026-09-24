@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 import { buildImetaTag, imetaOf, imetaSchema, type ImetaInput } from '../imeta.js'
 import { defineKind } from '../registry.js'
-import { normalizeHashtag, repeatedTags, tagValues, tagsNamed } from '../tags.js'
+import { repeatedTags, tagValues, tagsNamed } from '../tags.js'
 import type { NostrEvent } from '../types.js'
 
 /**
@@ -122,7 +122,7 @@ export const noteDefinition = defineKind<NoteParsed, NoteInput>({
       ...(replyToId !== undefined ? { replyToId } : {}),
       mentions: tagValues(event, 'p'),
       quotes: tagValues(event, 'q'),
-      hashtags: tagValues(event, 't').map(normalizeHashtag),
+      hashtags: tagValues(event, 't'),
       attachments: imetaOf(event),
     })
   },
@@ -166,7 +166,7 @@ export const noteDefinition = defineKind<NoteParsed, NoteInput>({
     }
 
     if (input.hashtags?.length) {
-      tags.push(...repeatedTags('t', input.hashtags.map(normalizeHashtag)))
+      tags.push(...repeatedTags('t', input.hashtags))
     }
 
     return {

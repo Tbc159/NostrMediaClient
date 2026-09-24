@@ -28,6 +28,11 @@ const risposte = [
 
 const coordinataValida = computed(() => /^\d+:[0-9a-f]{64}:.*$/i.test(coordinata.value.trim()))
 
+/** I tag della risposta che questo form non scrive, conservati alla lettera. */
+const nomiDelForm = ['d', 'a', 'e', 'status', 'fb', 'p', 'client']
+const conservati = useTagConservati(nomiDelForm)
+const tagExtra = conservati.tags
+
 onMounted(async () => {
   const d = rotta.query.d
   const a = rotta.query.a
@@ -54,6 +59,13 @@ async function riapri(d: string): Promise<void> {
     stato.value = dati.status
     disponibilita.value = dati.freebusy ?? 'busy'
     nota.value = dati.note
+    conservati.fotografa(definizione, trovato, {
+      identifier: dati.identifier,
+      eventAddress: dati.eventAddress,
+      status: dati.status,
+      ...(dati.freebusy ? { freebusy: dati.freebusy } : {}),
+      ...(dati.note ? { note: dati.note } : {}),
+    })
   } catch (e) {
     esistente.errore.value = `La risposta pubblicata non è interpretabile: ${e instanceof Error ? e.message : String(e)}`
   }
@@ -66,17 +78,21 @@ function componi(): void {
     return
   }
 
-  bozza.costruisci(definizione, {
-    identifier: identificatore.value,
-    eventAddress: coordinata.value.trim(),
-    status: stato.value,
-    // La disponibilita' su un rifiuto non ha senso e la definizione la scarta:
-    // non la si manda nemmeno.
-    ...(stato.value === 'declined' ? {} : { freebusy: disponibilita.value }),
-    ...(nota.value.trim() ? { note: nota.value.trim() } : {}),
-    // L'organizzatore va avvisato: e' la pubkey dentro la coordinata.
-    ...(coordinataValida.value ? { organizer: coordinata.value.split(':')[1] } : {}),
-  })
+  bozza.costruisci(
+    definizione,
+    {
+      identifier: identificatore.value,
+      eventAddress: coordinata.value.trim(),
+      status: stato.value,
+      // La disponibilita' su un rifiuto non ha senso e la definizione la scarta:
+      // non la si manda nemmeno.
+      ...(stato.value === 'declined' ? {} : { freebusy: disponibilita.value }),
+      ...(nota.value.trim() ? { note: nota.value.trim() } : {}),
+      // L'organizzatore va avvisato: e' la pubkey dentro la coordinata.
+      ...(coordinataValida.value ? { organizer: coordinata.value.split(':')[1] } : {}),
+    },
+    { aggiuntivi: tagExtra.value },
+  )
 }
 </script>
 
@@ -159,6 +175,12 @@ function componi(): void {
         <BaseField v-slot="{ id, describedBy }" label="Nota">
           <BaseTextarea :id="id" v-model="nota" :rows="2" :described-by="describedBy" />
         </BaseField>
+
+        <EventTagAggiuntivi
+          v-model="tagExtra"
+          :nomi-del-form="nomiDelForm"
+          :da-evento-esistente="modifica"
+        />
 
         <div class="flex flex-wrap gap-2">
           <BaseButton type="submit" variant="primario" :disabled="!coordinataValida">

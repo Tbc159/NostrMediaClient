@@ -195,7 +195,7 @@ describe('podcast di cui sono autore (kind 10064)', () => {
     // E' l'autore a dichiararsi: la scheda del podcast da sola puo'
     // attribuirsi chiunque, e solo il riscontro da questa parte lo conferma.
     const t = authoredPodcastsDefinition.build({ podcasts: [PODCAST, PODCAST.toUpperCase()] }, CTX)
-    expect(t.tags).toEqual([['p', PODCAST]])
+    expect(t.tags.filter((x) => x[0] === 'p')).toEqual([['p', PODCAST]])
     expect(t.content).toBe('')
   })
 

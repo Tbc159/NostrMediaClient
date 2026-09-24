@@ -1,0 +1,38 @@
+{
+  "id": "b186b766b01c3e89c8feec98fd060d7b4909bc1a14ace37b32781f326669bb35",
+  "pubkey": "83f6c8d35a3911e5d656a944dfaed914df9dbe119056a04cfbb4f3c1cdcacb5d",
+  "created_at": 1790239182,
+  "kind": 31923,
+  "tags": [
+    ["d", "bd5c1100-1ad2-44a1-8464-2269b6557df9"],
+    ["title", "Meetup bitcoiner Torino"],
+    [
+      "description",
+      "Tutti i dettagli su Bitcoin Italia Network https://bitcoinitalianetwork.com/evento/nkywevzhm00jml6"
+    ],
+    [
+      "location",
+      "La Mole Pub, 51, Via San Domenico, Centro, Circoscrizione 1, Turin, Piedmont, 10122, Italy"
+    ],
+    ["g", "u0j2qw30h"],
+    ["lat", "45.0783053"],
+    ["lon", "7.6700284"],
+    ["place_id", "88203960"],
+    ["start", "1790272800"],
+    ["end", "1790283600"],
+    ["start_tzid", "Europe/Rome"],
+    ["end_tzid", "Europe/Rome"],
+    ["image", "https://bitcoinitalianetwork.com/img/c/ss-torino.jpeg"],
+    ["t", "Food & drink"],
+    ["t", "Business & professional"],
+    ["t", "Community & culture"],
+    ["t", "Science & technology"],
+    ["t", "Government & politics"],
+    ["c", "#f7f5ed", "background"],
+    ["c", "#362b17", "text"],
+    ["c", "#efa906", "primary"],
+    ["client", "Plektos"]
+  ],
+  "content": "Tutti i dettagli su Bitcoin Italia Network https://bitcoinitalianetwork.com/evento/nkywevzhm00jml6",
+  "sig": "d018ae8e6fa125559f87ada002fab99656cf56259dfa21414aa10eca5e0f8c959a8ec154422ddbdf1c4244b2f5f875b4f92a5d5275eaf1f63dc5b0909feb0f02"
+}

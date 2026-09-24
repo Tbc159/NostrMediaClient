@@ -5,6 +5,7 @@ import { calendarRsvpDefinition } from '../src/kinds/definitions/calendar-rsvp.j
 import { calendarTimeEventDefinition } from '../src/kinds/definitions/calendar-time.js'
 import { metadataDefinition } from '../src/kinds/definitions/metadata.js'
 import { noteDefinition } from '../src/kinds/definitions/note.js'
+import { normalizeHashtag } from '../src/kinds/tags.js'
 import type { NostrEvent } from '../src/kinds/types.js'
 
 const CTX = { pubkey: 'ab'.repeat(32), now: 1_800_000_000 }
@@ -65,12 +66,17 @@ describe('kind 1 — nota', () => {
     expect(p).toEqual([autore, 'dd'.repeat(32)])
   })
 
-  it('normalizza gli hashtag togliendo il cancelletto e abbassando le maiuscole', () => {
-    const t = noteDefinition.build({ content: 'x', hashtags: ['#Nostr', 'CALENDARIO'] }, CTX)
+  it('scrive gli hashtag come li riceve, senza riscriverli', () => {
+    // La convenzione minuscola sta in `normalizeHashtag`, che il form applica
+    // a cio' che l'utente scrive. Qui no: un hashtag puo' arrivare da un
+    // evento di un altro client — «Food & drink» — e abbassarlo di caso
+    // significherebbe cambiargli il dato mentre gli si corregge il titolo.
+    const t = noteDefinition.build({ content: 'x', hashtags: ['#Nostr', 'Food & drink'] }, CTX)
     expect(t.tags.filter((x) => x[0] === 't')).toEqual([
-      ['t', 'nostr'],
-      ['t', 'calendario'],
+      ['t', '#Nostr'],
+      ['t', 'Food & drink'],
     ])
+    expect(normalizeHashtag('#Nostr')).toBe('nostr')
   })
 
   it('interpreta i thread vecchi con tag e non marcati', () => {

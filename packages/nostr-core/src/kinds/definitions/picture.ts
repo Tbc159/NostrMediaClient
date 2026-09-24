@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 import { buildImetaTag, imetaOf, imetaSchema, type ImetaInput } from '../imeta.js'
 import { defineKind } from '../registry.js'
-import { normalizeHashtag, optionalTag, repeatedTags, tagValue, tagValues } from '../tags.js'
+import { optionalTag, repeatedTags, tagValue, tagValues } from '../tags.js'
 
 /**
  * Kind 20 — post con immagini in primo piano (NIP-68).
@@ -61,7 +61,7 @@ export const pictureDefinition = defineKind<PictureParsed, PictureInput>({
       content: event.content,
       ...(title !== undefined ? { title } : {}),
       images: imetaOf(event),
-      hashtags: tagValues(event, 't').map(normalizeHashtag),
+      hashtags: tagValues(event, 't'),
       mentions: tagValues(event, 'p'),
       ...(contentWarning !== undefined ? { contentWarning } : {}),
     })
@@ -90,7 +90,7 @@ export const pictureDefinition = defineKind<PictureParsed, PictureInput>({
         ...imeta,
         ...repeatedTags('m', mime),
         ...repeatedTags('x', hash),
-        ...repeatedTags('t', (input.hashtags ?? []).map(normalizeHashtag)),
+        ...repeatedTags('t', input.hashtags ?? []),
         ...repeatedTags('p', input.mentions ?? []),
         ...(input.contentWarning !== undefined ? [['content-warning', input.contentWarning]] : []),
       ],

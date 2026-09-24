@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 import { defineKind } from '../registry.js'
-import { normalizeHashtag, optionalTag, repeatedTags, tagValue, tagValues } from '../tags.js'
+import { optionalTag, repeatedTags, tagValue, tagValues } from '../tags.js'
 
 /**
  * Kind 30023 — articolo long-form (NIP-23).
@@ -88,7 +88,7 @@ function creaDefinizioneArticolo(kind: 30023 | 30024, nome: string) {
       return articleSchema.parse({
         content: event.content,
         identifier: tagValue(event, 'd') ?? '',
-        hashtags: tagValues(event, 't').map(normalizeHashtag),
+        hashtags: tagValues(event, 't'),
         ...Object.fromEntries(Object.entries(opzionali).filter(([, v]) => v !== undefined)),
       })
     },
@@ -117,7 +117,7 @@ function creaDefinizioneArticolo(kind: 30023 | 30024, nome: string) {
           // Alla prima pubblicazione coincide con created_at; nelle modifiche
           // successive va passato quello originale, non ricalcolato.
           ['published_at', String(input.publishedAt ?? ctx.now)],
-          ...repeatedTags('t', (input.hashtags ?? []).map(normalizeHashtag)),
+          ...repeatedTags('t', input.hashtags ?? []),
         ],
         created_at: ctx.now,
       }

@@ -1,4 +1,11 @@
-import type { AnyKindDefinition, EventTemplate, Firmatario, NostrEvent } from '@nmc/nostr-core'
+import {
+  fondiTag,
+  type AnyKindDefinition,
+  type EventTemplate,
+  type Firmatario,
+  type NostrEvent,
+  type Tag,
+} from '@nmc/nostr-core'
 
 /**
  * Ciclo di vita di un evento in composizione: costruzione, firma, invio.
@@ -42,17 +49,32 @@ export function useEventDraft() {
    * Gli errori di validazione arrivano da qui e sono quelli veri del dominio,
    * non controlli duplicati nel form: se il kind rifiuta un input, lo rifiuta
    * allo stesso modo ovunque venga usato.
+   *
+   * `aggiuntivi` sono i tag che questo client non governa: si ricavano
+   * all'apertura di un evento gia' pubblicato con `tagAggiuntivi()`, oppure
+   * li aggiunge l'utente dalla sezione «Tag» del form.
    */
-  function costruisci(definizione: AnyKindDefinition, input: unknown): boolean {
+  function costruisci(
+    definizione: AnyKindDefinition,
+    input: unknown,
+    opzioni: { aggiuntivi?: readonly Tag[] } = {},
+  ): boolean {
     errore.value = null
     firmato.value = null
     // Un template nuovo e' una pubblicazione nuova: l'esito di prima non la riguarda.
     invio.azzera()
     try {
-      template.value = definizione.build(input, {
+      const costruito = definizione.build(input, {
         pubkey: identita.pubkey ?? '00'.repeat(32),
         now: Math.floor(Date.now() / 1000),
       })
+      // I tag che il kind non scrive — quelli letti dall'evento originale e
+      // quelli aggiunti a mano — vanno in coda. Senza, modificare un evento
+      // altrui significherebbe cancellargli tutto cio' che il nostro form non
+      // sa rappresentare.
+      template.value = opzioni.aggiuntivi?.length
+        ? { ...costruito, tags: fondiTag(costruito.tags, opzioni.aggiuntivi) }
+        : costruito
       return true
     } catch (e) {
       template.value = null

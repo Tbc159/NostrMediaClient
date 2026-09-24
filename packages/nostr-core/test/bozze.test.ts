@@ -138,7 +138,8 @@ describe('relay privati (kind 10013)', () => {
     const ciphertext = await wrapPrivateRelays(cifrario, ['wss://privato.example'])
     const template = privateRelaysDefinition.build({ ciphertext }, CTX)
 
-    expect(template.tags).toEqual([])
+    // Unico tag: quello del client, che non dice nulla su dove sono le bozze.
+    expect(template.tags).toEqual([['client', 'NostrMediaClient']])
     expect(template.content).not.toContain('privato.example')
   })
 

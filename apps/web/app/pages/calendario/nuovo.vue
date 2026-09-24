@@ -5,6 +5,7 @@ import {
   getKindDefinition,
   localTimezone,
   newCalendarIdentifier,
+  normalizeHashtag,
   unixToZoned,
   zonedToUnix,
 } from '@nmc/nostr-core'
@@ -31,7 +32,36 @@ const sommario = ref('')
 const luogo = ref('')
 const immagine = ref('')
 const partecipanti = ref('')
-const hashtag = ref('')
+
+/*
+ * Gli hashtag sono un elenco, non una riga di testo.
+ *
+ * Divisi sugli spazi, la categoria «Food & drink» di un altro client
+ * diventava tre tag — «food», «&», «drink» — e l'evento tornava sui relay
+ * peggiore di come era arrivato. Come elementi separati non c'e' niente da
+ * dividere: quelli letti restano com'erano, e solo quelli scritti qui
+ * passano dalla convenzione minuscola.
+ */
+const hashtag = ref<string[]>([])
+const nuovoHashtag = ref('')
+
+function aggiungiHashtag(): void {
+  const pulito = normalizeHashtag(nuovoHashtag.value)
+  if (pulito && !hashtag.value.includes(pulito)) hashtag.value = [...hashtag.value, pulito]
+  nuovoHashtag.value = ''
+}
+const togliHashtag = (v: string): void => {
+  hashtag.value = hashtag.value.filter((h) => h !== v)
+}
+
+/*
+ * I tag che questo form non scrive: letti dall'evento quando lo si riapre e
+ * ripubblicati con lui. Vale per i colori e le coordinate di un altro
+ * client, ma anche per cio' che il kind saprebbe scrivere e che il form non
+ * gli passa — `g`, `r`, `a`, il ruolo dei partecipanti.
+ */
+const conservati = useTagConservati(() => nomiDelForm.value)
+const tagExtra = conservati.tags
 
 const dataInizio = ref('')
 const oraInizio = ref('09:00')
@@ -80,7 +110,9 @@ async function riapri(kind: number, d: string): Promise<void> {
     luogo.value = dati.locations.join(', ')
     immagine.value = dati.image ?? ''
     partecipanti.value = dati.participants.map((p: { pubkey: string }) => p.pubkey).join(' ')
-    hashtag.value = dati.hashtags.join(' ')
+    hashtag.value = [...dati.hashtags]
+    // La fotografia dei tag si scatta adesso, sull'evento come sta sui relay.
+    conservati.fotografa(definizione, trovato, inputDa(dati, kind))
 
     if (kind === 31922) {
       dataInizio.value = dati.start
@@ -141,12 +173,6 @@ const listaPartecipanti = computed(() =>
     .map((s) => s.trim())
     .filter(Boolean),
 )
-const listaHashtag = computed(() =>
-  hashtag.value
-    .split(/[,\s]+/)
-    .map((s) => s.trim())
-    .filter(Boolean),
-)
 
 /** Anteprima leggibile dell'istante, per confermare che il fuso sia quello atteso. */
 const anteprimaInizio = computed(() => {
@@ -165,6 +191,58 @@ const anteprimaInizio = computed(() => {
 
 const puoComporre = computed(() => titolo.value.trim() !== '' && dataInizio.value !== '')
 
+/**
+ * L'input che il form produrrebbe a partire da un evento letto.
+ *
+ * Serve solo alla fotografia dei tag: e' il «cosa scriverebbe il kind per
+ * questo evento», e la differenza con l'evento vero sono i tag da conservare.
+ */
+function inputDa(dati: Record<string, unknown>, kind: number): Record<string, unknown> {
+  const d = dati as {
+    identifier: string
+    title: string
+    description: string
+    summary?: string
+    image?: string
+    locations: string[]
+    hashtags: string[]
+    start: number | string
+    end?: number | string
+    startTzid?: string
+  }
+  return {
+    identifier: d.identifier,
+    title: d.title,
+    description: d.description,
+    ...(d.summary ? { summary: d.summary } : {}),
+    ...(d.image ? { image: d.image } : {}),
+    ...(d.locations.length ? { location: d.locations } : {}),
+    ...(d.hashtags.length ? { hashtags: d.hashtags } : {}),
+    start: d.start,
+    ...(d.end !== undefined ? { end: d.end } : {}),
+    ...(kind === 31923 && d.startTzid ? { startTzid: d.startTzid } : {}),
+  }
+}
+
+/** I nomi dei tag che questo form compone: servono all'avviso sui doppioni. */
+const nomiDelForm = computed(() =>
+  tuttoIlGiorno.value
+    ? ['d', 'title', 'summary', 'image', 'location', 't', 'start', 'end', 'client']
+    : [
+        'd',
+        'title',
+        'summary',
+        'image',
+        'location',
+        't',
+        'start',
+        'end',
+        'D',
+        'start_tzid',
+        'client',
+      ],
+)
+
 function componi(): void {
   const kind = tuttoIlGiorno.value ? 31922 : 31923
   const definizione = getKindDefinition(kind)
@@ -181,15 +259,19 @@ function componi(): void {
     ...(luogo.value.trim() ? { location: luogo.value.trim() } : {}),
     ...(immagine.value.trim() ? { image: immagine.value.trim() } : {}),
     ...(listaPartecipanti.value.length ? { participants: listaPartecipanti.value } : {}),
-    ...(listaHashtag.value.length ? { hashtags: listaHashtag.value } : {}),
+    ...(hashtag.value.length ? { hashtags: hashtag.value } : {}),
   }
 
   if (tuttoIlGiorno.value) {
-    bozza.costruisci(definizione, {
-      ...comune,
-      start: dataInizio.value,
-      ...(conFine.value && dataFine.value ? { end: dataFine.value } : {}),
-    })
+    bozza.costruisci(
+      definizione,
+      {
+        ...comune,
+        start: dataInizio.value,
+        ...(conFine.value && dataFine.value ? { end: dataFine.value } : {}),
+      },
+      { aggiuntivi: tagExtra.value },
+    )
     return
   }
 
@@ -199,12 +281,16 @@ function componi(): void {
       conFine.value && dataFine.value
         ? zonedToUnix(dataFine.value, oraFine.value, fuso.value)
         : undefined
-    bozza.costruisci(definizione, {
-      ...comune,
-      start,
-      ...(end !== undefined ? { end } : {}),
-      startTzid: fuso.value,
-    })
+    bozza.costruisci(
+      definizione,
+      {
+        ...comune,
+        start,
+        ...(end !== undefined ? { end } : {}),
+        startTzid: fuso.value,
+      },
+      { aggiuntivi: tagExtra.value },
+    )
   } catch (e) {
     bozza.errore.value = e instanceof Error ? e.message : String(e)
   }
@@ -220,7 +306,9 @@ function nuovo(): void {
   luogo.value = ''
   immagine.value = ''
   partecipanti.value = ''
-  hashtag.value = ''
+  hashtag.value = []
+  nuovoHashtag.value = ''
+  conservati.azzera()
   bozza.azzera()
 }
 </script>
@@ -376,9 +464,51 @@ function nuovo(): void {
           <BaseInput :id="id" v-model="partecipanti" :described-by="describedBy" />
         </BaseField>
 
-        <BaseField v-slot="{ id, describedBy }" label="Hashtag">
-          <BaseInput :id="id" v-model="hashtag" :described-by="describedBy" />
+        <BaseField
+          v-slot="{ id, describedBy }"
+          label="Hashtag"
+          hint="Uno alla volta: «Invio» lo aggiunge. Quelli letti da un evento di un altro client restano come li ha scritti."
+        >
+          <div class="flex flex-col gap-2">
+            <ul v-if="hashtag.length" class="flex flex-wrap gap-2">
+              <li
+                v-for="h in hashtag"
+                :key="h"
+                class="superficie flex items-center gap-2 rounded-md border px-2 py-1 text-sm"
+              >
+                <span>{{ h }}</span>
+                <button
+                  type="button"
+                  class="text-xs underline"
+                  :aria-label="`Togli ${h}`"
+                  @click="togliHashtag(h)"
+                >
+                  ×
+                </button>
+              </li>
+            </ul>
+            <div class="flex flex-wrap items-center gap-2">
+              <div class="min-w-48 flex-1">
+                <BaseInput
+                  :id="id"
+                  v-model="nuovoHashtag"
+                  :described-by="describedBy"
+                  placeholder="bitcoin"
+                  @keydown.enter.prevent="aggiungiHashtag"
+                />
+              </div>
+              <BaseButton size="sm" :disabled="!nuovoHashtag.trim()" @click="aggiungiHashtag">
+                Aggiungi
+              </BaseButton>
+            </div>
+          </div>
         </BaseField>
+
+        <EventTagAggiuntivi
+          v-model="tagExtra"
+          :nomi-del-form="nomiDelForm"
+          :da-evento-esistente="modifica"
+        />
 
         <div class="flex flex-wrap gap-2">
           <BaseButton type="submit" variant="primario" :disabled="!puoComporre">

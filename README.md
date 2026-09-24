@@ -32,7 +32,11 @@ each relay actually did with it.
 | Viewing   | —                       | open any event in an external reading client, chosen per device                                                        |
 
 Anything the client can publish, it can also list and — where the protocol
-allows it — reopen and correct.
+allows it — reopen and correct. **Correcting an event never silently drops
+what this client does not model**: the tags another client wrote — coordinates,
+theme colours, anything unknown — come back to the form, stay visible in a
+«Tag» section at the bottom, and go back out with the event. Every published
+event also carries `["client", "NostrMediaClient"]` (NIP-89).
 
 ### Three things it deliberately does not hide from you
 

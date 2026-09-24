@@ -347,6 +347,21 @@ podcast" spiegata sopra. Per il secondo caso c'è «Ridistribuisci sui relay»,
 nella stessa scheda e in quella del podcast: rimanda scheda ed episodi, già
 firmati, a tutti i relay di scrittura.
 
+## I tag che non conosciamo, e il tag `client`
+
+Ogni evento che esce da qui porta `["client", "NostrMediaClient"]` (NIP-89):
+dice con cosa è stato composto, e sostituisce il nome di un altro client
+quando si ripubblica un evento letto altrove — perché quell'evento nuovo lo
+scrive questo programma.
+
+L'altra faccia della stessa scelta: **modificare un evento non cancella ciò
+che il form non sa rappresentare**. Quando si riapre un evento pubblicato, i
+tag che il kind non scrive — quelli di un altro client, o quelli che il nostro
+form non passa ancora — finiscono nella sezione «Tag» in fondo al form, si
+possono correggere o togliere a mano, e tornano nell'evento ripubblicato. Vale
+per la scheda del podcast (10154) come per gli altri kind sostituibili. Da lì
+si aggiungono anche tag liberi, per quello che il client non prevede.
+
 ## Cosa non è coperto oggi
 
 Onestà, non un elenco di scuse — perché chi progetta il passo successivo

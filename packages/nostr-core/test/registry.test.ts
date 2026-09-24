@@ -152,7 +152,14 @@ describe('defineKind', () => {
     })
 
     const built = def.build('ciao', { pubkey: 'ab'.repeat(32), now: 1_700_000_000 })
-    expect(built).toEqual({ kind: 1, content: 'ciao', tags: [], created_at: 1_700_000_000 })
+    expect(built).toEqual({
+      kind: 1,
+      content: 'ciao',
+      // defineKind non e' piu' solo un'identita': ci aggiunge il tag `client`,
+      // che e' il motivo per cui nessun kind puo' dimenticarselo.
+      tags: [['client', 'NostrMediaClient']],
+      created_at: 1_700_000_000,
+    })
   })
 })
 

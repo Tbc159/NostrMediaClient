@@ -9,9 +9,16 @@ import { defineKind } from '../registry.js'
  * e' obbligatorio e chiunque puo' aggiungerne di propri, quindi il parsing deve
  * essere tollerante: un profilo malformato non deve impedire di mostrare il
  * resto dell'applicazione.
+ *
+ * **I campi che non conosciamo si conservano.** Il profilo e' uno solo ed e'
+ * sostituibile: salvarlo da qui riscrive quello che c'era. Un client che
+ * scrive `pronouns` o `birthday` — campi veri, fuori da NIP-01 — li vedrebbe
+ * sparire al primo salvataggio fatto con noi. Lo schema quindi non scarta
+ * l'ignoto: lo tiene da parte e lo riscrive com'era. Vale la stessa regola dei
+ * tag: cio' che non sappiamo leggere non e' nostro da cancellare.
  */
 
-export const profileSchema = z.object({
+const profileNoti = z.object({
   name: z.string().optional(),
   display_name: z.string().optional(),
   about: z.string().optional(),
@@ -26,6 +33,14 @@ export const profileSchema = z.object({
   /** Il profilo dichiara di essere un bot. */
   bot: z.boolean().optional(),
 })
+
+/**
+ * Lo schema vero: i campi noti piu' qualunque altro, conservato com'e'.
+ *
+ * `catchall` e' la differenza fra «leggo il profilo» e «riscrivo il profilo
+ * buttando via cio' che non capisco».
+ */
+export const profileSchema = profileNoti.catchall(z.unknown())
 
 export type Profile = z.infer<typeof profileSchema>
 
@@ -48,16 +63,18 @@ export const metadataDefinition = defineKind<Profile, Profile>({
       throw new Error(`profilo con content non JSON: evento ${event.id}`)
     }
 
-    // `catchall` implicito: i campi sconosciuti vengono scartati invece di far
-    // fallire il parsing. Molti client scrivono estensioni proprie nel kind 0.
+    // Un campo noto di tipo sbagliato non deve far perdere tutto il resto: si
+    // riprova tenendo solo cio' che e' sopravvissuto, piu' l'ignoto.
     const esito = profileSchema.safeParse(grezzo)
-    return esito.success ? esito.data : {}
+    if (esito.success) return esito.data
+    return typeof grezzo === 'object' && grezzo !== null ? { ...(grezzo as Profile) } : {}
   },
 
   build(input, ctx) {
     // I campi assenti non vanno scritti come null: un client che rilegge il
     // profilo li interpreterebbe come "impostato a niente" invece che "non
-    // impostato".
+    // impostato". I campi altrui passano di qui come gli altri: arrivano da
+    // `parse` dentro lo stesso oggetto e tornano nel JSON senza essere letti.
     const pulito = Object.fromEntries(
       Object.entries(input).filter(([, v]) => v !== undefined && v !== ''),
     )

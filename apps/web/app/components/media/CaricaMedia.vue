@@ -2,6 +2,7 @@
 import {
   completezzaEpisodio,
   getKindDefinition,
+  normalizeHashtag,
   leggiBozzaEpisodio,
   mirrorBlob,
   parsePublicKeyInput,
@@ -157,10 +158,12 @@ watch(firmaCon, () => {
   bozza.firmato.value = null
 })
 
+// La minuscola si applica a cio' che si scrive qui: i kind scrivono i tag
+// `t` come li ricevono, per non riscrivere quelli letti da altri client.
 const listaHashtag = computed(() =>
   hashtag.value
     .split(/[,\s]+/)
-    .map((s) => s.trim())
+    .map((s) => normalizeHashtag(s))
     .filter(Boolean),
 )
 

@@ -1,7 +1,6 @@
 import { z } from 'zod'
 
 import { optionalTag, repeatedTags, tagValue, tagValues, tagsNamed } from '../tags.js'
-import { normalizeHashtag } from '../tags.js'
 import type { NostrEvent } from '../types.js'
 
 /**
@@ -37,6 +36,15 @@ export const calendarSharedSchema = z.object({
   /** Geohash del luogo (tag `g`). */
   geohash: z.string().optional(),
   participants: z.array(calendarParticipantSchema),
+  /**
+   * Hashtag (tag `t`), **come stanno nell'evento**.
+   *
+   * Non si abbassano di caso ne' si normalizzano qui: un altro client scrive
+   * `Food & drink` come categoria, e riscriverlo `food & drink` — o peggio
+   * spezzarlo — significa cambiare il dato di qualcun altro nel solo atto di
+   * modificargli il titolo. La convenzione minuscola si applica a cio' che
+   * l'utente scrive nel form, con `normalizeHashtag`, dove nasce.
+   */
   hashtags: z.array(z.string()),
   /** Riferimenti esterni, es. link all'evento originale (tag `r`). */
   references: z.array(z.string()),
@@ -104,7 +112,7 @@ export function parseShared(event: NostrEvent): CalendarShared {
     locations: tagValues(event, 'location'),
     ...(tagValue(event, 'g') !== undefined ? { geohash: tagValue(event, 'g') as string } : {}),
     participants: partecipanti,
-    hashtags: tagValues(event, 't').map(normalizeHashtag),
+    hashtags: tagValues(event, 't'),
     references: tagValues(event, 'r'),
     calendars: tagValues(event, 'a'),
   }
@@ -137,7 +145,7 @@ export function buildSharedTags(input: CalendarSharedInput): string[][] {
     ...repeatedTags('location', luoghi),
     ...optionalTag('g', input.geohash),
     ...partecipanti,
-    ...repeatedTags('t', (input.hashtags ?? []).map(normalizeHashtag)),
+    ...repeatedTags('t', input.hashtags ?? []),
     ...repeatedTags('r', input.references ?? []),
     ...repeatedTags('a', input.calendars ?? []),
   ]

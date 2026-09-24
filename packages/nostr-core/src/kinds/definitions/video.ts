@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 import { buildImetaTag, imetaOf, imetaSchema, type ImetaInput } from '../imeta.js'
 import { defineKind } from '../registry.js'
-import { normalizeHashtag, optionalTag, repeatedTags, tagValue, tagValues } from '../tags.js'
+import { optionalTag, repeatedTags, tagValue, tagValues } from '../tags.js'
 import type { NostrEvent } from '../types.js'
 
 /**
@@ -71,7 +71,7 @@ function creaDefinizioneVideo(kind: 21 | 22, nome: string, renderer: string) {
         title,
         variants: imetaOf(event),
         ...(publishedAt !== undefined && Number.isFinite(publishedAt) ? { publishedAt } : {}),
-        hashtags: tagValues(event, 't').map(normalizeHashtag),
+        hashtags: tagValues(event, 't'),
         mentions: tagValues(event, 'p'),
         ...(alt !== undefined ? { alt } : {}),
         ...(contentWarning !== undefined ? { contentWarning } : {}),
@@ -96,7 +96,7 @@ function creaDefinizioneVideo(kind: 21 | 22, nome: string, renderer: string) {
             'published_at',
             input.publishedAt !== undefined ? String(input.publishedAt) : String(ctx.now),
           ),
-          ...repeatedTags('t', (input.hashtags ?? []).map(normalizeHashtag)),
+          ...repeatedTags('t', input.hashtags ?? []),
           ...repeatedTags('p', input.mentions ?? []),
           ...optionalTag('alt', input.alt),
           ...(input.contentWarning !== undefined

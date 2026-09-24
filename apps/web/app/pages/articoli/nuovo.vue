@@ -37,8 +37,10 @@ const html = computed(() => renderMarkdown(contenuto.value))
 const statistiche = computed(() => statisticheTesto(contenuto.value))
 
 const listaHashtag = computed(() =>
+  // Solo la virgola: dividere anche sugli spazi spezzerebbe in tre un
+  // hashtag come «Food & drink» letto da un evento di un altro client.
   hashtag.value
-    .split(/[,\s]+/)
+    .split(',')
     .map((s) => s.trim())
     .filter(Boolean),
 )
@@ -49,6 +51,11 @@ const puoComporre = computed(
 
 const modifica = computed(() => primaPubblicazione.value !== null)
 
+/** I tag dell'articolo che questo form non scrive, conservati alla lettera. */
+const nomiDelForm = ['d', 'title', 'summary', 'image', 'published_at', 't', 'client']
+const conservati = useTagConservati(nomiDelForm)
+const tagExtra = conservati.tags
+
 function componi(): void {
   const definizione = getKindDefinition(30023)
   if (!definizione) {
@@ -56,15 +63,19 @@ function componi(): void {
     return
   }
 
-  bozza.costruisci(definizione, {
-    content: contenuto.value,
-    identifier: identificatore.value,
-    title: titolo.value.trim(),
-    ...(sommario.value.trim() ? { summary: sommario.value.trim() } : {}),
-    ...(immagine.value.trim() ? { image: immagine.value.trim() } : {}),
-    ...(listaHashtag.value.length ? { hashtags: listaHashtag.value } : {}),
-    ...(primaPubblicazione.value !== null ? { publishedAt: primaPubblicazione.value } : {}),
-  })
+  bozza.costruisci(
+    definizione,
+    {
+      content: contenuto.value,
+      identifier: identificatore.value,
+      title: titolo.value.trim(),
+      ...(sommario.value.trim() ? { summary: sommario.value.trim() } : {}),
+      ...(immagine.value.trim() ? { image: immagine.value.trim() } : {}),
+      ...(listaHashtag.value.length ? { hashtags: listaHashtag.value } : {}),
+      ...(primaPubblicazione.value !== null ? { publishedAt: primaPubblicazione.value } : {}),
+    },
+    { aggiuntivi: tagExtra.value },
+  )
 }
 
 const salvato = ref(false)
@@ -204,7 +215,7 @@ async function riapri(d: string): Promise<void> {
     titolo.value = dati.title ?? ''
     sommario.value = dati.summary ?? ''
     immagine.value = dati.image ?? ''
-    hashtag.value = dati.hashtags.join(' ')
+    hashtag.value = dati.hashtags.join(', ')
     contenuto.value = dati.content
     identificatore.value = dati.identifier
     // Da qui in avanti l'identificatore non deve piu' seguire il titolo:
@@ -213,6 +224,15 @@ async function riapri(d: string): Promise<void> {
     // La prima pubblicazione si conserva: e' cio' che distingue una correzione
     // da una ripubblicazione, e senza, l'articolo risalirebbe i feed altrui.
     primaPubblicazione.value = dati.publishedAt ?? trovato.created_at
+    conservati.fotografa(definizione, trovato, {
+      content: dati.content,
+      identifier: dati.identifier,
+      title: dati.title ?? '',
+      ...(dati.summary ? { summary: dati.summary } : {}),
+      ...(dati.image ? { image: dati.image } : {}),
+      ...(dati.hashtags.length ? { hashtags: dati.hashtags } : {}),
+      ...(dati.publishedAt !== undefined ? { publishedAt: dati.publishedAt } : {}),
+    })
     bozza.azzera()
   } catch (e) {
     esistente.errore.value = `L’articolo pubblicato non è interpretabile: ${e instanceof Error ? e.message : String(e)}`
@@ -366,10 +386,16 @@ onMounted(() => {
         <BaseField
           v-slot="{ id, describedBy }"
           label="Hashtag"
-          hint="Separati da spazio o virgola."
+          hint="Separati da virgola: uno può contenere spazi."
         >
           <BaseInput :id="id" v-model="hashtag" :described-by="describedBy" />
         </BaseField>
+
+        <EventTagAggiuntivi
+          v-model="tagExtra"
+          :nomi-del-form="nomiDelForm"
+          :da-evento-esistente="modifica"
+        />
 
         <div class="flex items-center justify-between">
           <label class="text-sm font-medium" for="corpo">Testo (Markdown)</label>
