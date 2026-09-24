@@ -78,6 +78,22 @@ risponde() {
 
 # --- comandi ---------------------------------------------------------------
 
+# I pacchetti del monorepo si importano dal loro `dist`, che non sta in git:
+# dopo un cambio di branch o un pull e' quello vecchio, e Vite fallisce
+# l'import di un export che non esiste ancora. Il sintomo e' una pagina
+# bianca **senza errori nel log del server**, perche' l'errore accade nel
+# browser: un'ora buttata la prima volta, mai piu' dalla seconda.
+compila_pacchetti() {
+  nota "compilo i pacchetti del monorepo…"
+  if ( cd "$RADICE" && pnpm build:packages > "$RUNDIR/build-packages.log" 2>&1 ); then
+    ok "pacchetti aggiornati"
+  else
+    err "compilazione dei pacchetti fallita. Ultime righe:"
+    tail -20 "$RUNDIR/build-packages.log"
+    return 1
+  fi
+}
+
 avvia() {
   carica_toolchain
   mkdir -p "$RUNDIR"
@@ -99,6 +115,8 @@ avvia() {
     avv "manca .env: lo creo da .env.example"
     cp "$RADICE/.env.example" "$RADICE/.env"
   fi
+
+  compila_pacchetti || return 1
 
   printf "avvio sulla porta %s…\n" "$PORTA"
 
@@ -137,7 +155,9 @@ avvia() {
 
 primo_piano() {
   carica_toolchain
+  mkdir -p "$RUNDIR"
   if [ ! -f "$RADICE/.env" ]; then cp "$RADICE/.env.example" "$RADICE/.env"; fi
+  compila_pacchetti || return 1
   nota "primo piano sulla porta $PORTA — Ctrl-C per uscire"
   cd "$APP" && exec npx nuxt dev --port "$PORTA" --dotenv ../../.env
 }

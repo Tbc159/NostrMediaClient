@@ -110,7 +110,11 @@ pnpm build        # production build of the packages and the Nuxt app
 ```
 
 `pnpm start` and friends wrap [`scripts/client.sh`](scripts/client.sh), which
-also loads Node from nvm if it is not on your `PATH`:
+loads Node from nvm if it is not on your `PATH` and **rebuilds the workspace
+packages before starting**. That second part matters: the app imports
+`@nmc/nostr-core` from its built `dist`, which is not in git, so after a pull
+or a branch switch a stale build makes the page come up blank with nothing in
+the server log — the failing import happens in the browser.
 
 | Command                     | What it does                                                             |
 | --------------------------- | ------------------------------------------------------------------------ |

@@ -11,7 +11,7 @@
     "pnpm": ">=11"
   },
   "scripts": {
-    "dev": "pnpm --filter @nmc/web dev",
+    "dev": "pnpm build:packages && pnpm --filter @nmc/web dev",
     "start": "./scripts/client.sh start",
     "stop": "./scripts/client.sh stop",
     "restart": "./scripts/client.sh restart",
