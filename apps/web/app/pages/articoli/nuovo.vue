@@ -21,8 +21,6 @@ const primaPubblicazione = ref<number | null>(null)
 /** Vero quando l'identificatore e' stato scritto a mano e non va piu' seguito il titolo. */
 const identificatoreManuale = ref(false)
 
-const anteprima = ref(false)
-
 /*
  * L'identificatore segue il titolo finche' l'utente non lo tocca. Cambiarlo
  * dopo la prima pubblicazione **non** modifica l'articolo: ne crea uno nuovo,
@@ -33,7 +31,6 @@ watch(titolo, (nuovo) => {
   if (!identificatoreManuale.value) identificatore.value = slugFromTitle(nuovo)
 })
 
-const html = computed(() => renderMarkdown(contenuto.value))
 const statistiche = computed(() => statisticheTesto(contenuto.value))
 
 const listaHashtag = computed(() =>
@@ -391,32 +388,19 @@ onMounted(() => {
         />
 
         <div class="flex items-center justify-between">
-          <label class="text-sm font-medium" for="corpo">Testo (Markdown)</label>
-          <button type="button" class="text-xs underline" @click="anteprima = !anteprima">
-            {{ anteprima ? 'torna alla scrittura' : 'anteprima' }}
-          </button>
+          <span class="text-sm font-medium">Testo</span>
+          <span class="text-xs text-[var(--testo-tenue)]">si pubblica come Markdown</span>
         </div>
 
         <!--
-          Il contenuto passa da renderMarkdown, che sanifica con DOMPurify. La
-          sanificazione serve anche qui, dove NIP-23 vieta l'HTML: quel divieto
-          vincola chi scrive, non chi legge, e in anteprima si rilegge testo che
-          puo' arrivare da un'altra fonte.
+          L'editor scrive formattato e produce Markdown: i simboli non si
+          devono conoscere, ma la sorgente resta visibile e modificabile dal
+          pulsante «Markdown». L'HTML che compare nell'area passa da
+          renderMarkdown, quindi da DOMPurify: la sanificazione serve anche
+          qui, dove NIP-23 vieta l'HTML, perche' quel divieto vincola chi
+          scrive e non chi rilegge un testo che puo' venire da un'altra fonte.
         -->
-        <!-- eslint-disable vue/no-v-html -->
-        <div
-          v-if="anteprima"
-          class="prose-nmc superficie min-h-64 rounded-lg border p-4 text-sm"
-          v-html="html"
-        />
-        <!-- eslint-enable vue/no-v-html -->
-        <BaseTextarea
-          v-else
-          id="corpo"
-          v-model="contenuto"
-          :rows="18"
-          placeholder="# Titolo della sezione&#10;&#10;Il testo va a capo da solo: non spezzare le righe a mano."
-        />
+        <EditorTesto v-model="contenuto" :righe="18" />
 
         <p class="text-xs text-[var(--testo-tenue)]">
           {{ statistiche.parole }} parole · circa {{ statistiche.minuti }} min di lettura · niente

@@ -25,7 +25,7 @@ each relay actually did with it.
 | --------- | ----------------------- | ---------------------------------------------------------------------------------------------------------------------- |
 | Notes     | 1                       | write, sign, publish                                                                                                   |
 | Media     | 1, 20, 21, 22, 54, 1063 | upload to Blossom, then publish as a note with attachment, an image, a video, a podcast episode, or a catalogue record |
-| Long-form | 30023                   | Markdown editor with preview, edit published articles in place                                                         |
+| Long-form | 30023                   | write formatted without knowing Markdown (the source stays one button away), edit published articles in place          |
 | Drafts    | 31234, 10013            | encrypted drafts that follow you across devices (NIP-37), plus browser-local ones                                      |
 | Calendar  | 31922, 31923, 31925     | date and time events with real timezone handling, RSVPs                                                                |
 | Profile   | 0                       | edit your profile, loaded from relays before it is replaced                                                            |
