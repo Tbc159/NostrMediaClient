@@ -281,10 +281,40 @@ export async function mirrorBlob(
   return conEstensioneScelta(descrittore, opzioni.mime ?? descrittore.type, opzioni.nome)
 }
 
-/** Elenca i blob caricati da una pubkey (BUD-12, `GET /list/<pubkey>`). */
-export async function listBlobs(server: string, pubkey: string): Promise<BlobDescriptor[]> {
+/**
+ * Elenca i blob caricati da una pubkey (BUD-12, `GET /list/<pubkey>`).
+ *
+ * L'autorizzazione e' facoltativa **nella specifica e nella pratica**: su
+ * blossom.yakihonne.com la lista e' pubblica, su nostr.download risponde 401.
+ * Quindi si prova prima senza: firmare un token costa all'utente un popup
+ * dell'estensione, e chiederglielo quando non serve e' il modo di far
+ * sembrare invasiva una funzione che non lo e'. Solo se il server rifiuta, e
+ * solo se abbiamo di che firmare, si riprova con il token (verbo `list`).
+ */
+export async function listBlobs(
+  server: string,
+  pubkey: string,
+  opzioni: { firma?: FirmaEvento; pubkeyFirma?: string } = {},
+): Promise<BlobDescriptor[]> {
   const base = server.replace(/\/+$/, '')
-  const risposta = await fetch(`${base}/list/${pubkey}`)
+  const leggi = async (intestazioni?: Record<string, string>): Promise<Response> =>
+    fetch(`${base}/list/${pubkey}`, intestazioni ? { headers: intestazioni } : undefined)
+
+  let risposta = await leggi()
+
+  if (
+    (risposta.status === 401 || risposta.status === 403) &&
+    opzioni.firma &&
+    opzioni.pubkeyFirma
+  ) {
+    const token = await creaTokenBlossom(opzioni.firma, opzioni.pubkeyFirma, {
+      verbo: 'list',
+      server: base,
+      descrizione: `Elenca i tuoi file su ${hostDi(base)}`,
+    })
+    risposta = await leggi({ Authorization: encodeAuthHeader(token) })
+  }
+
   if (!risposta.ok) throw await errore(risposta, base)
   const dati = (await risposta.json()) as BlobDescriptor[]
   return Array.isArray(dati) ? dati : []

@@ -370,18 +370,11 @@ onMounted(() => {
           <BaseTextarea :id="id" v-model="sommario" :rows="2" :described-by="describedBy" />
         </BaseField>
 
-        <BaseField
-          v-slot="{ id, describedBy }"
+        <MediaCampoImmagine
+          v-model="immagine"
           label="Immagine di copertina"
-          hint="URL. Puoi caricarla dalla sezione media e incollare qui l’indirizzo."
-        >
-          <BaseInput
-            :id="id"
-            v-model="immagine"
-            placeholder="https://…"
-            :described-by="describedBy"
-          />
-        </BaseField>
+          hint="Caricala da qui, scegline una già su Blossom, oppure incolla l’indirizzo di una immagine già online."
+        />
 
         <BaseField
           v-slot="{ id, describedBy }"
