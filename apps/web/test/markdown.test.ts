@@ -64,6 +64,17 @@ describe('Markdown → HTML → Markdown', () => {
     expect(giro('a\n\n\n\n\nb')).toBe('a\n\nb')
   })
 
+  it('le voci di un elenco non si allargano con righe vuote', () => {
+    // E' la forma che produce l'editor: <li><p>…</p></li>. Senza la regola, fra
+    // una voce e l'altra resta una riga vuota e l'elenco diventa «largo».
+    expect(markdownDaHtml('<ul><li><p>uno</p></li><li><p>due</p></li></ul>')).toBe(
+      '-   uno\n-   due',
+    )
+    expect(markdownDaHtml('<ol><li><p>uno</p></li><li><p>due</p></li></ol>')).toBe(
+      '1.  uno\n2.  due',
+    )
+  })
+
   it('un paragrafo vuoto non diventa una riga di spazi', () => {
     // Due spazi a fine riga, in Markdown, sono un'interruzione di riga: un
     // paragrafo lasciato vuoto nell'editor non deve pubblicarne una.

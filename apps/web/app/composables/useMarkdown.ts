@@ -61,6 +61,18 @@ const turndown = new TurndownService({
   linkStyle: 'inlined',
 })
 
+/*
+ * ProseMirror avvolge il contenuto di ogni voce di elenco in un `<p>`, e
+ * turndown lo tratta come un blocco: ne esce una riga vuota fra le voci, cioe'
+ * un elenco «largo», che al rendering prende spazio verticale come se ogni
+ * punto fosse un paragrafo. Qui il paragrafo dentro una voce si sciogle: e' la
+ * differenza fra `- uno\n- due` e `- uno\n\n- due`.
+ */
+turndown.addRule('paragrafoDentroVoce', {
+  filter: (nodo) => nodo.nodeName === 'P' && nodo.parentNode?.nodeName === 'LI',
+  replacement: (contenuto) => contenuto,
+})
+
 export function markdownDaHtml(html: string): string {
   return (
     turndown

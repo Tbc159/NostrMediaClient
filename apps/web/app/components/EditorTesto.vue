@@ -1,23 +1,28 @@
 <script setup lang="ts">
+import Link from '@tiptap/extension-link'
+import StarterKit from '@tiptap/starter-kit'
+import { EditorContent, useEditor } from '@tiptap/vue-3'
+
 /**
  * L'editor del corpo di un articolo: si scrive vedendo il risultato.
  *
  * Il contenuto pubblicato resta **Markdown** — lo vuole NIP-23 e lo vogliono i
  * lettori che non passano da qui — ma per scriverlo non serve conoscerne i
- * simboli: il grassetto appare in grassetto, i titoli sono grandi, e la barra
- * agisce sulla selezione. Il pulsante «Markdown» mostra la sorgente vera e la
- * lascia modificare, perche' chi la conosce fa prima a scriverla, e perche'
- * vedere cosa si sta pubblicando non deve essere un privilegio.
+ * simboli. Il pulsante «Markdown» mostra la sorgente vera e la lascia
+ * modificare: vedere cosa si sta pubblicando non deve essere un privilegio.
  *
- * **La sorgente e' sempre il Markdown.** Mentre si scrive formattato la fonte
- * momentanea e' il DOM, ma a ogni modifica si riscrive il Markdown e si emette
- * quello: nessuno stato nascosto che sopravviva al salvataggio.
+ * **Perche' Tiptap e non un `contenteditable` nostro.** La prima versione
+ * usava `document.execCommand`: titoli ed elenchi uscivano a caso, perche'
+ * quell'API e' deprecata, si comporta in modo diverso a ogni browser e non ha
+ * un modello del documento — sposta tag e spera. Tiptap sta su ProseMirror,
+ * che ha uno schema vero: un titolo e' un nodo `heading`, un elenco e' un
+ * nodo `bulletList`, e la selezione non puo' produrre stati impossibili. In
+ * piu' i pulsanti sanno dire se sono attivi, e da tastiera funzionano le
+ * scorciatoie che tutti conoscono.
  *
- * `document.execCommand` e' deprecato e viene usato comunque. La sostituzione
- * — ricostruire a mano selezione, annullamento e composizione da tastiera —
- * vale un editor a se', e nessun browser lo ha rimosso ne' ha annunciato di
- * farlo per i comandi elementari usati qui. La scelta e' consapevole: la
- * conseguenza e' che un domani si tocca solo questo file.
+ * Nessuna tabella: `StarterKit` non ne ha, e non serve aggiungerle — un
+ * articolo su Nostr e' testo, e il giro verso il Markdown non le
+ * ricostruirebbe comunque.
  */
 
 const testo = defineModel<string>({ default: '' })
@@ -25,190 +30,198 @@ const testo = defineModel<string>({ default: '' })
 withDefaults(defineProps<{ righe?: number }>(), { righe: 18 })
 
 const modo = ref<'formattato' | 'markdown'>('formattato')
-const area = ref<HTMLElement | null>(null)
-/** Vero mentre si riscrive l'HTML dall'esterno: evita di rispondere al proprio input. */
-let scritturaInterna = false
-
 const problemi = computed(() => costruttiNonRicostruibili(testo.value))
 
 /*
- * Un articolo scritto con un altro editor puo' contenere cose che il giro
- * HTML → Markdown non ricostruisce. In quel caso si apre in Markdown e si
- * dice: semplificare in silenzio il lavoro di qualcuno e' il difetto peggiore
- * che un editor possa avere.
+ * `useEditor` costruisce l'editor in `onMounted` e lo distrugge da solo: in SSR
+ * non nasce affatto, che e' giusto — ProseMirror vuole un DOM, e renderizzarlo
+ * sul server darebbe una pagina che non combacia con quella idratata.
  */
-onMounted(() => {
-  if (problemi.value.length) modo.value = 'markdown'
-  else riempiArea()
+const editor = useEditor({
+  extensions: [
+    StarterKit.configure({
+      // Un articolo ha sezioni, non un titolo dentro il titolo: il titolo
+      // dell'articolo e' un campo a parte, quindi qui si parte dall'H2.
+      heading: { levels: [2, 3, 4] },
+      link: false,
+    }),
+    Link.configure({ openOnClick: false, autolink: true, linkOnPaste: true }),
+  ],
+  content: renderMarkdown(testo.value),
+  editorProps: {
+    attributes: {
+      class: 'prose-nmc min-h-64 focus:outline-none',
+      'aria-label': 'Testo dell’articolo',
+    },
+  },
+  onUpdate: ({ editor: e }) => {
+    // La sorgente pubblicata resta il Markdown: si riscrive a ogni modifica,
+    // cosi' non esiste uno stato che sopravviva solo dentro l'editor.
+    testo.value = markdownDaHtml(e.getHTML())
+  },
 })
-
-/** Markdown → HTML dentro l'area formattata. */
-function riempiArea(): void {
-  const el = area.value
-  if (!el) return
-  scritturaInterna = true
-  el.innerHTML = renderMarkdown(testo.value) || '<p><br></p>'
-  scritturaInterna = false
-}
-
-/** HTML → Markdown, a ogni modifica dell'area. */
-function leggiArea(): void {
-  const el = area.value
-  if (!el || scritturaInterna) return
-  testo.value = markdownDaHtml(el.innerHTML)
-}
 
 /*
  * Il Markdown cambiato da fuori (una bozza ripresa, un articolo riaperto) deve
- * comparire nell'area; quello cambiato *da* l'area no, altrimenti il cursore
+ * comparire nell'editor; quello che arriva **da** l'editor no, o il cursore
  * salterebbe all'inizio a ogni carattere.
  *
- * **Qui vive anche la salvaguardia**, e non solo al montaggio: un articolo
- * riaperto arriva dai relay *dopo*, e un controllo fatto una volta sola al
- * montaggio vedrebbe sempre un testo vuoto. E' il difetto che la prova nel
- * browser ha trovato: la tabella compariva nell'editor formattato, pronta a
- * essere appiattita al primo salvataggio.
+ * Qui vive anche la salvaguardia, e non al montaggio: un articolo riaperto
+ * arriva dai relay *dopo*, e un controllo fatto una volta sola vedrebbe sempre
+ * un testo vuoto. Era il difetto che la prova nel browser ha scoperto.
  */
-watch(testo, () => {
-  if (modo.value !== 'formattato') return
-  const el = area.value
-  if (!el) return
-  // Cambiato da dentro: l'area e' gia' allineata, non si tocca nulla.
-  if (markdownDaHtml(el.innerHTML) === testo.value) return
+watch(testo, (nuovo) => {
+  const e = editor.value
+  if (!e || markdownDaHtml(e.getHTML()) === nuovo) return
   if (problemi.value.length) {
     modo.value = 'markdown'
     return
   }
-  riempiArea()
+  e.commands.setContent(renderMarkdown(nuovo), { emitUpdate: false })
 })
 
-async function cambiaModo(): Promise<void> {
+onMounted(() => {
+  if (problemi.value.length) modo.value = 'markdown'
+})
+
+function cambiaModo(): void {
   if (modo.value === 'formattato') {
-    leggiArea()
     modo.value = 'markdown'
     return
   }
   modo.value = 'formattato'
-  await nextTick()
-  riempiArea()
-}
-
-// ── La barra ──────────────────────────────────────────────────────────────
-
-/** Esegue un comando sulla selezione e rilegge il Markdown. */
-function comando(nome: string, valore?: string): void {
-  area.value?.focus()
-  document.execCommand(nome, false, valore)
-  leggiArea()
-}
-
-/** Titolo: se il blocco e' gia' quel titolo, torna paragrafo. */
-function titolo(livello: 'H2' | 'H3'): void {
-  const dentro = bloccoCorrente() === livello
-  comando('formatBlock', dentro ? 'P' : livello)
-}
-
-function citazione(): void {
-  comando('formatBlock', bloccoCorrente() === 'BLOCKQUOTE' ? 'P' : 'BLOCKQUOTE')
-}
-
-/** Blocco di codice: `<pre>`, che turndown riscrive come recinto ```. */
-function codiceBlocco(): void {
-  comando('formatBlock', bloccoCorrente() === 'PRE' ? 'P' : 'PRE')
+  // Rientrando, l'editor mostra cio' che si e' scritto a mano — e riprende il
+  // fuoco con il cursore in fondo: chi torna dalla sorgente vuole continuare a
+  // scrivere, non cercare dove ha lasciato.
+  const e = editor.value
+  if (!e) return
+  e.chain().setContent(renderMarkdown(testo.value), { emitUpdate: false }).focus('end').run()
 }
 
 /**
- * Codice in riga: `execCommand` non ce l'ha, quindi si avvolge la selezione a
- * mano. Senza selezione non c'e' niente da marcare e si lascia stare.
+ * Il link: si chiede l'indirizzo e si applica alla selezione.
+ *
+ * Senza selezione non c'e' testo da rendere cliccabile, e si inserisce
+ * l'indirizzo come testo del link — che e' quello che si aspetta chi incolla
+ * un URL in un messaggio.
  */
-function codiceInRiga(): void {
-  const sel = window.getSelection()
-  if (!sel || sel.isCollapsed || !area.value) return
-  const code = document.createElement('code')
-  code.textContent = sel.toString()
-  const range = sel.getRangeAt(0)
-  range.deleteContents()
-  range.insertNode(code)
-  sel.removeAllRanges()
-  leggiArea()
-}
-
 function link(): void {
-  const sel = window.getSelection()
-  const testoSelezionato = sel?.toString() ?? ''
-  const url = window.prompt('Indirizzo del link', 'https://')
-  if (!url) return
-  if (testoSelezionato) comando('createLink', url)
-  else comando('insertHTML', `<a href="${url}">${url}</a>`)
-}
-
-/** Il tag del blocco in cui sta il cursore, per i pulsanti che fanno da interruttore. */
-function bloccoCorrente(): string {
-  const sel = window.getSelection()
-  let nodo = sel?.anchorNode ?? null
-  while (nodo && nodo !== area.value) {
-    if (nodo instanceof HTMLElement && /^(H[1-6]|BLOCKQUOTE|PRE|P|LI)$/.test(nodo.tagName)) {
-      return nodo.tagName
-    }
-    nodo = nodo.parentNode
+  const e = editor.value
+  if (!e) return
+  const attuale = (e.getAttributes('link').href as string | undefined) ?? 'https://'
+  const url = window.prompt('Indirizzo del link (vuoto per togliere)', attuale)
+  if (url === null) return
+  if (url.trim() === '') {
+    e.chain().focus().unsetLink().run()
+    return
   }
-  return ''
+  if (e.state.selection.empty) {
+    e.chain().focus().insertContent(`<a href="${url}">${url}</a>`).run()
+    return
+  }
+  e.chain().focus().setLink({ href: url }).run()
 }
 
-/** Scorciatoie: quelle che tutti si aspettano, piu' il link. */
-function tasti(e: KeyboardEvent): void {
-  if (!(e.ctrlKey || e.metaKey)) return
-  const k = e.key.toLowerCase()
-  if (k === 'b') {
-    e.preventDefault()
-    comando('bold')
-  } else if (k === 'i') {
-    e.preventDefault()
-    comando('italic')
-  } else if (k === 'k') {
-    e.preventDefault()
+/**
+ * La barra: solo cio' che serve a scrivere un articolo, con i nomi che si
+ * riconoscono. `attivo` accende il pulsante quando il cursore e' dentro quel
+ * formato — senza, non si capisce se il grassetto e' acceso o spento.
+ */
+/*
+ * `@mousedown.prevent` sui pulsanti della barra: senza, il clic toglie il fuoco
+ * all'editor e il cursore si sposta, quindi il comando si applica al punto
+ * sbagliato — o a niente. E' il pattern canonico di una barra ProseMirror, e
+ * la ragione per cui un editor fatto a mano sbaglia proprio su titoli ed
+ * elenchi, che agiscono sul blocco e non sulla parola.
+ */
+interface Strumento {
+  nome: string
+  etichetta: string
+  scorciatoia?: string
+  azione: () => void
+  attivo?: () => boolean
+  classe?: string
+}
+
+const strumenti = computed<Strumento[]>(() => {
+  const e = editor.value
+  if (!e) return []
+  const c = () => e.chain().focus()
+  return [
+    {
+      nome: 'Grassetto',
+      etichetta: 'B',
+      scorciatoia: 'Ctrl+B',
+      classe: 'font-bold',
+      azione: () => c().toggleBold().run(),
+      attivo: () => e.isActive('bold'),
+    },
+    {
+      nome: 'Corsivo',
+      etichetta: 'I',
+      scorciatoia: 'Ctrl+I',
+      classe: 'italic',
+      azione: () => c().toggleItalic().run(),
+      attivo: () => e.isActive('italic'),
+    },
+    {
+      nome: 'Titolo',
+      etichetta: 'Titolo',
+      azione: () => c().toggleHeading({ level: 2 }).run(),
+      attivo: () => e.isActive('heading', { level: 2 }),
+    },
+    {
+      nome: 'Sotto-titolo',
+      etichetta: 'Sotto-titolo',
+      azione: () => c().toggleHeading({ level: 3 }).run(),
+      attivo: () => e.isActive('heading', { level: 3 }),
+    },
+    {
+      nome: 'Elenco puntato',
+      etichetta: '• Elenco',
+      azione: () => c().toggleBulletList().run(),
+      attivo: () => e.isActive('bulletList'),
+    },
+    {
+      nome: 'Elenco numerato',
+      etichetta: '1. Elenco',
+      azione: () => c().toggleOrderedList().run(),
+      attivo: () => e.isActive('orderedList'),
+    },
+    {
+      nome: 'Citazione',
+      etichetta: 'Citazione',
+      azione: () => c().toggleBlockquote().run(),
+      attivo: () => e.isActive('blockquote'),
+    },
+    {
+      nome: 'Codice',
+      etichetta: 'Codice',
+      classe: 'font-mono',
+      azione: () => c().toggleCode().run(),
+      attivo: () => e.isActive('code'),
+    },
+    {
+      nome: 'Link',
+      etichetta: 'Link',
+      scorciatoia: 'Ctrl+K',
+      azione: link,
+      attivo: () => e.isActive('link'),
+    },
+  ]
+})
+
+/*
+ * Ctrl+K non e' fra le scorciatoie di Tiptap perche' il link ha bisogno di
+ * chiedere l'indirizzo, e un'estensione non puo' aprire una finestra al posto
+ * dell'applicazione.
+ */
+function tasti(evento: KeyboardEvent): void {
+  if ((evento.ctrlKey || evento.metaKey) && evento.key.toLowerCase() === 'k') {
+    evento.preventDefault()
     link()
   }
 }
-
-/**
- * Incollare porta dentro l'HTML del posto da cui si copia, con i suoi stili e
- * a volte i suoi script. Si incolla il testo, che e' quello che serve.
- */
-function incolla(e: ClipboardEvent): void {
-  e.preventDefault()
-  const piano = e.clipboardData?.getData('text/plain') ?? ''
-  document.execCommand('insertText', false, piano)
-  leggiArea()
-}
-
-const strumenti = [
-  {
-    etichetta: 'B',
-    titolo: 'Grassetto (Ctrl+B)',
-    azione: () => comando('bold'),
-    classe: 'font-bold',
-  },
-  { etichetta: 'I', titolo: 'Corsivo (Ctrl+I)', azione: () => comando('italic'), classe: 'italic' },
-  { etichetta: 'H2', titolo: 'Titolo di sezione', azione: () => titolo('H2'), classe: '' },
-  { etichetta: 'H3', titolo: 'Sotto-titolo', azione: () => titolo('H3'), classe: '' },
-  {
-    etichetta: '•—',
-    titolo: 'Elenco puntato',
-    azione: () => comando('insertUnorderedList'),
-    classe: '',
-  },
-  {
-    etichetta: '1.',
-    titolo: 'Elenco numerato',
-    azione: () => comando('insertOrderedList'),
-    classe: '',
-  },
-  { etichetta: '❝', titolo: 'Citazione', azione: citazione, classe: '' },
-  { etichetta: '`', titolo: 'Codice in riga', azione: codiceInRiga, classe: 'font-mono' },
-  { etichetta: '</>', titolo: 'Blocco di codice', azione: codiceBlocco, classe: 'font-mono' },
-  { etichetta: '🔗', titolo: 'Link (Ctrl+K)', azione: link, classe: '' },
-]
 </script>
 
 <template>
@@ -217,12 +230,17 @@ const strumenti = [
       <template v-if="modo === 'formattato'">
         <button
           v-for="s in strumenti"
-          :key="s.etichetta"
+          :key="s.nome"
           type="button"
           class="superficie rounded-md border px-2 py-1 text-xs hover:bg-[var(--sfondo-alt)]"
-          :class="s.classe"
-          :title="s.titolo"
-          :aria-label="s.titolo"
+          :class="[
+            s.classe,
+            s.attivo?.() ? 'border-[var(--accento)] bg-[var(--sfondo-alt)] font-semibold' : '',
+          ]"
+          :title="s.scorciatoia ? `${s.nome} (${s.scorciatoia})` : s.nome"
+          :aria-label="s.nome"
+          :aria-pressed="s.attivo?.() ?? false"
+          @mousedown.prevent
           @click="s.azione"
         >
           {{ s.etichetta }}
@@ -250,30 +268,25 @@ const strumenti = [
     </BaseAlert>
 
     <!--
-      `contenteditable` con l'HTML prodotto da renderMarkdown, che passa da
-      DOMPurify: quello che si scrive qui e' gia' ripulito, e quello che si
-      incolla arriva come testo.
+      L'HTML iniziale passa da renderMarkdown, quindi da DOMPurify: quello che
+      entra nell'editor e' gia' ripulito. Da qui in avanti il documento lo
+      governa lo schema di ProseMirror, che accetta solo i nodi dichiarati
+      sopra — e' il secondo motivo per cui l'HTML altrui non puo' passare.
     -->
     <div
       v-if="modo === 'formattato'"
-      ref="area"
-      contenteditable="true"
-      role="textbox"
-      aria-multiline="true"
-      aria-label="Testo dell’articolo"
-      class="prose-nmc superficie min-h-64 rounded-lg border p-4 text-sm focus:outline-2 focus:outline-[var(--accento)]"
-      :style="{ minHeight: `${righe * 1.6}rem` }"
-      @input="leggiArea"
+      class="superficie rounded-lg border p-4 text-sm focus-within:outline-2 focus-within:outline-[var(--accento)]"
       @keydown="tasti"
-      @paste="incolla"
-    />
+    >
+      <EditorContent :editor="editor" />
+    </div>
 
     <BaseTextarea
       v-else
       id="corpo"
       v-model="testo"
       :rows="righe"
-      placeholder="# Titolo della sezione&#10;&#10;Il testo va a capo da solo: non spezzare le righe a mano."
+      placeholder="## Titolo della sezione&#10;&#10;Il testo va a capo da solo: non spezzare le righe a mano."
     />
   </div>
 </template>
