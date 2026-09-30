@@ -1,4 +1,4 @@
-import { loadEventById, loadReplaceable, type NostrEvent } from '@nmc/nostr-core'
+import { loadEventById, loadReplaceable, relayPerLeggere, type NostrEvent } from '@nmc/nostr-core'
 
 /**
  * Recupera dai relay un evento gia' pubblicato, per riaprirlo in un form.
@@ -24,8 +24,12 @@ export function useEventoEsistente() {
   const caricamento = ref(false)
   const errore = ref<string | null>(null)
 
-  /** Relay di lettura piu' quelli di scrittura: e' su questi ultimi che l'evento e' finito. */
-  const sorgenti = computed(() => [...config.value.readRelays, ...config.value.writeRelays])
+  /**
+   * I relay da interrogare per un kind: i propri, piu' gli indicizzatori
+   * dove ha senso (profilo, liste). Un profilo che i relay di contenuto hanno
+   * lasciato cadere resta spesso solo li'.
+   */
+  const sorgenti = (kind: number): string[] => relayPerLeggere(kind, config.value)
 
   /**
    * L'ultima versione di un replaceable/addressable.
@@ -46,7 +50,7 @@ export function useEventoEsistente() {
     try {
       const trovato = await loadReplaceable(
         pool,
-        sorgenti.value,
+        sorgenti(kind),
         {
           kind,
           pubkey,
@@ -73,7 +77,9 @@ export function useEventoEsistente() {
     caricamento.value = true
     errore.value = null
     try {
-      const trovato = await loadEventById(pool, sorgenti.value, id, { timeoutMs: 8000 })
+      // Per id non si sa il kind prima di averlo letto: si chiede ai propri
+      // relay, che e' dove un evento regolare puo' stare.
+      const trovato = await loadEventById(pool, sorgenti(1), id, { timeoutMs: 8000 })
       evento.value = trovato
       if (!trovato) errore.value = 'Evento non trovato sui relay configurati.'
       return trovato
