@@ -299,7 +299,7 @@ const dataLeggibile = (d: Date | null): string =>
             {{ nonLettiDalServizio.length === 1 ? 'sta' : 'stanno' }} nella scheda del podcast ma
             non nel feed: il servizio non legge ancora quei tag. Non è un dato da aggiungere — è il
             servizio da aggiornare (Prompt H in
-            <code>doc/api-da-sviluppare.md</code>
+            <code>doc/api-to-build.md</code>
             ).
           </BaseAlert>
 
