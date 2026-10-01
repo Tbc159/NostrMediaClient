@@ -137,7 +137,7 @@ if (existsSync(store)) {
 if (problems.length > 0) {
   console.error('\n✗ guard-deps: trovati problemi sulle dipendenze critiche\n')
   for (const p of problems) console.error(`  - ${p}`)
-  console.error('\nVedi docs/adr/0002-applesauce-6x-e-pin-nostr-tools.md\n')
+  console.error('\nVedi docs/adr/0002-applesauce-6x-and-nostr-tools-pin.md\n')
   process.exit(1)
 }
 

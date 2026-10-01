@@ -1,612 +1,625 @@
-# Stato di avanzamento
+# Progress
 
-File di ripresa: dice dove siamo, cosa manca e come rimettere in piedi
-l'ambiente. Va aggiornato alla fine di ogni blocco di lavoro, non alla fine
-della fase — serve proprio a sopravvivere alle interruzioni a meta'.
+Pick-up file: it says where we are, what is missing and how to put the
+environment back on its feet. It is updated at the end of every block of work,
+not at the end of a phase — the point of it is surviving interruptions
+half-way through.
 
 ---
 
-## Ripristino ambiente (da rifare a ogni nuova shell)
+## Restoring the environment (do this in every new shell)
 
-Node e pnpm vivono sotto nvm e **non** sono nel PATH di default: la shell di
-sistema ha ancora Node 18, che non basta (Vite 8 richiede >= 20.19).
+Node and pnpm live under nvm and are **not** on the default PATH: the system
+shell still has Node 18, which is not enough (Vite 8 requires >= 20.19).
 
 ```bash
 export NVM_DIR="$HOME/.nvm"; . "$NVM_DIR/nvm.sh"; nvm use 22; hash -r
-node -v   # atteso v22.23.2
-pnpm -v   # atteso 11.23.0
+node -v   # expected v22.23.2
+pnpm -v   # expected 11.23.0
 ```
 
-### Gestione del client
+### Running the client
 
-`scripts/client.sh` carica nvm da solo: **questi comandi funzionano in una
-shell qualsiasi**, senza preparare l'ambiente a mano.
+`scripts/client.sh` loads nvm by itself: **these commands work in any shell**,
+with no manual preparation.
 
 ```bash
-pnpm start            # avvia in background, torna al prompt in ~10s
-pnpm status           # stato + configurazione attualmente letta da .env
-pnpm restart          # riavvia: serve dopo OGNI modifica a .env
-pnpm stop             # ferma
-pnpm logs             # segue il log (Ctrl-C per uscire)
+pnpm start            # starts in the background, back at the prompt in ~10s
+pnpm status           # status + the configuration currently read from .env
+pnpm restart          # restart: needed after EVERY change to .env
+pnpm stop             # stop
+pnpm logs             # follow the log (Ctrl-C to quit)
 
-./scripts/client.sh start 3210   # porta diversa
-./scripts/client.sh fg           # primo piano, Ctrl-C per uscire
-./scripts/client.sh check        # verifica endpoint da Node (niente CORS)
+./scripts/client.sh start 3210   # a different port
+./scripts/client.sh fg           # foreground, Ctrl-C to quit
+./scripts/client.sh check        # probe endpoints from Node (no CORS)
 ```
 
-Il server legge `.env` **solo all'avvio**: modificarlo a caldo non ha effetto,
-serve `pnpm restart`. Verificato sperimentalmente.
+The server reads `.env` **only at startup**: changing it while running has no
+effect, you need `pnpm restart`. Verified experimentally.
 
-Stato e log stanno in `.run/` (ignorata da git). Se il PID file si perde,
-`stop` chiude comunque chi occupa la porta.
+State and logs live in `.run/` (git-ignored). If the PID file goes missing,
+`stop` still closes whatever is holding the port.
 
-### Verifica del repo
+### Verifying the repo
 
 ```bash
-pnpm guard:deps        # trappole di dipendenza (ADR 0002)
-pnpm check:endpoints   # verifica relay e Blossom da Node (niente CORS)
+pnpm guard:deps        # dependency traps (ADR 0002)
+pnpm check:endpoints   # probe relays and Blossom from Node (no CORS)
 pnpm verify            # guard + format + lint + typecheck + test
-pnpm build             # package + app Nuxt
+pnpm build             # packages + Nuxt app
 ```
 
-Nota: lo script si chiama `check:endpoints` e non `doctor` perche' `pnpm doctor`
-e' un comando interno di pnpm e avrebbe la precedenza.
+Note: the script is called `check:endpoints` and not `doctor` because
+`pnpm doctor` is a built-in pnpm command and would take precedence.
 
 ---
 
-## Fase 0 — scaffolding monorepo · COMPLETATA
+## Phase 0 — monorepo scaffolding · COMPLETE
 
-| #   | Attivita'                                                | Stato                        |
-| --- | -------------------------------------------------------- | ---------------------------- |
-| 1   | Node 22 LTS via nvm                                      | fatto — v22.23.2             |
-| 2   | pnpm via corepack                                        | fatto — 11.23.0              |
-| 3   | `git init` su branch `main`                              | fatto — nessun commit ancora |
-| 4   | Root: `package.json`, `pnpm-workspace.yaml`, `.npmrc`    | fatto                        |
-| 5   | `tsconfig.base.json`, prettier, `eslint.config.js`       | fatto                        |
-| 6   | `.gitignore`, `.env.example`                             | fatto                        |
-| 7   | `scripts/guard-deps.mjs` + verifica che fallisca davvero | fatto                        |
-| 8   | ADR 0001 / 0002 / 0003                                   | fatto                        |
-| 9   | `packages/config` — preset tsconfig                      | fatto                        |
-| 10  | `packages/nostr-core` — registry kind + config           | fatto                        |
-| 11  | `packages/nostr-vue` — `useModel`                        | fatto                        |
-| 12  | `apps/web` — Nuxt 4 + Tailwind 4                         | fatto                        |
-| 13  | `.github/workflows/ci.yml`                               | fatto                        |
-| 14  | `pnpm verify` e `pnpm build` verdi                       | fatto — 29 test passano      |
+| #   | Task                                                    | Status               |
+| --- | ------------------------------------------------------- | -------------------- |
+| 1   | Node 22 LTS through nvm                                 | done — v22.23.2      |
+| 2   | pnpm through corepack                                   | done — 11.23.0       |
+| 3   | `git init` on branch `main`                             | done — no commit yet |
+| 4   | Root: `package.json`, `pnpm-workspace.yaml`, `.npmrc`   | done                 |
+| 5   | `tsconfig.base.json`, prettier, `eslint.config.js`      | done                 |
+| 6   | `.gitignore`, `.env.example`                            | done                 |
+| 7   | `scripts/guard-deps.mjs` + a check that it really fails | done                 |
+| 8   | ADR 0001 / 0002 / 0003                                  | done                 |
+| 9   | `packages/config` — tsconfig presets                    | done                 |
+| 10  | `packages/nostr-core` — kind registry + config          | done                 |
+| 11  | `packages/nostr-vue` — `useModel`                       | done                 |
+| 12  | `apps/web` — Nuxt 4 + Tailwind 4                        | done                 |
+| 13  | `.github/workflows/ci.yml`                              | done                 |
+| 14  | `pnpm verify` and `pnpm build` green                    | done — 29 tests pass |
 
-### Cosa e' gia' funzionante e verificato
+### What already works and has been verified
 
-- `pnpm verify` verde end-to-end: guard, prettier, eslint, typecheck sui tre
-  progetti, 29 test.
-- `pnpm build` produce l'output Nitro; il server buildato risponde 200 e
-  serve il CSS Tailwind.
-- **Guardia dipendenze provata in negativo**: introducendo `applesauce-factory`
-  o allargando il range di `nostr-tools` lo script esce con codice 1 e spiega
-  perche'. Non e' un controllo mai visto fallire.
-- **Isolamento SSR gia' osservabile**: la route `/` (feed personale) e'
-  `ssr: false`, e l'HTML servito contiene `data-ssr="false"` con
-  `__NUXT_DATA__` ridotto a `[{"serverRendered":1},false]`. Nessuno stato di
-  sessione nel payload, che e' la proprieta' della sezione 4 del piano.
+- `pnpm verify` green end to end: guard, prettier, eslint, typecheck across
+  the three projects, 29 tests.
+- `pnpm build` produces the Nitro output; the built server answers 200 and
+  serves the Tailwind CSS.
+- **The dependency guard was proved in the negative**: introducing
+  `applesauce-factory` or widening the `nostr-tools` range makes the script
+  exit 1 and explain why. It is not a check nobody has ever seen fail.
+- **SSR isolation is already observable**: the `/` route (personal feed) is
+  `ssr: false`, and the HTML served contains `data-ssr="false"` with
+  `__NUXT_DATA__` reduced to `[{"serverRendered":1},false]`. No session state
+  in the payload, which is the property section 4 of the plan asks for.
 
-### Scostamenti dal piano, decisi durante l'esecuzione
+### Departures from the plan, decided while executing it
 
-| Punto                               | Piano     | Realta'          | Perche'                                                                                                      |
-| ----------------------------------- | --------- | ---------------- | ------------------------------------------------------------------------------------------------------------ |
-| pnpm                                | `pnpm@10` | `pnpm@11.23.0`   | linea corrente; la chiave `onlyBuiltDependencies` e' diventata `allowBuilds`                                 |
-| `@nuxt/test-utils`                  | —         | `^4.1.0`         | la 3.x vuole Vitest 3, noi siamo su Vitest 4                                                                 |
-| regola `consistent-type-imports`    | prevista  | **non attivata** | ridondante: `verbatimModuleSyntax` fa gia' rispettare la stessa cosa dal compilatore (TS1484), senza costi   |
-| `no-undef` sui `.vue`               | —         | disattivata      | inciampa sugli auto-import di Nuxt; `nuxt typecheck` resta il controllo autorevole, come gia' fa per i `.ts` |
-| `types: ["vite/client"]` nel preset | previsto  | rimosso          | i package libreria non hanno Vite fra le dipendenze                                                          |
+| Point                              | Plan      | Reality         | Why                                                                                                  |
+| ---------------------------------- | --------- | --------------- | ---------------------------------------------------------------------------------------------------- |
+| pnpm                               | `pnpm@10` | `pnpm@11.23.0`  | the current line; the `onlyBuiltDependencies` key became `allowBuilds`                               |
+| `@nuxt/test-utils`                 | —         | `^4.1.0`        | 3.x wants Vitest 3, we are on Vitest 4                                                               |
+| `consistent-type-imports` rule     | planned   | **not enabled** | redundant: `verbatimModuleSyntax` already has the compiler enforce the same thing (TS1484), for free |
+| `no-undef` on `.vue` files         | —         | disabled        | it trips over Nuxt auto-imports; `nuxt typecheck` stays the authority, as it already does for `.ts`  |
+| `types: ["vite/client"]` in preset | planned   | removed         | library packages do not have Vite among their dependencies                                           |
 
 ---
 
-## Fase GUI (branch `webapp/gui`) — schermate e form · IN CORSO
+## GUI phase (branch `webapp/gui`) — screens and forms · IN PROGRESS
 
-Fatto e verificato nel browser (Firefox headless via WebDriver):
+Done and verified in the browser (headless Firefox through WebDriver):
 
-Elenco aggiornato delle schermate: vedi «Sezioni disponibili» piu' sotto.
+For the current list of screens see «Available sections» below.
 
-**I form producono eventi veri** e li consegnano ai relay configurati.
+**The forms produce real events** and hand them to the configured relays.
 
-### Pubblicazione e lettura dai relay
+### Publishing to and reading from relays
 
-Aggiunti in `nostr-core/src/relays/`: `pool.ts` (fabbrica del `RelayPool`),
-`publish.ts` (invio con esito per relay), `request.ts` (lettura, deduplica,
-ordinamento).
+Added under `nostr-core/src/relays/`: `pool.ts` (the `RelayPool` factory),
+`publish.ts` (sending, with a per-relay outcome), `request.ts` (reading,
+deduplication, ordering).
 
-**Non esiste "pubblicato" in assoluto.** Esistono relay che hanno l'evento e
-relay che no: niente transazione, niente rollback. Percio' l'esito e' un elenco
-per relay, e la UI lo mostra cosi' com'e' invece di ridurlo a un booleano che
-nasconderebbe meta' della verita'. La soglia di riuscita e' **un** relay: un
-evento presente su uno solo e' comunque raggiungibile e replicabile, mentre
-pretendere l'unanimita' farebbe fallire ogni pubblicazione con un relay giu'.
+**There is no such thing as "published" in the absolute.** There are relays
+that have the event and relays that do not: no transaction, no rollback. So
+the outcome is a per-relay list, and the UI shows it as it is instead of
+reducing it to a boolean that would hide half the truth. The success threshold
+is **one** relay: an event present on a single relay is still reachable and
+replicable, whereas demanding unanimity would fail every publication whenever
+one relay is down.
 
-Tre punti non ovvi, tutti coperti da test:
+Three non-obvious points, all covered by tests:
 
-1. **E' il booleano dell'OK a dire se l'evento e' stato accettato, non il
-   prefisso.** NIP-01 mostra `pow:` e `duplicate:` anche su risposte positive:
-   leggere solo il prefisso segnalerebbe come fallita una pubblicazione
-   riuscita.
-2. **`duplicate` e' un successo.** Il relay ce l'ha gia': per chi pubblica il
-   risultato e' identico a un'accettazione. Ripubblicare non duplica nulla.
-3. **Un relay che pretende NIP-42 lascia la publish _in attesa_**, non la
-   rifiuta. Senza una scadenza esplicita il pulsante girerebbe per sempre; con
-   essa si arriva a un messaggio che dice cosa fare.
+1. **It is the OK boolean that says whether the event was accepted, not the
+   prefix.** NIP-01 shows `pow:` and `duplicate:` on positive responses too:
+   reading only the prefix would report a successful publication as failed.
+2. **`duplicate` is a success.** The relay already has it: for the publisher
+   the result is identical to an acceptance. Publishing again duplicates
+   nothing.
+3. **A relay that demands NIP-42 leaves the publish _pending_**, it does not
+   refuse it. Without an explicit deadline the button would spin forever; with
+   one you reach a message that says what to do.
 
-**L'autenticazione NIP-42 si usa solo in scrittura, mai in lettura.** Quando
-consegni al relay un evento gia' firmato con la tua chiave, autenticarti non
-gli rivela nulla di nuovo. Farlo in lettura gli direbbe invece _cosa leggi e
-quando_, che e' informazione che non ha ragione di avere.
+**NIP-42 authentication is used only for writing, never for reading.** When
+you hand a relay an event already signed with your key, authenticating reveals
+nothing new to it. Doing it while reading would instead tell it _what you read
+and when_, which is information it has no reason to have.
 
-In lettura vale la regola opposta all'errore: un relay che non risponde non fa
-fallire la lettura dagli altri: si restituisce quello che e' arrivato entro la
-scadenza. Un feed con tre note su cinque e' utile, uno in errore no.
+For reading the opposite rule applies to failure: a relay that does not answer
+does not make reading from the others fail — you get back whatever arrived
+before the deadline. A feed with three notes out of five is useful, one in
+error is not.
 
-Gli eventi letti passano da `ultimaVersione()`: relay diversi possono avere
-versioni diverse dello stesso evento addressable, e senza quel passaggio la
-stessa riunione comparirebbe due volte in calendario, una col titolo vecchio e
-una col nuovo. Lo spareggio a parita' di `created_at` e' l'id minore, come
-prescrive NIP-01 — non e' estetica, e' cio' che fa convergere client diversi
-sulla stessa versione.
+Events that are read go through `ultimaVersione()`: different relays can hold
+different versions of the same addressable event, and without that step the
+same meeting would appear twice in the calendar, once with the old title and
+once with the new one. The tie-break at equal `created_at` is the lower id, as
+NIP-01 prescribes — that is not aesthetics, it is what makes different clients
+converge on the same version.
 
-Il calendario ordina per **data dell'evento**, non per data di pubblicazione:
-in un calendario interessa quando l'evento accade, non quando e' stato scritto.
+The calendar sorts by **event date**, not by publication date: in a calendar
+what matters is when the event happens, not when it was written.
 
-### Sezioni disponibili
+### Available sections
 
-| Rotta              | Kind                    | Cosa fa                                                    |
-| ------------------ | ----------------------- | ---------------------------------------------------------- |
-| `/`                | tutti                   | i tuoi eventi, con filtro per tipo                         |
-| `/scrivi`          | 1                       | composer, firma e pubblica                                 |
-| `/media`           | 1, 20, 21, 22, 54, 1063 | i tuoi media                                               |
-| `/media/nuovo`     | idem                    | upload Blossom, anteprima, `imeta`, pubblicazione          |
-| `/articoli`        | 30023, 30024            | i tuoi articoli, con le bozze locali e cifrate             |
-| `/articoli/nuovo`  | 30023                   | editor Markdown con anteprima sanificata                   |
-| `/calendario`      | 31922, 31923            | i tuoi eventi, divisi in programma / gia' svolti           |
-| `/calendario/rsvp` | 31925                   | rispondi a un invito o cambia la risposta                  |
-| `/profilo`         | 0                       | il tuo profilo, caricato dai relay prima di sostituirlo    |
-| `/impostazioni`    | —                       | accesso, endpoint modificabili, strategia di pubblicazione |
-| `/diagnostica`     | —                       | verifica di relay e server Blossom                         |
+| Route              | Kinds                   | What it does                                             |
+| ------------------ | ----------------------- | -------------------------------------------------------- |
+| `/`                | all                     | your events, with a filter by type                       |
+| `/scrivi`          | 1                       | composer, sign and publish                               |
+| `/media`           | 1, 20, 21, 22, 54, 1063 | your media                                               |
+| `/media/nuovo`     | same                    | Blossom upload, preview, `imeta`, publication            |
+| `/articoli`        | 30023, 30024            | your articles, with local and encrypted drafts           |
+| `/articoli/nuovo`  | 30023                   | formatted editor, with the Markdown a button away        |
+| `/calendario`      | 31922, 31923            | your events, split into upcoming / already held          |
+| `/calendario/rsvp` | 31925                   | answer an invitation or change your answer               |
+| `/profilo`         | 0                       | your profile, loaded from the relays before replacing it |
+| `/impostazioni`    | —                       | sign-in, editable endpoints, publication strategy        |
+| `/diagnostica`     | —                       | probe relays and Blossom servers                         |
 
-La schermata `/` mostra **ogni kind che il client sa pubblicare**, con i filtri
-per tipo e i relativi conteggi. L'elenco arriva da `publishableKinds()` e non da
-una lista scritta a mano: registrare un kind nuovo lo fa comparire li' senza
-toccare la pagina, che e' il punto dell'intera struttura dei kind.
+The `/` screen shows **every kind the client can publish**, with per-type
+filters and their counts. The list comes from `publishableKinds()` and not
+from a hand-written array: registering a new kind makes it appear there
+without touching the page, which is the whole point of the kind structure.
 
-Restano fuori gli **effimeri**, e non per prudenza: NIP-01 dice ai relay di non
-conservarli, quindi interrogarli restituirebbe sempre il vuoto. Il kind 24242 di
-Blossom e' l'esempio — viene firmato e spedito, ma dentro un header HTTP.
+**Ephemerals** stay out, and not out of caution: NIP-01 tells relays not to
+keep them, so querying would always come back empty. Blossom's kind 24242 is
+the example — it is signed and sent, but inside an HTTP header.
 
-Il filtro lavora su quanto e' gia' stato letto, senza tornare ai relay: gli
-eventi sono gia' tutti in pagina, e una seconda interrogazione aggiungerebbe
-attesa per mostrarne un sottoinsieme.
+The filter works on what has already been read, without going back to the
+relays: the events are all on the page already, and a second query would add
+waiting in order to show a subset.
 
-### Riaprire in modifica un evento pubblicato
+### Reopening a published event for editing
 
-Ogni scheda in elenco porta in fondo l'azione giusta per il suo kind, e la
-distinzione non e' "quale kind" ma la **classe** NIP-01, che il registry
-conosce gia':
+Every card in a list carries, at the bottom, the right action for its kind,
+and the distinction is not "which kind" but the NIP-01 **class**, which the
+registry already knows:
 
-| Classe                      | Kind                      | Azione offerta                          |
-| --------------------------- | ------------------------- | --------------------------------------- |
-| `replaceable`/`addressable` | 0, 30023, 31922/23, 31925 | **Modifica**: sostituisce davvero       |
-| `regular` con media         | 20, 21, 22, 1063          | **Ripubblica come nuovo**, con avviso   |
-| `regular`                   | 1                         | nessuna, con la spiegazione del perche' |
+| Class                       | Kinds                     | Action offered                      |
+| --------------------------- | ------------------------- | ----------------------------------- |
+| `replaceable`/`addressable` | 0, 30023, 31922/23, 31925 | **Edit**: it really replaces        |
+| `regular` with media        | 20, 21, 22, 1063          | **Republish as new**, with a notice |
+| `regular`                   | 1                         | none, with the explanation why      |
 
-Il punto che il piano vieta di confondere: sui `regular` **non esiste
-modifica**. Non e' una limitazione di questo client — il protocollo non prevede
-la sostituzione, e l'unica cosa possibile e' un evento nuovo, con id diverso e
-senza le reazioni ricevute. Per i media pero' i file non si ricaricano: sono
-gia' su Blossom, identificati dall'hash, e l'`imeta` dell'evento vecchio
-contiene tutto il necessario.
+The point the plan forbids us to blur: on `regular` events **editing does not
+exist**. That is not a limitation of this client — the protocol does not
+provide for replacement, and the only possible thing is a new event, with a
+different id and without the reactions the old one received. For media,
+though, the files are not uploaded again: they are already on Blossom,
+identified by hash, and the old event's `imeta` holds everything needed.
 
-Tre dettagli che i test proteggono:
+Three details the tests protect:
 
-1. **L'identificatore non si rigenera.** E' il tag `d`, ed e' cio' che fa della
-   ripubblicazione una sostituzione. Rigenerarlo lascerebbe in giro
-   l'originale e ne creerebbe un secondo.
-2. **Il fuso si ricostruisce da quello dell'evento, non da quello di chi
-   modifica.** Riaprendo da Roma una riunione fissata a Tokyo, i campi mostrano
-   l'orario che l'organizzatore aveva scritto.
-3. **Il profilo (kind 0) va caricato prima di ripubblicarlo.** E' replaceable e
-   sostituisce per intero: un campo lasciato vuoto non resta com'era, sparisce.
-   La schermata lo dice a chiare lettere.
+1. **The identifier is not regenerated.** It is the `d` tag, and it is what
+   makes republishing a replacement. Regenerating it would leave the original
+   lying around and create a second one.
+2. **The timezone is rebuilt from the event's, not from the editor's.**
+   Reopening from Rome a meeting set in Tokyo, the fields show the time the
+   organiser wrote.
+3. **The profile (kind 0) must be loaded before republishing it.** It is
+   replaceable and replaces in full: a field left empty does not stay as it
+   was, it disappears. The screen says so in plain words.
 
-L'azione compare solo sui propri eventi — ogni coordinata comprende la pubkey
-dell'autore, quindi "modificare" quello di un altro produrrebbe un evento nuovo
-a proprio nome. Fa eccezione «Rispondi all'invito» sugli eventi calendario, che
-riguarda proprio quelli altrui.
+The action only appears on your own events — every coordinate includes the
+author's pubkey, so "editing" someone else's would produce a new event under
+your own name. The exception is «Answer the invitation» on calendar events,
+which is precisely about other people's.
 
-**Difetto corretto di conseguenza:** «Modifica» su un articolo pubblicato non
-faceva nulla se non esisteva una bozza locale con quell'identificatore. Ora la
-bozza locale ha la precedenza — e' il lavoro non ancora pubblicato — e in sua
-assenza si scarica la versione dai relay.
+**A defect fixed as a consequence:** «Edit» on a published article did nothing
+if no local draft with that identifier existed. Now the local draft takes
+precedence — it is the work not yet published — and in its absence the version
+is downloaded from the relays.
 
-**Tutti gli elenchi mostrano solo gli eventi dell'identita' attiva.** E' una
-scelta, non una limitazione temporanea travestita: senza la lista dei follow
-(kind 3) e senza il modello outbox (NIP-65), un elenco "di tutti" sarebbe _cio'
-che passa dai relay configurati_ — una fetta arbitraria della rete, diversa a
-ogni ricarica. I propri eventi sono un insieme che l'utente riconosce.
+**Every list shows only the active identity's events.** That is a choice, not
+a temporary limitation in disguise: without the follow list (kind 3) and
+without the outbox model (NIP-65), a list "of everyone" would be _whatever
+comes through the configured relays_ — an arbitrary slice of the network,
+different on every reload. Your own events are a set the user recognises.
 
-### Il guasto con le estensioni NIP-07 (nos2x, Alby)
+### The failure with NIP-07 extensions (nos2x, Alby)
 
-Sintomo osservato firmando con nos2x:
+The symptom observed while signing with nos2x:
 
 ```
 Failed to execute 'postMessage' on 'Window': #<Object> could not be cloned.
 ```
 
-Sembra un guasto dell'estensione e non lo e'. Le estensioni NIP-07 **non vivono
-nella pagina**: il codice iniettato passa l'evento al proprio content script con
-`window.postMessage`, che copia l'oggetto con lo **structured clone**. Lo
-structured clone rifiuta i `Proxy`, e un template composto in un form vive
-dentro un `ref`, che in Vue avvolge in un proxy reattivo qualunque oggetto ci si
-metta dentro. La firma falliva quindi _prima_ che l'estensione la vedesse.
+It looks like a failure of the extension and it is not. NIP-07 extensions **do
+not live in the page**: the injected code passes the event to its own content
+script with `window.postMessage`, which copies the object using the
+**structured clone**. The structured clone refuses `Proxy` objects, and a
+template composed in a form lives inside a `ref`, which in Vue wraps whatever
+you put in it in a reactive proxy. Signing therefore failed _before_ the
+extension ever saw it.
 
-Rimedio: `plainEventTemplate()` in `nostr-core/src/identity/keys.ts`, applicata
-in `identity.ts` prima di consegnare il template a chiunque firmi. La
-ricostruzione e' esplicita — dice cosa riceve l'estensione, non lega il dominio
-a Vue, e ricopia anche i tag, che sono array annidati: appiattire solo il
-livello esterno lascerebbe proxy piu' in profondita'.
+The remedy: `plainEventTemplate()` in `nostr-core/src/identity/keys.ts`,
+applied in `identity.ts` before handing the template to whoever signs. The
+rebuild is explicit — it says what the extension receives, it does not tie the
+domain to Vue, and it copies the tags too, which are nested arrays: flattening
+only the outer level would leave proxies deeper down.
 
-Verificato in entrambe le direzioni: reintroducendo il difetto il test nel
-browser lo riproduce (Firefox e' anche piu' esplicito — «Proxy object could not
-be cloned»), con la correzione passa.
+Verified in both directions: putting the defect back makes the browser test
+reproduce it (Firefox is even more explicit — «Proxy object could not be
+cloned»), and with the fix it passes.
 
-**Difetto vicino, trovato di conseguenza:** `estensioneDisponibile` era un
-`computed` senza dipendenze reattive, quindi valutato una volta sola. Le
-estensioni iniettano `window.nostr` in modo asincrono e possono arrivare dopo
-l'avvio dell'applicazione, lasciando l'utente davanti a «nessuna estensione
-rilevata» che una ricarica smentisce. Ora e' un `ref` ricontrollato all'avvio,
-con qualche tentativo ravvicinato, e di nuovo all'apertura delle impostazioni.
+**A nearby defect, found as a consequence:** `estensioneDisponibile` was a
+`computed` with no reactive dependencies, so it was evaluated once only.
+Extensions inject `window.nostr` asynchronously and can arrive after the
+application has started, leaving the user looking at «no extension detected»
+which a reload contradicts. It is now a `ref`, re-checked at startup with a
+few close attempts, and again when the settings page opens.
 
-### Bozze cifrate (NIP-37)
+### Encrypted drafts (NIP-37)
 
-Kind 31234: un evento **non firmato** di un altro kind, serializzato e cifrato
-NIP-44 verso la propria stessa chiave. Il contenuto non si firma — e' lavoro in
-corso, e firmarlo produrrebbe un id definitivo per qualcosa che cambiera'
-ancora. La firma la porta l'involucro.
+Kind 31234: an **unsigned** event of another kind, serialised and NIP-44
+encrypted towards your own key. The content is not signed — it is work in
+progress, and signing it would produce a final id for something that will
+change again. The signature is carried by the wrapper.
 
-La cifratura sta in `drafts/`, **fuori dalle definizioni dei kind**, per due
-motivi: `build()` e' sincrona per contratto mentre con NIP-07 la cifratura passa
-da una `Promise`, e il registry descrive formati e non possiede chiavi. Per la
-definizione il `content` e' una stringa opaca.
+The encryption lives in `drafts/`, **outside the kind definitions**, for two
+reasons: `build()` is synchronous by contract while with NIP-07 encryption
+goes through a `Promise`, and the registry describes formats and owns no keys.
+As far as the definition is concerned the `content` is an opaque string.
 
-Tre punti non ovvi:
+Three non-obvious points:
 
-1. **Un `content` vuoto significa bozza cancellata**, non bozza vuota. Lo dice
-   la specifica, ed e' l'unico modo di cancellarne una senza sperare che il
-   relay onori una richiesta kind 5.
-2. **Il tag `d` non e' cifrato.** E' l'unico modo che il relay ha di sapere quale
-   versione sostituire, quindi derivarlo dal titolo vanificherebbe meta' del
-   lavoro: il contenuto resterebbe illeggibile ma chi accede al relay saprebbe
-   di cosa scrivi. E' un hash a 16 caratteri dell'identificatore vero —
-   deterministico, cosi' risalvare sostituisce, e opaco. L'identificatore vero
-   sta dentro il contenuto cifrato, e l'elenco mostra il titolo decifrandolo.
-3. **La scadenza NIP-40 autorizza il relay a cancellare.** Novanta giorni come
-   raccomanda la specifica, mostrati in interfaccia: una bozza che sparisce in
-   silenzio sarebbe peggio di una non salvata.
+1. **An empty `content` means a deleted draft**, not an empty one. The
+   specification says so, and it is the only way to delete one without hoping
+   a relay honours a kind 5 request.
+2. **The `d` tag is not encrypted.** It is the only way the relay can know
+   which version to replace, so deriving it from the title would defeat half
+   the work: the content would stay unreadable but anyone with access to the
+   relay would know what you write about. It is a 16-character hash of the
+   real identifier — deterministic, so saving again replaces, and opaque. The
+   real identifier lives inside the encrypted content, and the list shows the
+   title by decrypting it.
+3. **The NIP-40 expiration authorises the relay to delete.** Ninety days as
+   the specification recommends, shown in the interface: a draft that
+   disappears silently would be worse than one never saved.
 
-Il cifrario copre le tre modalita' di accesso: `window.nostr.nip44` con
-l'estensione, derivazione locale con la chiave in memoria, niente in sola
-lettura. Un'estensione che non espone NIP-44 lo dice invece di fallire.
+The cipher covers the three sign-in modes: `window.nostr.nip44` with the
+extension, local derivation with the key in memory, nothing in read-only. An
+extension that does not expose NIP-44 says so instead of failing.
 
-Il kind **10013** dichiara i relay privati, anch'essi cifrati nel content e non
-nei tag: sapere dove una persona tiene le bozze e' gia' un'informazione. Se c'e'
-ha la precedenza sul relay configurato; non si ripiega **mai** sui relay di
-scrittura pubblici.
+Kind **10013** declares the private relays, also encrypted in the content and
+not in the tags: knowing where somebody keeps their drafts is already
+information. If it exists it takes precedence over the configured relay; there
+is **never** a fallback to the public write relays.
 
-Verificato interrogando il relay dopo il salvataggio: restano solo
-`["d","<hash>"]`, `["k","30023"]`, la scadenza e il testo cifrato.
+Verified by querying the relay after saving: all that remains is
+`["d","<hash>"]`, `["k","30023"]`, the expiration and the encrypted text.
 
-### Endpoint modificabili dall'interfaccia
+### Endpoints editable from the interface
 
-Gli endpoint del `.env` restano quello che il piano dice che sono — default di
-primo avvio — e da `/impostazioni` si sostituiscono senza riavviare il client.
-La scelta vive in `localStorage`, quindi in quel browser e non nel repository.
+The `.env` endpoints stay what the plan says they are — first-run defaults —
+and from `/impostazioni` they can be replaced without restarting the client.
+The choice lives in `localStorage`, so in that browser and not in the
+repository.
 
-La sovrapposizione avviene sulla forma **grezza** dell'ambiente e non
-sull'oggetto gia' validato: cosi' la validazione resta quella sola di
-`resolveClientConfig`, condivisa fra app, SSR e riga di comando. Il salvataggio
-e' tutto-o-niente — accettare le modifiche valide e scartare le altre
-lascerebbe una configurazione a meta', diversa da quella scritta, senza che
-nulla lo dica.
+The override happens on the **raw** shape of the environment and not on the
+already validated object: that way validation stays the single one in
+`resolveClientConfig`, shared between app, SSR and command line. Saving is
+all-or-nothing — accepting the valid changes and discarding the others would
+leave a half configuration, different from the one written, with nothing
+saying so.
 
-### Pubblicazione a rotazione
+### Publishing by rotation
 
-Con piu' relay di scrittura il client ora li prova **uno per volta, in ordine,
-fermandosi al primo che prende in carico l'evento**. Configurabile: la
-strategia parallela resta disponibile dalle impostazioni.
+With several write relays the client now tries them **one at a time, in order,
+stopping at the first that takes the event on**. Configurable: the parallel
+strategy stays available in the settings.
 
-Il motivo per cui la rotazione e' il default e' misurato, non teorico: aprendo
-quattro WebSocket insieme se ne vedono fallire alcune, mentre una per volta
-passano. Il compromesso va detto: a rotazione l'evento finisce su **un** relay,
-quindi e' meno raggiungibile; in parallelo finisce ovunque, ma fallisce piu'
-spesso.
+The reason rotation is the default is measured, not theoretical: opening four
+WebSockets at once, some of them fail, while one at a time they get through.
+The trade-off has to be said: by rotation the event ends up on **one** relay,
+so it is less reachable; in parallel it ends up everywhere, but it fails more
+often.
 
-I relay non contattati compaiono nel risultato marcati come tali, e non entrano
-nel conteggio: altrimenti una pubblicazione andata come doveva si leggerebbe
-«1 su 4».
+Relays that were not contacted appear in the result marked as such, and do not
+enter the count: otherwise a publication that went exactly as intended would
+read «1 out of 4».
 
-**Difetto corretto nel frattempo:** un errore di connessione WebSocket
-diventava il messaggio `[object ErrorEvent]`. rxjs propaga l'evento DOM, non un
-`Error`, e i campi utili vanno estratti a mano — `CloseEvent` porta il codice,
-`ErrorEvent` il messaggio.
+**A defect fixed in the meantime:** a WebSocket connection error turned into
+the message `[object ErrorEvent]`. rxjs propagates the DOM event, not an
+`Error`, and the useful fields have to be pulled out by hand — `CloseEvent`
+carries the code, `ErrorEvent` the message.
 
 ### Media (Blossom)
 
-`packages/nostr-core/src/media/blossom.ts` copre BUD-01/02/04/11. L'hash SHA-256
-si calcola **nel client prima dell'invio** e viaggia in `X-SHA-256`: un `409`
-dice che quel che e' arrivato non e' quel che si e' mandato, cosa che
-altrimenti si scoprirebbe solo vedendo l'immagine rotta nel post pubblicato.
+`packages/nostr-core/src/media/blossom.ts` covers BUD-01/02/04/11. The SHA-256
+hash is computed **in the client before sending** and travels in `X-SHA-256`:
+a `409` says what arrived is not what was sent, something you would otherwise
+discover only on seeing the broken image in the published post.
 
-Il token BUD-11 (kind 24242) e' effimero e **non finisce mai su un relay**: sta
-nell'header `Authorization`, in base64url senza padding. Dura cinque minuti,
-perche' un token senza tag `server` e' spendibile su qualunque server Blossom
-fino alla scadenza.
+The BUD-11 token (kind 24242) is ephemeral and **never ends up on a relay**:
+it lives in the `Authorization` header, base64url without padding. It lasts
+five minutes, because a token without a `server` tag is spendable on any
+Blossom server until it expires.
 
-La replica sugli altri server non blocca: se fallisce, il file resta sul
-primario. Trattarla come errore butterebbe un caricamento riuscito perche' un
-server _secondario_ non risponde.
+Mirroring to the other servers does not block: if it fails, the file stays on
+the primary. Treating it as an error would throw away a successful upload
+because a _secondary_ server did not answer.
 
-Invariante rispettata: **se il caricamento fallisce non si pubblica nulla**. Un
-`imeta` che punta al vuoto resta pubblicato per sempre, e il kind 20 e'
-regolare, quindi non correggibile.
+The invariant holds: **if the upload fails, nothing is published**. An `imeta`
+pointing at nothing stays published forever, and kind 20 is regular, so it
+cannot be corrected.
 
-### Con quale kind pubblicare un media
+### Which kind to publish a medium with
 
-Sei modi, e la scelta **cambia chi vedra' il post**, non l'aspetto. E' il punto
-meno intuitivo di tutta la sezione:
+Six ways, and the choice **changes who will see the post**, not how it looks.
+It is the least intuitive point in the whole section:
 
-| Modo                 | Kind   | Chi lo mostra                                                                   |
-| -------------------- | ------ | ------------------------------------------------------------------------------- |
-| Nota con allegato    | 1      | **qualunque client sociale** (NIP-92 `imeta`)                                   |
-| Immagine / galleria  | 20     | client dedicati alle immagini (NIP-68)                                          |
-| Video / video corto  | 21, 22 | client video (NIP-71)                                                           |
-| Episodio di podcast  | 54     | lettori di podcast (NIP-F4)                                                     |
-| Solo scheda del file | 1063   | **quasi nessuno**: NIP-94 dice che i client sociali non sono tenuti a mostrarla |
+| Mode                 | Kind   | Who shows it                                                              |
+| -------------------- | ------ | ------------------------------------------------------------------------- |
+| Note with attachment | 1      | **any social client** (NIP-92 `imeta`)                                    |
+| Image / gallery      | 20     | clients dedicated to images (NIP-68)                                      |
+| Video / short video  | 21, 22 | video clients (NIP-71)                                                    |
+| Podcast episode      | 54     | podcast players (NIP-F4)                                                  |
+| File record only     | 1063   | **almost nobody**: NIP-94 says social clients are not required to show it |
 
-Il predefinito e' la **nota con allegato** per audio e per tutto cio' che non e'
-immagine o video. Un default che pubblica qualcosa che nessuno mostra sarebbe
-una trappola, ed e' esattamente quello che faceva prima ricadendo sul 1063.
+The default is the **note with attachment** for audio and for everything that
+is not an image or a video. A default that publishes something nobody shows
+would be a trap, and that is exactly what it did before, falling back to 1063.
 
-Etichette corrette di conseguenza: «Galleria di immagini» diventa «Immagine»
-quando il file e' uno solo, e «Scheda file» diventa «Solo scheda del file» con
-scritto a cosa serve davvero — indicizzare, non far vedere.
+Labels corrected as a consequence: «Image gallery» becomes «Image» when there
+is a single file, and «File record» becomes «File record only» with what it is
+actually for written next to it — indexing, not showing.
 
-**Audio.** Nell'indice dei NIP non esiste un kind generico per un brano o un
-file audio: l'unico standardizzato e' il **kind 54 di NIP-F4**, l'episodio di
-podcast. Chi vuole solo condividere un audio usa la nota con allegato.
+**Audio.** In the NIP index there is no generic kind for a track or an audio
+file: the only standardised one is **NIP-F4's kind 54**, the podcast episode.
+Anyone who just wants to share some audio uses the note with attachment.
 
-Due particolarita' di NIP-F4 che l'interfaccia dichiara:
+Two peculiarities of NIP-F4 that the interface states:
 
-1. **Il podcast e' la chiave stessa.** Gli episodi sono firmati direttamente
-   dalla chiave del podcast, senza un livello intermedio: pubblicando un kind 54
-   con la propria identita' personale, quell'identita' _diventa_ il podcast. La
-   scheda dello show (kind 10154) si compone dal profilo, per la stessa ragione.
-2. **L'audio si dichiara con un tag `audio`, non con `imeta`.** Niente hash e
-   niente dimensione: chi ascolta non puo' verificare che il file sia quello
-   pubblicato. E' la specifica a volerlo cosi'.
+1. **The podcast is the key itself.** Episodes are signed directly by the
+   podcast's key, with no intermediate layer: publishing a kind 54 with your
+   personal identity makes that identity _become_ the podcast. The show card
+   (kind 10154) is composed from the profile, for the same reason.
+2. **Audio is declared with an `audio` tag, not with `imeta`.** No hash and no
+   size: a listener cannot verify that the file is the one that was published.
+   The specification wants it that way.
 
-La nota con allegato mette l'URL **anche nel content**, perche' NIP-92 dice che
-ogni `imeta` dovrebbe corrispondere a un URL nel testo: i client cercano
-l'indirizzo li' e lo sostituiscono con l'anteprima. Un allegato dichiarato solo
-nel tag non lo mostrerebbe nessuno.
+The note with attachment puts the URL **in the content as well**, because
+NIP-92 says every `imeta` should correspond to a URL in the text: clients look
+for the address there and replace it with the preview. An attachment declared
+only in the tag would be shown by nobody.
 
-### Il flusso dei media, in tre momenti
+### The media flow, in three moments
 
-Rivisto: **scegliere non e' caricare, e caricare non e' pubblicare.** Prima il
-file partiva verso Blossom appena selezionato. Sembrava piu' rapido e non lo
-era: mandava su un server remoto un file che l'utente non aveva ancora
-guardato, e **da Blossom non si torna indietro davvero** — il blob e'
-identificato dal suo hash, e chi lo conosce puo' riscaricarlo anche dopo una
-cancellazione.
+Revised: **choosing is not uploading, and uploading is not publishing.**
+Before, the file left for Blossom as soon as it was selected. It seemed faster
+and it was not: it sent to a remote server a file the user had not yet looked
+at, and **from Blossom there is no real way back** — the blob is identified by
+its hash, and whoever knows it can download it again even after a deletion.
 
-1. **Scelta** — anteprima e misure, tutto nel browser. L'anteprima e' un
-   `blob:` locale, non un URL remoto: e' la prova visibile che non e' partito
-   nulla.
-2. **Opzioni** — chiuse per default. Descrizione accessibile per file, titolo,
-   descrizione, hashtag, kind, avviso di contenuto: tutto in un passaggio solo,
-   e solo se serve. Senza toccare nulla si pubblica una galleria senza titolo.
-3. **Caricamento** — su conferma esplicita, con scritto su quale server va.
-4. **Pubblicazione** — passo distinto e **facoltativo**: il file resta
-   raggiungibile dal suo indirizzo anche senza alcun evento, e la schermata lo
-   dice.
+1. **Choice** — preview and measurements, all in the browser. The preview is a
+   local `blob:`, not a remote URL: it is the visible proof that nothing has
+   left.
+2. **Options** — closed by default. Accessible description per file, title,
+   description, hashtags, kind, content warning: all in one pass, and only if
+   needed. Touching nothing publishes a gallery with no title.
+3. **Upload** — on explicit confirmation, with the destination server written
+   out.
+4. **Publication** — a separate and **optional** step: the file stays
+   reachable from its address even without any event, and the screen says so.
 
-Lo stato e' per file, non globale: se un caricamento su tre fallisce, gli altri
-due restano su Blossom e si ritentano solo i falliti.
+State is per file, not global: if one upload out of three fails, the other two
+stay on Blossom and only the failed one is retried.
 
-Verificato interrogando il server Blossom, non l'interfaccia: dopo la scelta il
-contatore dei tentativi di upload e' ancora a zero.
+Verified by querying the Blossom server, not the interface: after choosing,
+the upload attempt counter is still at zero.
 
 ### Long-form (NIP-23)
 
-Editor Markdown con anteprima. Due cose che la specifica dice e che il codice
-fa rispettare:
+A formatted editor, with the Markdown source one button away. Two things the
+specification says and the code enforces:
 
-- **niente HTML nel Markdown** — il `build` lo rifiuta;
-- **`created_at` e' l'ultima modifica, `published_at` la prima uscita**.
-  Aggiornare il secondo a ogni salvataggio farebbe risalire l'articolo nei feed
-  altrui a ogni correzione.
+- **no HTML inside the Markdown** — `build` refuses it;
+- **`created_at` is the last edit, `published_at` the first release**.
+  Updating the second on every save would push the article back up other
+  people's feeds at every correction.
 
-L'anteprima passa comunque da DOMPurify. Il divieto di HTML vincola _chi
-scrive_, non chi legge: un evento arriva da un relay che non lo fa rispettare.
+Rendering always goes through DOMPurify. The ban on HTML binds _whoever
+writes_, not whoever reads: an event arrives from a relay that does not
+enforce it.
 
-**Due tipi di bozza**, con compromessi diversi e dichiarati in interfaccia:
+**Two kinds of draft**, with different trade-offs, both stated in the
+interface:
 
-- **in questo browser** (`localStorage`): non esce di li', ma non segue su un
-  altro dispositivo;
-- **cifrata sul relay** (NIP-37, kind 31234): segue ovunque e sul relay resta
-  illeggibile. In cambio serve una chiave capace di cifrare — la sola lettura
-  non basta — e il relay vede comunque _quando_ scrivi.
+- **in this browser** (`localStorage`): it does not leave, but it does not
+  follow you to another device;
+- **encrypted on the relay** (NIP-37, kind 31234): it follows you everywhere
+  and stays unreadable on the relay. In exchange it needs a key able to
+  encrypt — read-only is not enough — and the relay still sees _when_ you
+  write.
 
-Il kind 30024, che NIP-23 dichiara deprecato, finirebbe sul relay _in chiaro_:
-chiamarlo bozza era fuorviante. Resta registrato in sola lettura, per non far
-sparire testi scritti con altri client.
+Kind 30024, which NIP-23 declares deprecated, would end up on the relay _in
+the clear_: calling it a draft was misleading. It stays registered read-only,
+so as not to make texts written with other clients disappear.
 
-### Identita' — come si comporta
+### Identity — how it behaves
 
-Tre modalita': estensione NIP-07 (consigliata), chiave privata cifrata NIP-49,
-sola lettura. La chiave decifrata vive in una **variabile di modulo, fuori
-dallo stato dello store**: non e' reattiva, non compare nei devtools e non puo'
-finire nel payload SSR.
+Three modes: NIP-07 extension (recommended), NIP-49 encrypted private key,
+read-only. The decrypted key lives in a **module variable, outside the store's
+state**: it is not reactive, it does not show up in the devtools and it cannot
+end up in the SSR payload.
 
-Conseguenza voluta e verificata: navigando fra le pagine la chiave resta
-sbloccata, **una ricarica completa la richiude** e chiede di nuovo la password.
+An intended and verified consequence: navigating between pages the key stays
+unlocked, **a full reload locks it again** and asks for the password.
 
-### Revisione su NIP-52
+### A review against NIP-52
 
-Rilettura della specifica corrente. Quattro scostamenti corretti:
+A re-read of the current specification. Four departures corrected:
 
-1. **Tag `D` mancante** — obbligatorio per il kind 31923: indice giornaliero
-   `floor(unix_seconds / 86400)`, con un tag per ogni giorno coperto.
-   **Non** si applica al 31922, dove la specifica elenca solo `start` ed `end`.
-2. **`location` e' ripetibile**: un incontro puo' avere insieme un indirizzo e
-   un link alla videochiamata.
-3. **`p` porta relay e ruolo** in terza e quarta posizione, non solo la pubkey.
-4. **`end` va confrontato in senso stretto**: la specifica dice «start must be
-   less than end», quindi una fine uguale all'inizio va rifiutata.
+1. **Missing `D` tag** — mandatory for kind 31923: the daily index
+   `floor(unix_seconds / 86400)`, with one tag per day covered. It does **not**
+   apply to 31922, where the specification lists only `start` and `end`.
+2. **`location` is repeatable**: a meeting can have both an address and a link
+   to the video call.
+3. **`p` carries a relay and a role** in third and fourth position, not just
+   the pubkey.
+4. **`end` must be compared strictly**: the specification says «start must be
+   less than end», so an end equal to the start has to be refused.
 
-Aggiunto anche il tag `a` verso i calendari (kind 31924).
+The `a` tag towards calendars (kind 31924) was added too.
 
-Nota sul tag `D`: e' ancorato a UTC, perche' la formula usa solo il timestamp.
-Un evento alle 23:00 a Tokyo cade quindi nel giorno UTC precedente. Introdurre
-il fuso nel calcolo produrrebbe indici incompatibili con gli altri client.
+A note on the `D` tag: it is anchored to UTC, because the formula uses only
+the timestamp. An event at 23:00 in Tokyo therefore falls on the previous UTC
+day. Bringing the timezone into the calculation would produce indices
+incompatible with other clients.
 
-### Bug trovati solo dal test nel browser
+### Bugs only the browser test found
 
-Tre difetti sono passati indenni sia da `nuxt typecheck` sia da eslint, ed e'
-la ragione per cui il test end-to-end non e' sostituibile da quelli statici:
+Three defects got past both `nuxt typecheck` and eslint, which is why the
+end-to-end test cannot be replaced by the static ones:
 
-1. **`BaseButton` con `to` era inerte.** `<component :is="'NuxtLink'">` non
-   risolve il componente e genera un elemento `<nuxtlink>` letterale, senza
-   href ne' navigazione. Tutti i pulsanti-link erano morti. Serve
+1. **`BaseButton` with `to` was inert.** `<component :is="'NuxtLink'">` does
+   not resolve the component and produces a literal `<nuxtlink>` element, with
+   no href and no navigation. Every link-button was dead. It needs
    `resolveComponent('NuxtLink')`.
-2. **Espressione di template non valida.** Un `@click` con due istruzioni su
-   righe separate, e un `as const` dentro un `v-for`: le espressioni dei
-   template Vue sono JavaScript puro, non TypeScript. La pagina impostazioni
-   non si caricava affatto.
-3. **Il form calendario partiva non valido.** Attivando "tutto il giorno" la
-   data di fine restava uguale a quella di inizio, che NIP-52 rifiuta perche'
-   la fine e' esclusiva. Ora scatta al giorno successivo.
+2. **An invalid template expression.** A `@click` with two statements on
+   separate lines, and an `as const` inside a `v-for`: Vue template
+   expressions are plain JavaScript, not TypeScript. The settings page did not
+   load at all.
+3. **The calendar form started out invalid.** Turning on "all day" left the
+   end date equal to the start date, which NIP-52 refuses because the end is
+   exclusive. It now moves to the following day.
 
 ---
 
-### Come si prova la pubblicazione senza scrivere su relay pubblici
+### How publishing is tested without writing to public relays
 
-`test/helpers/relay-finto.ts` avvia un relay NIP-01 minimo in-process (porta
-assegnata dal sistema, quindi i test girano in parallelo). Non e' un mock del
-pool: il traffico passa davvero da un WebSocket e da messaggi NIP-01 veri, che
-e' l'unico modo per vedere i casi che contano — rifiuti, silenzi, sostituzione
-degli addressable. Un mock proverebbe soltanto che il nostro codice chiama se
-stesso.
+`test/helpers/relay-finto.ts` starts a minimal in-process NIP-01 relay (with a
+system-assigned port, so the tests run in parallel). It is not a mock of the
+pool: the traffic really goes through a WebSocket and real NIP-01 messages,
+which is the only way to see the cases that matter — refusals, silences,
+replacement of addressables. A mock would only prove that our code calls
+itself.
 
-Serve anche a non sporcare i relay pubblici con eventi di prova.
-
----
-
-## Prossimo passo: Fase 1, il resto
-
-Fatto in questo giro: `relays/` — pool, pubblicazione con esito per relay,
-lettura con deduplica. Manca ancora:
-
-1. `relays/` — risolutore outbox NIP-65 (kind 10002) e lettura NIP-11 nel pool.
-   Finche' non c'e', "tutti" nel feed significa _quello che passa dai relay
-   configurati_, non l'intera rete: la UI lo dice invece di far credere a una
-   copertura che non ha.
-2. `store/` — EventStore di `applesauce-core` con cache Dexie lato client. Oggi
-   ogni cambio pagina rilegge dai relay: funziona, ma e' traffico sprecato.
-3. `signers/` — NIP-46 bunker (NIP-07 e NIP-49 gia' fatti).
-4. Restanti `kinds/definitions/`: 3 (follow), 5 (cancellazione), 10002.
-5. `nostr-vue`: `useAccount`, `useProfile`, `useEvent` — `useTimeline` per ora
-   vive in `apps/web`, va promosso quando serve a piu' di un'app.
-
-Il registry (`kinds/registry.ts`) e le sue invarianti sono gia' pronti e
-coperti da test: le definizioni si agganciano li' senza altre modifiche.
+It also keeps test events off the public relays.
 
 ---
 
-## Fasi successive (dal piano)
+## Next step: the rest of Phase 1
 
-| Fase | Contenuto                                                                                 |
-| ---- | ----------------------------------------------------------------------------------------- |
-| 2    | Auth NIP-07/46, profilo (0), follow (3), relay list (10002 + migrazione da 2)             |
-| 3    | Feed: note (1), repost (6/16), reazioni (7), commenti (1111), composer, cancellazione (5) |
-| 4    | Media: Blossom BUD-01/02/06, imeta, kind 20/21/22/1063                                    |
-| 5    | Long-form 30023/30024, editor Markdown, SSR + Open Graph + RSS                            |
-| 6    | Calendario 31922-31925, RSVP, timezone                                                    |
-| 7    | DM: lettura kind 4 + invio NIP-17 (1059/13/14) + relay list 10050                         |
-| 8    | PWA, i18n, accessibilita', hardening                                                      |
+Done in this round: `relays/` — pool, publishing with a per-relay outcome,
+reading with deduplication. Still missing:
 
-I pagamenti restano **fuori dalla v0**: vedi Appendice A del piano.
+1. `relays/` — the NIP-65 outbox resolver (kind 10002) and NIP-11 reading in
+   the pool. Until that exists, "everyone" in the feed means _whatever comes
+   through the configured relays_, not the whole network: the UI says so
+   instead of implying a coverage it does not have.
+2. `store/` — `applesauce-core`'s EventStore with a Dexie cache client-side.
+   Today every page change re-reads from the relays: it works, but it is
+   wasted traffic.
+3. `signers/` — NIP-46 bunker (NIP-07 and NIP-49 already done).
+4. The remaining `kinds/definitions/`: 3 (follows), 5 (deletion), 10002.
+5. `nostr-vue`: `useAccount`, `useProfile`, `useEvent` — `useTimeline` lives in
+   `apps/web` for now, to be promoted when more than one app needs it.
+
+The registry (`kinds/registry.ts`) and its invariants are ready and covered by
+tests: definitions hook into it with no other changes.
 
 ---
 
-## Configurazione endpoint — verificata dal browser
+## Later phases (from the plan)
 
-`.env` vive nella **radice del monorepo**, non in `apps/web`. Nuxt non lo
-troverebbe da solo: gli script `dev`/`build`/`preview` di `apps/web` passano
-quindi `--dotenv ../../.env`. Senza quel flag il runtimeConfig resta vuoto e la
-diagnostica mostra endpoint sbagliati.
+| Phase | Content                                                                                 |
+| ----- | --------------------------------------------------------------------------------------- |
+| 2     | NIP-07/46 auth, profile (0), follows (3), relay list (10002 + migration from 2)         |
+| 3     | Feed: notes (1), reposts (6/16), reactions (7), comments (1111), composer, deletion (5) |
+| 4     | Media: Blossom BUD-01/02/06, imeta, kinds 20/21/22/1063                                 |
+| 5     | Long-form 30023/30024, Markdown editor, SSR + Open Graph + RSS                          |
+| 6     | Calendar 31922-31925, RSVP, timezones                                                   |
+| 7     | DMs: reading kind 4 + sending NIP-17 (1059/13/14) + relay list 10050                    |
+| 8     | PWA, i18n, accessibility, hardening                                                     |
 
-Due strumenti, **una sola logica** (`packages/nostr-core/src/relays/probe.ts`,
-isomorfico): CLI e browser danno per costruzione la stessa diagnosi.
+Payments stay **outside v0**: see Appendix A of the plan.
+
+---
+
+## Endpoint configuration — verified from the browser
+
+`.env` lives in the **monorepo root**, not in `apps/web`. Nuxt would not find
+it by itself: the `dev`/`build`/`preview` scripts in `apps/web` therefore pass
+`--dotenv ../../.env`. Without that flag the runtimeConfig stays empty and the
+diagnostics show the wrong endpoints.
+
+Two tools, **one single piece of logic**
+(`packages/nostr-core/src/relays/probe.ts`, isomorphic): CLI and browser give
+the same diagnosis by construction.
 
 ```bash
-pnpm check:endpoints            # da Node, non subisce CORS
-pnpm dev  →  /diagnostica       # dal browser, subisce CORS come l'app vera
+pnpm check:endpoints            # from Node, CORS does not apply
+pnpm dev  →  /diagnostica       # from the browser, CORS applies as in the real app
 ```
 
-Esito: **8 endpoint su 8 raggiungibili**, verificati dal browser con Firefox
-headless pilotato via WebDriver.
+Outcome: **8 endpoints out of 8 reachable**, verified from the browser with
+headless Firefox driven through WebDriver.
 
-La pagina mostra l'orario dell'ultima verifica accanto al riepilogo: senza,
-una scheda lasciata aperta mostra risultati vecchi indistinguibili da quelli
-freschi, e dopo un `restart` sembra che un endpoint sia caduto quando invece
-e' solo la pagina a essere scaduta.
+The page shows the time of the last check next to the summary: without it, a
+tab left open shows old results indistinguishable from fresh ones, and after a
+`restart` it looks as though an endpoint has gone down when it is only the
+page that is stale.
 
-| Endpoint                        | Ruolo              | Note                                         |
-| ------------------------------- | ------------------ | -------------------------------------------- |
-| `wss://relay.damus.io`          | lettura, scrittura | **intermittente**, rate limit per IP         |
-| `wss://nos.lol`                 | lettura, scrittura | stabile, ~200 ms                             |
-| `wss://relay.primal.net`        | lettura            | dichiara NIP-22                              |
-| `wss://purplepag.es`            | indicizzatore      | dichiara NIP-42                              |
-| `wss://user.kindpag.es`         | indicizzatore      | dichiara NIP-22                              |
-| `https://blossom.yakihonne.com` | media (primario)   | BUD-01 ok; `HEAD /upload` → **403**          |
-| `https://nostr.download`        | media (mirror)     | BUD-01 ok; `HEAD /upload` → 401              |
-| _(relay privato, da `.env`)_    | bozze (30024)      | strfry, cert valido; 6/6 sonde ok, 59-195 ms |
+| Endpoint                        | Role            | Notes                                        |
+| ------------------------------- | --------------- | -------------------------------------------- |
+| `wss://relay.damus.io`          | read, write     | **intermittent**, per-IP rate limit          |
+| `wss://nos.lol`                 | read, write     | stable, ~200 ms                              |
+| `wss://relay.primal.net`        | read            | declares NIP-22                              |
+| `wss://purplepag.es`            | indexer         | declares NIP-42                              |
+| `wss://user.kindpag.es`         | indexer         | declares NIP-22                              |
+| `https://blossom.yakihonne.com` | media (primary) | BUD-01 ok; `HEAD /upload` → **403**          |
+| `https://nostr.download`        | media (mirror)  | BUD-01 ok; `HEAD /upload` → 401              |
+| _(private relay, from `.env`)_  | drafts (30024)  | strfry, valid cert; 6/6 probes ok, 59-195 ms |
 
-### Cosa e' emerso, e conta per le fasi successive
+### What came out of it, and matters for the later phases
 
-- **CORS decide quali server Blossom sono usabili.** `blossom.primal.net`, il
-  default iniziale, manda `Access-Control-Allow-Origin` sul preflight `OPTIONS`
-  ma **non sulla risposta `GET` effettiva**: da Node funziona, dal browser il
-  fetch viene bloccato. Era invisibile finche' si testava solo da CLI.
-- **`Access-Control-Expose-Headers` decide se possiamo leggere gli errori.**
-  Blossom spiega i rifiuti nell'header `X-Reason`; senza quell'header il
-  JavaScript vede il fallimento ma non il motivo. Solo `nostr.download` lo
-  espone fra quelli provati.
-- **`blossom.yakihonne.com` risponde 403 a `HEAD /upload`, non 401.** 401 vuol
-  dire "serve autenticazione", 403 "non ti e' permesso": potrebbe limitare gli
-  upload a pubkey autorizzate. Da riverificare in Fase 4 con un evento kind
-  24242 firmato, che e' l'unica prova conclusiva.
-- **Nessun relay dichiara NIP-65** nel proprio NIP-11. Non e' bloccante: NIP-65
-  lo implementa il client. Significa pero' che le relay list vanno cercate sugli
-  indicizzatori.
-- `redirect: 'manual'` non e' utilizzabile nel browser (produce risposte
-  opaqueredirect illeggibili) e molti server Blossom rispondono 302 verso una
-  CDN: la sonda usa `redirect: 'follow'`.
+- **CORS decides which Blossom servers are usable.** `blossom.primal.net`, the
+  initial default, sends `Access-Control-Allow-Origin` on the `OPTIONS`
+  preflight but **not on the actual `GET` response**: from Node it works, from
+  the browser the fetch is blocked. It was invisible as long as testing
+  happened only from the CLI.
+- **`Access-Control-Expose-Headers` decides whether we can read the errors.**
+  Blossom explains refusals in the `X-Reason` header; without that header the
+  JavaScript sees the failure but not the reason. Of the ones tried, only
+  `nostr.download` exposes it.
+- **`blossom.yakihonne.com` answers 403 to `HEAD /upload`, not 401.** 401
+  means "authentication required", 403 "you are not allowed": it may restrict
+  uploads to authorised pubkeys. To be re-checked in Phase 4 with a signed
+  kind 24242 event, which is the only conclusive proof.
+- **No relay declares NIP-65** in its NIP-11. That is not blocking: NIP-65 is
+  implemented by the client. It does mean relay lists have to be looked for on
+  the indexers.
+- `redirect: 'manual'` cannot be used in the browser (it produces unreadable
+  opaqueredirect responses) and many Blossom servers answer 302 towards a CDN:
+  the probe uses `redirect: 'follow'`.
 
 ---
 
-## Punti aperti
+## Open points
 
-- **Endpoint privati**: configurati in `.env`, che resta fuori dal repository.
-  `.env.example` porta solo default pubblici — un puntamento privato li' finisce
-  su GitHub, ed e' successo una volta.
-- **`NUXT_PUBLIC_DRAFT_RELAY`**: se vuoto, il salvataggio bozze resta
-  disabilitato di proposito invece di ripiegare su un relay pubblico (ADR 0003).
-  Le bozze cifrate NIP-37 hanno bisogno proprio di questo relay.
-- **Outbox NIP-65 e lista follow (kind 3)**: finche' mancano, gli elenchi
-  mostrano i soli eventi propri. Vedi «Sezioni disponibili».
-- **Cache locale (Dexie)**: ogni cambio pagina rilegge dai relay. Funziona, ma
-  e' traffico sprecato.
+- **Private endpoints**: configured in `.env`, which stays out of the
+  repository. `.env.example` carries public defaults only — a private endpoint
+  in there ends up on GitHub, and that happened once.
+- **`NUXT_PUBLIC_DRAFT_RELAY`**: when empty, draft saving stays disabled on
+  purpose instead of falling back to a public relay (ADR 0003). NIP-37
+  encrypted drafts need precisely this relay.
+- **NIP-65 outbox and the follow list (kind 3)**: until they exist, the lists
+  show your own events only. See «Available sections».
+- **Local cache (Dexie)**: every page change re-reads from the relays. It
+  works, but it is wasted traffic.
