@@ -14,11 +14,11 @@ import {
 import { registerBuiltinKinds } from '../src/kinds/definitions/index.js'
 import type { AnyKindDefinition, EventClass } from '../src/kinds/types.js'
 
-/** Definizione minima valida, da deformare caso per caso. */
+/** A minimal valid definition, to be deformed case by case. */
 function makeDefinition(overrides: Partial<AnyKindDefinition> = {}): AnyKindDefinition {
   const base: AnyKindDefinition = {
     kind: 1,
-    name: 'nota-di-prova',
+    name: 'test-note',
     nip: 'NIP-10',
     class: 'regular' as EventClass,
     editable: false,
@@ -39,109 +39,109 @@ beforeEach(() => {
   clearRegistry()
 })
 
-describe('registerKind — coerenze che il compilatore non puo imporre', () => {
-  it('accetta una definizione coerente', () => {
+describe('registerKind — consistencies the compiler cannot enforce', () => {
+  it('accepts a consistent definition', () => {
     registerKind(makeDefinition())
     expect(isKnownKind(1)).toBe(true)
-    expect(getKindDefinition(1)?.name).toBe('nota-di-prova')
+    expect(getKindDefinition(1)?.name).toBe('test-note')
   })
 
-  it('rifiuta una classe che non corrisponde a quella derivata dal numero', () => {
-    // 30023 e' addressable per NIP-01: dichiararlo regolare significherebbe
-    // trattare come immutabile un evento che i relay sostituiscono.
+  it('refuses a class that does not match the one derived from the number', () => {
+    // 30023 is addressable under NIP-01: declaring it regular would mean
+    // treating as immutable an event that relays replace.
     expect(() =>
-      registerKind(makeDefinition({ kind: 30023, class: 'regular', name: 'articolo' })),
-    ).toThrow(/NIP-01 la deriva come "addressable"/)
+      registerKind(makeDefinition({ kind: 30023, class: 'regular', name: 'article' })),
+    ).toThrow(/NIP-01 derives it as "addressable"/)
   })
 
-  it('rifiuta editable=true su un kind regolare', () => {
-    // E' il caso del kind 1: il protocollo non offre la modifica, e la UI
-    // non deve simularla. Vedi sezione 1.1 del piano.
+  it('refuses editable=true on a regular kind', () => {
+    // This is kind 1's case: the protocol offers no editing, and the UI must
+    // not simulate it. See section 1.1 of the plan.
     expect(() => registerKind(makeDefinition({ kind: 1, editable: true }))).toThrow(
-      /editable=true su una classe "regular"/,
+      /editable=true on a "regular" class/,
     )
   })
 
-  it('accetta editable=true su un kind addressable', () => {
+  it('accepts editable=true on an addressable kind', () => {
     registerKind(
       makeDefinition({
         kind: 30023,
         class: 'addressable',
-        name: 'articolo',
+        name: 'article',
         editable: true,
-        identifier: () => 'slug-articolo',
+        identifier: () => 'article-slug',
       }),
     )
     expect(getKindDefinition(30023)?.editable).toBe(true)
   })
 
-  it('rifiuta un addressable senza identifier()', () => {
-    // Senza tag `d` ogni nuovo evento sovrascriverebbe il precedente
-    // dello stesso autore: perdita di dati silenziosa.
+  it('refuses an addressable without identifier()', () => {
+    // Without a `d` tag every new event would overwrite the same author's
+    // previous one: silent data loss.
     expect(() =>
-      registerKind(makeDefinition({ kind: 31923, class: 'addressable', name: 'evento' })),
-    ).toThrow(/richiedono identifier\(\)/)
+      registerKind(makeDefinition({ kind: 31923, class: 'addressable', name: 'event' })),
+    ).toThrow(/require identifier\(\)/)
   })
 
-  it('rifiuta identifier() su un kind non addressable', () => {
+  it('refuses identifier() on a kind that is not addressable', () => {
     expect(() => registerKind(makeDefinition({ kind: 1, identifier: () => 'x' }))).toThrow(
-      /ha senso solo per gli eventi addressable/,
+      /only makes sense for addressable events/,
     )
   })
 
-  it('rifiuta deletable=true su un kind ephemeral', () => {
-    // I relay non conservano gli ephemeral: non c'e' nulla da cancellare.
+  it('refuses deletable=true on an ephemeral kind', () => {
+    // Relays do not keep ephemerals: there is nothing to delete.
     expect(() =>
       registerKind(
         makeDefinition({
           kind: 24242,
           class: 'ephemeral',
-          name: 'auth-blossom',
+          name: 'blossom-auth',
           deletable: true,
         }),
       ),
-    ).toThrow(/deletable=true su un kind ephemeral/)
+    ).toThrow(/deletable=true on an ephemeral kind/)
   })
 
-  it('rifiuta la registrazione doppia dello stesso kind', () => {
-    registerKind(makeDefinition({ kind: 1, name: 'primo' }))
-    expect(() => registerKind(makeDefinition({ kind: 1, name: 'secondo' }))).toThrow(
-      /gia' registrato da "primo"/,
+  it('refuses registering the same kind twice', () => {
+    registerKind(makeDefinition({ kind: 1, name: 'first' }))
+    expect(() => registerKind(makeDefinition({ kind: 1, name: 'second' }))).toThrow(
+      /is already registered by "first"/,
     )
   })
 })
 
-describe('interrogazione del registry', () => {
-  it('elenca le definizioni ordinate per numero di kind', () => {
-    registerKind(makeDefinition({ kind: 1111, class: 'regular', name: 'commento' }))
-    registerKind(makeDefinition({ kind: 1, name: 'nota' }))
+describe('querying the registry', () => {
+  it('lists the definitions ordered by kind number', () => {
+    registerKind(makeDefinition({ kind: 1111, class: 'regular', name: 'comment' }))
+    registerKind(makeDefinition({ kind: 1, name: 'note' }))
     registerKind(makeDefinition({ kind: 20, class: 'regular', name: 'picture' }))
 
     expect(allKindDefinitions().map((d) => d.kind)).toEqual([1, 20, 1111])
   })
 
-  it('espone solo i kind marcati come idonei ai feed', () => {
-    registerKind(makeDefinition({ kind: 1, name: 'nota', feed: { eligible: true } }))
+  it('exposes only the kinds marked as feed-eligible', () => {
+    registerKind(makeDefinition({ kind: 1, name: 'note', feed: { eligible: true } }))
     registerKind(makeDefinition({ kind: 20, name: 'picture', feed: { eligible: true } }))
-    registerKind(makeDefinition({ kind: 5, name: 'cancellazione', feed: { eligible: false } }))
-    registerKind(makeDefinition({ kind: 7, name: 'reazione' })) // feed assente
+    registerKind(makeDefinition({ kind: 5, name: 'deletion', feed: { eligible: false } }))
+    registerKind(makeDefinition({ kind: 7, name: 'reaction' })) // no feed field
 
     expect(feedEligibleKinds()).toEqual([1, 20])
   })
 
-  it('restituisce undefined per un kind sconosciuto, senza lanciare', () => {
-    // Il client non deve rompersi davanti a un kind che non conosce:
-    // il renderer di fallback si appoggia proprio a questo.
+  it('returns undefined for an unknown kind, without throwing', () => {
+    // The client must not break in front of a kind it does not know: the
+    // fallback renderer relies on exactly this.
     expect(getKindDefinition(31337)).toBeUndefined()
     expect(isKnownKind(31337)).toBe(false)
   })
 })
 
 describe('defineKind', () => {
-  it('preserva i parametri di tipo che un letterale nudo perderebbe', () => {
+  it('preserves the type parameters a bare literal would lose', () => {
     const def = defineKind<{ content: string }, string>({
       kind: 1,
-      name: 'nota',
+      name: 'note',
       nip: 'NIP-10',
       class: 'regular',
       editable: false,
@@ -151,12 +151,12 @@ describe('defineKind', () => {
       build: (input, ctx) => ({ kind: 1, content: input, tags: [], created_at: ctx.now }),
     })
 
-    const built = def.build('ciao', { pubkey: 'ab'.repeat(32), now: 1_700_000_000 })
+    const built = def.build('hello', { pubkey: 'ab'.repeat(32), now: 1_700_000_000 })
     expect(built).toEqual({
       kind: 1,
-      content: 'ciao',
-      // defineKind non e' piu' solo un'identita': ci aggiunge il tag `client`,
-      // che e' il motivo per cui nessun kind puo' dimenticarselo.
+      content: 'hello',
+      // defineKind is no longer just an identity: it adds the `client` tag,
+      // which is why no kind can forget it.
       tags: [['client', 'NostrMediaClient']],
       created_at: 1_700_000_000,
     })
@@ -164,29 +164,29 @@ describe('defineKind', () => {
 })
 
 describe('publishableKinds', () => {
-  it('esclude gli effimeri, che un relay non conserva', () => {
-    // Non e' prudenza: NIP-01 dice ai relay di non memorizzarli, quindi
-    // interrogarli restituirebbe sempre il vuoto. Il 24242 di Blossom viene
-    // firmato e spedito, ma dentro un header HTTP.
+  it('excludes ephemerals, which a relay does not keep', () => {
+    // Not caution: NIP-01 tells relays not to store them, so querying would
+    // always come back empty. Blossom's 24242 is signed and sent, but inside
+    // an HTTP header.
     clearRegistry()
     registerBuiltinKinds()
 
-    const pubblicabili = publishableKinds()
-    expect(pubblicabili).toContain(1)
-    expect(pubblicabili).toContain(30023)
-    expect(pubblicabili).not.toContain(24242)
+    const publishable = publishableKinds()
+    expect(publishable).toContain(1)
+    expect(publishable).toContain(30023)
+    expect(publishable).not.toContain(24242)
   })
 
-  it('cresce da solo quando si registra un kind nuovo', () => {
-    // E' la promessa dell'intera struttura: aggiungere un kind non deve
-    // richiedere di aggiornare gli elenchi sparsi per l'applicazione.
+  it('grows by itself when a new kind is registered', () => {
+    // It is the promise of the whole structure: adding a kind must not
+    // require updating lists scattered across the application.
     clearRegistry()
     registerBuiltinKinds()
-    const prima = publishableKinds().length
+    const before = publishableKinds().length
 
     registerKind({
       kind: 30078,
-      name: 'dati-applicativi',
+      name: 'app-data',
       nip: 'NIP-78',
       class: 'addressable',
       editable: true,
@@ -202,7 +202,7 @@ describe('publishableKinds', () => {
       }),
     })
 
-    expect(publishableKinds()).toHaveLength(prima + 1)
+    expect(publishableKinds()).toHaveLength(before + 1)
     expect(publishableKinds()).toContain(30078)
   })
 })

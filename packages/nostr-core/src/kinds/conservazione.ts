@@ -2,47 +2,46 @@ import type { Tag } from './tags.js'
 import type { EventTemplate, NostrEvent } from './types.js'
 
 /**
- * Conservare i tag che il client non sa scrivere.
+ * Keeping the tags this client cannot write.
  *
- * Un evento sostituibile si modifica ripubblicandolo: si legge dai relay, si
- * riempie un form, si ricompone. Il guaio e' che **il form diventa l'unica
- * fonte**, e tutto cio' che non ha un campo sparisce. Un evento calendario
- * scritto da un altro client porta `lat`, `lon`, `place_id`, i colori del
- * tema: dati veri, di cui il nostro form non sa nulla e che al primo
- * salvataggio si perderebbero per sempre.
+ * A replaceable event is edited by publishing it again: you read it from the
+ * relays, fill a form, recompose it. The trouble is that **the form becomes
+ * the only source**, and everything that has no field disappears. A calendar
+ * event written by another client carries `lat`, `lon`, `place_id`, the
+ * theme's colours: real data our form knows nothing about, which the first
+ * save would lose for good.
  *
- * Qui non si prova a capirli. Si conservano: quello che non sappiamo scrivere
- * lo ripubblichiamo com'era, e lo si mostra all'utente, che e' l'unico in
- * grado di decidere se ha ancora senso.
+ * Here we do not try to understand them. We keep them: whatever we cannot
+ * write we publish again as it was, and we show it to the user, who is the
+ * only one able to decide whether it still makes sense.
  *
- * **Come si distingue cio' che e' nostro.** Non c'e' un elenco di tag
- * dichiarati per kind — sarebbe una lista da tenere allineata a mano, e prima
- * o poi non lo sarebbe piu'. Si guarda invece cosa il kind scrive *per
- * quell'evento*: si ricostruisce il template a partire dall'evento appena
- * letto e si confrontano i **nomi** dei tag. Quelli che il kind non scrive
- * sono aggiuntivi.
+ * **How we tell what is ours.** There is no list of declared tags per kind —
+ * that would be a list to keep aligned by hand, and sooner or later it would
+ * not be. Instead we look at what the kind writes *for that event*: we
+ * rebuild the template from the event we have just read and compare the tag
+ * **names**. The ones the kind does not write are extra.
  *
- * **Per nome, non per tag intero.** Se l'originale ha tre `p` e il kind ne
- * scrive uno, i `p` sono roba del kind: tenerne due «aggiuntivi» creerebbe
- * partecipanti fantasma che nessuno ha chiesto.
+ * **By name, not by whole tag.** If the original has three `p` tags and the
+ * kind writes one, the `p` tags belong to the kind: keeping two of them as
+ * «extra» would create phantom participants nobody asked for.
  *
- * **La fotografia si scatta all'apertura.** Se il confronto si rifacesse a
- * ogni ricomposizione, svuotare un campo — togliere l'immagine — toglierebbe
- * `image` dai tag costruiti, e il vecchio `image` rientrerebbe come tag
- * aggiuntivo annullando la modifica. Calcolata una volta sola quando si apre
- * l'evento, la lista resta stabile e l'utente la vede.
+ * **The snapshot is taken when the event is opened.** If the comparison were
+ * redone on every recomposition, emptying a field — removing the image —
+ * would take `image` out of the built tags, and the old `image` would come
+ * back as an extra tag, undoing the edit. Computed once when the event opens,
+ * the list stays stable and the user can see it.
  */
 
-/** I nomi dei tag presenti in un template. */
+/** The tag names present in a template. */
 function nomi(tags: readonly Tag[]): Set<string> {
   return new Set(tags.map((t) => t[0] ?? ''))
 }
 
 /**
- * I tag dell'evento originale che il kind non scrive.
+ * The original event's tags that the kind does not write.
  *
- * @param originale l'evento come sta sui relay
- * @param costruito il template ricostruito **da quell'evento**, senza modifiche
+ * @param originale the event as it stands on the relays
+ * @param costruito the template rebuilt **from that event**, unmodified
  */
 export function tagAggiuntivi(originale: NostrEvent, costruito: EventTemplate): Tag[] {
   const nostri = nomi(costruito.tags)
@@ -51,16 +50,17 @@ export function tagAggiuntivi(originale: NostrEvent, costruito: EventTemplate): 
     .map((t) => [...t])
 }
 
-/** Un tag e' uguale a un altro se lo sono tutti i suoi elementi. */
+/** One tag equals another when all of their elements do. */
 const stessoTag = (a: Tag, b: Tag): boolean =>
   a.length === b.length && a.every((v, i) => v === b[i])
 
 /**
- * I tag costruiti piu' quelli conservati, in coda.
+ * The built tags plus the kept ones, appended.
  *
- * I doppioni esatti si scartano: un tag identico gia' scritto dal kind non va
- * ripetuto. Un tag con lo stesso nome ma valore diverso invece resta — e'
- * lecito in Nostr, ed e' compito della UI avvisare quando non ha senso.
+ * Exact duplicates are dropped: a tag identical to one the kind already wrote
+ * must not be repeated. A tag with the same name but a different value does
+ * stay — that is legal in Nostr, and it is the UI's job to warn when it makes
+ * no sense.
  */
 export function fondiTag(costruiti: readonly Tag[], aggiuntivi: readonly Tag[]): Tag[] {
   const risultato: Tag[] = costruiti.map((t) => [...t])

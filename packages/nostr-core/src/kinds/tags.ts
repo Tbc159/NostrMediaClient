@@ -1,23 +1,23 @@
 import type { NostrEvent } from './types.js'
 
 /**
- * Utilita' per leggere e costruire i tag di un evento.
+ * Helpers for reading and building an event's tags.
  *
- * Un tag e' un array di stringhe il cui primo elemento e' il nome. La forma e'
- * volutamente generica nel protocollo, quindi ogni accesso va fatto con
- * attenzione: `tag[1]` puo' non esistere, e piu' tag possono avere lo stesso
- * nome. Queste funzioni evitano di ripetere quei controlli in ogni kind.
+ * A tag is an array of strings whose first element is the name. The shape is
+ * deliberately generic in the protocol, so every access has to be careful:
+ * `tag[1]` may not exist, and several tags can share the same name. These
+ * functions save repeating those checks in every kind.
  */
 
 export type Tag = string[]
 
-/** Primo valore del tag con quel nome, o `undefined`. */
+/** The first value of the tag with that name, or `undefined`. */
 export function tagValue(event: NostrEvent, nome: string): string | undefined {
   const trovato = event.tags.find((t) => t[0] === nome)
   return trovato?.[1]
 }
 
-/** Tutti i primi valori dei tag con quel nome, scartando quelli vuoti. */
+/** Every first value of the tags with that name, dropping the empty ones. */
 export function tagValues(event: NostrEvent, nome: string): string[] {
   return event.tags
     .filter((t) => t[0] === nome)
@@ -25,38 +25,38 @@ export function tagValues(event: NostrEvent, nome: string): string[] {
     .filter((v): v is string => typeof v === 'string' && v.length > 0)
 }
 
-/** Tag interi con quel nome, per quando servono anche gli elementi oltre il primo. */
+/** Whole tags with that name, for when the elements past the first matter too. */
 export function tagsNamed(event: NostrEvent, nome: string): Tag[] {
   return event.tags.filter((t) => t[0] === nome)
 }
 
 /**
- * Identificatore `d` di un evento addressable.
+ * The `d` identifier of an addressable event.
  *
- * NIP-01 tratta un `d` assente come stringa vuota, che e' comunque un
- * identificatore valido: non va confuso con "manca il tag".
+ * NIP-01 treats a missing `d` as the empty string, which is still a valid
+ * identifier: it must not be confused with "the tag is missing".
  */
 export function identifier(event: NostrEvent): string {
   return tagValue(event, 'd') ?? ''
 }
 
-/** Coordinata `<kind>:<pubkey>:<d>` di un evento addressable. */
+/** The `<kind>:<pubkey>:<d>` coordinate of an addressable event. */
 export function addressOf(event: NostrEvent): string {
   return `${event.kind}:${event.pubkey}:${identifier(event)}`
 }
 
 /**
- * Costruisce un tag solo se il valore c'e'.
+ * Builds a tag only when there is a value.
  *
- * Evita di sporcare gli eventi con tag vuoti, che alcuni relay rifiutano e
- * che comunque confondono i client che li leggono.
+ * It keeps events free of empty tags, which some relays refuse and which
+ * confuse the clients that read them in any case.
  */
 export function optionalTag(nome: string, valore: string | undefined | null): Tag[] {
   const pulito = valore?.trim()
   return pulito ? [[nome, pulito]] : []
 }
 
-/** Un tag per ciascun valore non vuoto, deduplicati mantenendo l'ordine. */
+/** One tag per non-empty value, deduplicated while keeping the order. */
 export function repeatedTags(nome: string, valori: readonly string[]): Tag[] {
   const visti = new Set<string>()
   const risultato: Tag[] = []
@@ -71,10 +71,10 @@ export function repeatedTags(nome: string, valori: readonly string[]): Tag[] {
 }
 
 /**
- * Normalizza un hashtag per il tag `t`.
+ * Normalises a hashtag for the `t` tag.
  *
- * Convenzione diffusa: minuscolo e senza il cancelletto iniziale, cosi' che
- * "#Nostr" e "nostr" finiscano nello stesso indice sui relay.
+ * The widespread convention: lower case and without the leading hash, so that
+ * "#Nostr" and "nostr" end up in the same index on the relays.
  */
 export function normalizeHashtag(tag: string): string {
   return tag.trim().replace(/^#+/, '').toLowerCase()

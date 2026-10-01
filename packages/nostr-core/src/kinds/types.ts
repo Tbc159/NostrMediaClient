@@ -4,106 +4,107 @@ import type { ZodType } from 'zod'
 export type { NostrEvent, EventTemplate }
 
 /**
- * Classe di un evento secondo NIP-01. Determina se e come l'evento puo' essere
- * sostituito, e quindi se il concetto di "modifica" ha senso per quel kind.
+ * An event's class according to NIP-01. It determines whether and how the
+ * event can be replaced, and therefore whether the idea of "editing" makes
+ * sense for that kind.
  *
- * - `regular`     — immutabile. Non esiste modifica: si puo' solo chiedere la
- *                   cancellazione (kind 5) e ripubblicare, ottenendo un id nuovo.
- * - `replaceable` — il relay tiene solo l'ultimo evento per (pubkey, kind).
- * - `addressable` — il relay tiene solo l'ultimo per (pubkey, kind, tag `d`).
- * - `ephemeral`   — non viene conservato dai relay.
+ * - `regular`     — immutable. There is no editing: all you can do is ask for
+ *                   deletion (kind 5) and publish again, getting a new id.
+ * - `replaceable` — the relay keeps only the latest event per (pubkey, kind).
+ * - `addressable` — the relay keeps only the latest per (pubkey, kind, `d` tag).
+ * - `ephemeral`   — relays do not keep it at all.
  */
 export type EventClass = 'regular' | 'replaceable' | 'addressable' | 'ephemeral'
 
-/** Coordinata di un evento addressable: `<kind>:<pubkey>:<d>`. */
+/** The coordinate of an addressable event: `<kind>:<pubkey>:<d>`. */
 export type AddressPointer = `${number}:${string}:${string}`
 
 /**
- * Contesto passato a `build()`. Contiene cio' che il kind non puo' dedurre da
- * solo ma non giustifica una dipendenza: chi sta scrivendo e quando.
+ * The context passed to `build()`. It holds what the kind cannot work out by
+ * itself but which does not justify a dependency: who is writing, and when.
  */
 export interface BuildContext {
-  /** Chiave pubblica dell'autore, esadecimale. */
+  /** The author's public key, hexadecimal. */
   pubkey: string
-  /** Timestamp unix in secondi. Iniettabile per rendere i test deterministici. */
+  /** Unix timestamp in seconds. Injectable so tests stay deterministic. */
   now: number
 }
 
-/** Come un kind partecipa ai feed cronologici. */
+/** How a kind takes part in chronological feeds. */
 export interface FeedBehaviour {
-  /** Se puo' comparire in un feed cronologico. */
+  /** Whether it may appear in a chronological feed. */
   eligible: boolean
-  /** Se va mostrato solo quando porta almeno un allegato `imeta` valido. */
+  /** Whether it should only be shown when it carries at least one valid `imeta`. */
   requiresMedia?: boolean
 }
 
 /**
- * Definizione di un kind: l'unita' di estensione del client.
+ * A kind definition: the client's unit of extension.
  *
- * Aggiungere il supporto a un nuovo kind significa creare un file in
- * `kinds/definitions/` che esporta una di queste strutture e registrarla.
- * Nessun altro file dell'applicazione va toccato: il rendering passa da
- * `renderer`, i feed da `feed`, la validazione da `schema`.
+ * Adding support for a new kind means creating a file in
+ * `kinds/definitions/` that exports one of these structures and registering
+ * it. No other file in the application has to be touched: rendering goes
+ * through `renderer`, feeds through `feed`, validation through `schema`.
  *
- * @typeParam TParsed - forma tipizzata dell'evento dopo il parsing.
- * @typeParam TInput  - dati applicativi da cui si costruisce l'evento.
+ * @typeParam TParsed - the typed shape of the event after parsing.
+ * @typeParam TInput  - the application data the event is built from.
  */
 export interface KindDefinition<TParsed = unknown, TInput = unknown> {
-  /** Numero del kind secondo la specifica. */
+  /** The kind number, as per the specification. */
   readonly kind: number
 
-  /** Nome leggibile, usato nei log e nella UI di debug. */
+  /** A readable name, used in logs and in the debug UI. */
   readonly name: string
 
-  /** NIP o BUD che lo definisce, per rintracciare la fonte (es. `NIP-52`). */
+  /** The NIP or BUD that defines it, to trace the source (e.g. `NIP-52`). */
   readonly nip: string
 
   /**
-   * Classe dichiarata. Viene verificata contro quella derivata dal numero:
-   * una discrepanza e' un errore di registrazione, non un'opzione.
+   * The declared class. It is checked against the one derived from the
+   * number: a mismatch is a registration error, not an option.
    */
   readonly class: EventClass
 
   /**
-   * Se l'utente puo' modificare un evento gia' pubblicato.
-   * Vero solo per `replaceable` e `addressable`: per gli altri il protocollo
-   * non offre la modifica e la UI non deve simularla.
+   * Whether the user may edit an already published event.
+   * True only for `replaceable` and `addressable`: for the others the
+   * protocol offers no editing and the UI must not pretend otherwise.
    */
   readonly editable: boolean
 
-  /** Se ha senso offrire la richiesta di cancellazione NIP-09 (kind 5). */
+  /** Whether offering a NIP-09 deletion request (kind 5) makes sense. */
   readonly deletable: boolean
 
-  /** Schema di validazione del risultato di `parse()`. */
+  /** Validation schema for the result of `parse()`. */
   readonly schema: ZodType<TParsed>
 
   /**
-   * Estrae la forma tipizzata da un evento grezzo.
-   * Deve lanciare se l'evento non e' valido per questo kind.
+   * Extracts the typed shape from a raw event.
+   * It must throw if the event is not valid for this kind.
    */
   parse(event: NostrEvent): TParsed
 
-  /** Costruisce il template non firmato. La firma avviene altrove. */
+  /** Builds the unsigned template. Signing happens elsewhere. */
   build(input: TInput, ctx: BuildContext): EventTemplate
 
   /**
-   * Valore del tag `d` per gli eventi addressable.
-   * Obbligatorio se `class` e' `addressable`, vietato altrimenti.
+   * The value of the `d` tag for addressable events.
+   * Mandatory when `class` is `addressable`, forbidden otherwise.
    */
   identifier?(input: TInput): string
 
-  /** Partecipazione ai feed. Assente significa "non compare nei feed". */
+  /** Feed participation. Absent means "does not appear in feeds". */
   readonly feed?: FeedBehaviour
 
   /**
-   * Chiave del componente di rendering, risolta da `KindRenderer.vue`.
-   * Assente significa che si usa il renderer di fallback.
+   * The rendering component's key, resolved by `KindRenderer.vue`.
+   * Absent means the fallback renderer is used.
    */
   readonly renderer?: string
 }
 
-/** Definizione con i tipi cancellati, per stoccarla in modo omogeneo. */
-// Un registry deve poter contenere definizioni con parametri diversi fra loro:
-// `any` qui e' deliberato e circoscritto a questo alias.
+/** A definition with its types erased, so they can be stored uniformly. */
+// A registry has to be able to hold definitions with different parameters:
+// `any` here is deliberate and confined to this alias.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type AnyKindDefinition = KindDefinition<any, any>
