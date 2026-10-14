@@ -1,9 +1,9 @@
 /**
- * SHA-256 esadecimale, isomorfico.
+ * Hexadecimal SHA-256, isomorphic.
  *
- * Web Crypto e' disponibile sia nel browser sia su Node dalla 18, quindi non
- * serve un ramo per ambiente — che in questo pacchetto sarebbe comunque
- * vietato dalla regola di isomorfismo.
+ * Web Crypto is available both in the browser and in Node since 18, so no
+ * per-environment branch is needed — which in this package would be
+ * forbidden by the isomorphism rule anyway.
  */
 export async function sha256Hex(dati: ArrayBuffer | Uint8Array | string): Promise<string> {
   const byte =

@@ -1,20 +1,20 @@
 /**
- * MIME ↔ estensione: l'unica tabella del progetto.
+ * MIME ↔ extension: the project's only table.
  *
- * Serve a una cosa precisa: **scegliere l'estensione nell'URL di un blob
- * Blossom**. Il server decide l'estensione con cui risponde a `PUT /upload`,
- * e la decide come gli pare — yakihonne mappa `audio/mpeg` su `.mpga`, che
- * è corretto per IANA e sconosciuto a molti lettori di podcast. BUD-01 però
- * obbliga il server ad accettare *qualunque* estensione in `GET /<sha256>`,
- * rispondendo con il MIME vero: quindi l'estensione la può scegliere il
- * client, e sceglie quella che il mondo si aspetta.
+ * It serves one precise purpose: **choosing the extension in a Blossom blob's
+ * URL**. The server decides the extension it answers `PUT /upload` with, and
+ * it decides as it pleases — yakihonne maps `audio/mpeg` onto `.mpga`, which
+ * is correct for IANA and unknown to many podcast players. BUD-01, however,
+ * obliges the server to accept *any* extension in `GET /<sha256>`, answering
+ * with the real MIME: so the client gets to choose the extension, and it
+ * chooses the one the world expects.
  *
- * Preferenza: l'estensione del file originale, se è coerente con il MIME;
- * altrimenti la prima della tabella. Un `.mp3` caricato resta `.mp3`, un
- * `audio/mpeg` senza nome diventa `.mp3` e non `.mpga`.
+ * Preference: the original file's extension, when it is consistent with the
+ * MIME; otherwise the first in the table. An uploaded `.mp3` stays `.mp3`, an
+ * `audio/mpeg` with no name becomes `.mp3` and not `.mpga`.
  */
 
-/** Per ogni MIME, le estensioni accettate; la prima è quella da usare. */
+/** For each MIME, the accepted extensions; the first is the one to use. */
 const TABELLA: Readonly<Record<string, readonly string[]>> = {
   'audio/mpeg': ['mp3', 'mpga', 'mp2'],
   'audio/mp3': ['mp3'],
@@ -44,7 +44,7 @@ const TABELLA: Readonly<Record<string, readonly string[]>> = {
 
 const pulisciMime = (mime: string): string => mime.toLowerCase().split(';')[0]?.trim() ?? ''
 
-/** L'estensione (senza punto) di un nome file, in minuscolo; `null` se non ne ha. */
+/** A file name's extension (no dot), lower case; `null` when it has none. */
 export function estensioneDelNome(nome: string | undefined): string | null {
   if (!nome) return null
   const base = nome.split(/[?#]/)[0] ?? ''
@@ -55,24 +55,24 @@ export function estensioneDelNome(nome: string | undefined): string | null {
 }
 
 /**
- * L'estensione giusta per un MIME, tenendo conto del nome originale.
+ * The right extension for a MIME, taking the original name into account.
  *
- * Restituisce `null` se il MIME non è in tabella e il nome non aiuta: in
- * quel caso l'URL resta com'è — meglio l'estensione del server che una
- * inventata.
+ * It returns `null` when the MIME is not in the table and the name does not
+ * help: in that case the URL stays as it is — better the server's extension
+ * than one we invented.
  */
 export function estensionePer(mime: string, nomeOriginale?: string): string | null {
   const ammesse = TABELLA[pulisciMime(mime)]
   const delNome = estensioneDelNome(nomeOriginale)
   if (ammesse) {
-    // Il nome originale vince solo se è coerente col MIME: un «foto.mp3»
-    // che è un PNG non deve diventare .mp3.
+    // The original name only wins when it is consistent with the MIME: a
+    // «photo.mp3» that is really a PNG must not become .mp3.
     return delNome && ammesse.includes(delNome) ? delNome : (ammesse[0] ?? null)
   }
   return delNome
 }
 
-/** I MIME audio che le piattaforme di podcast accettano negli enclosure. */
+/** The audio MIMEs podcast platforms accept in enclosures. */
 export const MIME_AUDIO_PODCAST: readonly string[] = [
   'audio/mpeg',
   'audio/mp3',
@@ -81,16 +81,17 @@ export const MIME_AUDIO_PODCAST: readonly string[] = [
   'audio/m4a',
 ]
 
-/** Vero se un audio con questo MIME va bene per Apple, Spotify, Amazon e YouTube. */
+/** True when audio with this MIME suits Apple, Spotify, Amazon and YouTube. */
 export function audioAdattoAlPodcast(mime: string): boolean {
   return MIME_AUDIO_PODCAST.includes(pulisciMime(mime))
 }
 
 /**
- * Riscrive l'estensione di un URL Blossom (`…/<sha256>[.ext]`).
+ * Rewrites the extension of a Blossom URL (`…/<sha256>[.ext]`).
  *
- * Tocca solo l'ultimo segmento e solo se è un hash SHA-256: qualunque altro
- * URL torna intatto. Senza un'estensione da mettere, resta quello del server.
+ * It touches only the last segment, and only when that is an SHA-256 hash:
+ * any other URL comes back untouched. With no extension to put, the server's
+ * own stays.
  */
 export function urlConEstensione(url: string, mime: string, nomeOriginale?: string): string {
   const ext = estensionePer(mime, nomeOriginale)

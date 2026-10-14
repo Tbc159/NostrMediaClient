@@ -2,23 +2,24 @@ import { ErroreServizio } from '../servizi/http.js'
 import type { MediaProdotto, ServizioAudio, StatoLavoro } from './tipi.js'
 
 /**
- * Attesa di un lavoro asincrono, con l'avanzamento riportato a chi guarda.
+ * Waiting for an asynchronous job, with progress reported to whoever is
+ * watching.
  *
- * Intervallo e scadenza sono iniettabili perche' i test non devono aspettare
- * davvero: senza, provare il ramo «scaduto» costerebbe minuti a ogni giro e
- * finirebbe per non essere provato affatto.
+ * The interval and the deadline are injectable because tests must not really
+ * wait: without that, exercising the «timed out» branch would cost minutes on
+ * every run and would end up not being exercised at all.
  */
 
 export interface OpzioniAttesa {
-  /** Ogni quanto richiedere lo stato. */
+  /** How often to ask for the state. */
   intervalloMs?: number
-  /** Oltre questo tempo si smette di aspettare. */
+  /** Past this much time we stop waiting. */
   scadenzaMs?: number
-  /** Chiamata a ogni giro, per mostrare che qualcosa si muove. */
+  /** Called on every round, to show that something is moving. */
   onStato?: (stato: StatoLavoro, trascorsoMs: number) => void
-  /** Per interrompere l'attesa da fuori, senza fermare il lavoro sul servizio. */
+  /** To interrupt the wait from outside, without stopping the job on the service. */
   segnale?: AbortSignal
-  /** Iniettabile nei test, dove l'orologio non deve scorrere davvero. */
+  /** Injectable in tests, where the clock must not really advance. */
   attendi?: (ms: number) => Promise<void>
   adesso?: () => number
 }
@@ -26,12 +27,12 @@ export interface OpzioniAttesa {
 const riposo = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
 
 /**
- * Aspetta che un lavoro finisca e restituisce i media prodotti.
+ * Waits for a job to finish and returns the media it produced.
  *
- * @throws se il lavoro fallisce, se scade il tempo, o se finisce «completato»
- *         senza dire cosa ha prodotto — che e' un esito da trattare come
- *         errore: proseguire con un riferimento inventato darebbe un 400 piu'
- *         avanti, lontano dalla causa.
+ * @throws if the job fails, if time runs out, or if it ends «complete»
+ *         without saying what it produced — an outcome to treat as an error:
+ *         carrying on with an invented reference would give a 400 further
+ *         along, far from the cause.
  */
 export async function attendiLavoro(
   servizio: ServizioAudio,
@@ -46,6 +47,8 @@ export async function attendiLavoro(
   const inizio = adesso()
 
   for (;;) {
+    // The messages stay in Italian: they end up in front of whoever uses the
+    // client, and the interface is Italian. They will be translated with it.
     if (opzioni.segnale?.aborted) {
       throw new ErroreServizio('Attesa interrotta.', null)
     }
@@ -72,8 +75,8 @@ export async function attendiLavoro(
     }
 
     if (trascorso + intervallo > scadenza) {
-      // Il lavoro resta in corso sul servizio: qui si smette solo di
-      // aspettarlo, e il messaggio non promette che sia stato annullato.
+      // The job stays in progress on the service: here we only stop waiting
+      // for it, and the message does not promise it has been cancelled.
       throw new ErroreServizio(
         `Il lavoro non e’ finito entro ${Math.round(scadenza / 1000)}s. ` +
           'Puo’ essere ancora in corso sul servizio.',

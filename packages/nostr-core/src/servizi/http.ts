@@ -1,10 +1,13 @@
 /**
- * Dialogo HTTP con i servizi esterni di elaborazione.
+ * The HTTP conversation with the external processing services.
  *
- * Sta a parte perche' i servizi sono due — il media-manager per le immagini,
- * il servizio ffmpeg per l'audio — e sbagliano nello stesso modo. Soprattutto
- * falliscono nello stesso modo **dal browser**, dove un errore di rete non dice
- * mai perche', e la causa vera quasi mai e' la rete.
+ * It lives apart because there are two services — the media-manager for
+ * images, the ffmpeg service for audio — and they go wrong in the same way.
+ * Above all they fail in the same way **from the browser**, where a network
+ * error never says why, and the real cause is hardly ever the network.
+ *
+ * The messages below stay in Italian: they are shown to whoever uses the
+ * client, and the interface is Italian. They will be translated with it.
  */
 
 export class ErroreServizio extends Error {
@@ -18,7 +21,7 @@ export class ErroreServizio extends Error {
   }
 }
 
-/** Via lo slash finale e un eventuale `/v0` gia' scritto dall'utente. */
+/** Drops the trailing slash and any `/v0` the user has already written. */
 export function normalizzaBaseUrl(url: string): string {
   return url
     .trim()
@@ -27,10 +30,10 @@ export function normalizzaBaseUrl(url: string): string {
 }
 
 /**
- * Traduce un esito HTTP in un messaggio che dice cosa fare.
+ * Turns an HTTP outcome into a message that says what to do.
  *
- * Riportare «errore 409» lascerebbe l'utente senza appigli: gli stati che
- * questi servizi usano hanno significati precisi e rimediabili.
+ * Reporting «error 409» would leave the user with nothing to hold on to: the
+ * statuses these services use have precise, remediable meanings.
  */
 export function spiegaStato(stato: number, dettaglio?: string): string {
   const coda = dettaglio ? ` (${dettaglio})` : ''
@@ -63,13 +66,13 @@ export function spiegaStato(stato: number, dettaglio?: string): string {
 }
 
 /**
- * Perche' una richiesta puo' fallire *prima* di partire, nel browser.
+ * Why a request can fail *before* it leaves, in the browser.
  *
- * Le due cause piu' frequenti non sono la rete, e non si distinguono
- * dall'errore nativo: il servizio non espone le intestazioni CORS, oppure la
- * pagina e' su https e il servizio su http. In entrambi i casi il servizio
- * risponde benissimo da riga di comando, e chi cerca il guasto lo cerca dove
- * non e'.
+ * The two most frequent causes are not the network, and the native error does
+ * not tell them apart: the service does not expose the CORS headers, or the
+ * page is on https and the service on http. In both cases the service answers
+ * perfectly well from the command line, and whoever looks for the fault looks
+ * where it is not.
  */
 export const CAUSE_PROBABILI_RETE =
   'Non e’ stato possibile raggiungere il servizio. Dal browser le cause piu’ frequenti non sono ' +
@@ -78,11 +81,11 @@ export const CAUSE_PROBABILI_RETE =
 
 export interface OpzioniChiamata {
   fetch?: typeof globalThis.fetch
-  /** Oltre questo tempo la richiesta si considera persa. */
+  /** Past this much time the request is considered lost. */
   timeoutMs?: number
 }
 
-/** `fetch` con scadenza e con gli errori di rete tradotti in qualcosa di azionabile. */
+/** `fetch` with a deadline, and network errors turned into something actionable. */
 export async function chiama(
   url: string,
   init: RequestInit,
@@ -108,7 +111,7 @@ export async function chiama(
   }
 }
 
-/** Il corpo JSON, oppure un errore gia' tradotto. */
+/** The JSON body, or an already-translated error. */
 export async function esito<T>(risposta: Response): Promise<T> {
   if (risposta.ok) return (await risposta.json()) as T
 
@@ -122,7 +125,7 @@ export async function esito<T>(risposta: Response): Promise<T> {
     }
     dettaglio = corpo.detail ?? corpo.message ?? corpo.error ?? corpo.title
   } catch {
-    // Corpo non JSON — una pagina d'errore di nginx, per dire: resta lo stato.
+    // A non-JSON body — an nginx error page, say: the status is all we keep.
   }
   throw new ErroreServizio(spiegaStato(risposta.status, dettaglio), risposta.status, dettaglio)
 }

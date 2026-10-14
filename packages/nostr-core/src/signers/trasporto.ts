@@ -1,14 +1,14 @@
 import { newSecretKey, type SecretKey } from '../identity/keys.js'
 
 /**
- * Chiave e segreto del banco di firma, con la loro forma testuale.
+ * The signing desk's key and secret, with their textual form.
  *
- * Vivono separati dalla chiave dell'identita' perche' sono un'altra cosa: non
- * firmano eventi, indirizzano un canale. Chi li ottenesse potrebbe impersonare
- * *l'indirizzo* del banco — far credere a un richiedente di parlare con te —
- * ma non potrebbe firmare nulla a tuo nome. Vanno pero' conservati fra le
- * sessioni: cambiarli equivale a spostare il banco, e ogni delega gia'
- * concessa smetterebbe di funzionare.
+ * They live separately from the identity key because they are a different
+ * thing: they do not sign events, they address a channel. Whoever obtained
+ * them could impersonate the desk's *address* — make a requester believe they
+ * are talking to you — but could not sign anything in your name. They do have
+ * to be kept across sessions, though: changing them amounts to moving the
+ * desk, and every delegation already granted would stop working.
  */
 
 const HEX_64 = /^[0-9a-f]{64}$/i
@@ -24,6 +24,8 @@ export function trasportoInTesto(chiave: SecretKey): string {
 export function trasportoDaTesto(testo: string): SecretKey {
   const pulito = testo.trim()
   if (!HEX_64.test(pulito)) {
+    // In Italian like the rest of the interface: this message shows up on the
+    // Signatures page when a wrong key is pasted.
     throw new Error('Chiave di trasporto non valida: attesi 64 caratteri esadecimali.')
   }
   const byte = new Uint8Array(32)
@@ -32,11 +34,12 @@ export function trasportoDaTesto(testo: string): SecretKey {
 }
 
 /**
- * Segreto dell'indirizzo `bunker://`.
+ * The secret in the `bunker://` address.
  *
- * E' l'unica cosa che impedisce a chi conosca la chiave di trasporto — che
- * viaggia in chiaro nei filtri dei relay — di presentarsi al banco. Va quindi
- * generato a caso e non ricavato da altro.
+ * It is the only thing stopping whoever knows the transport key — which
+ * travels in the clear in the relays' filters — from showing up at the desk.
+ * It therefore has to be generated at random and not derived from anything
+ * else.
  */
 export function nuovoSegretoBanco(): string {
   const byte = new Uint8Array(16)

@@ -7,16 +7,17 @@ import {
 import { publicKeyFrom, type SecretKey } from './keys.js'
 
 /**
- * Cifratura NIP-44 verso se stessi.
+ * NIP-44 encryption towards yourself.
  *
- * Serve a NIP-37: una bozza e' un evento non firmato, serializzato e cifrato
- * con la propria chiave, cosi' che stia su un relay senza essere leggibile da
- * chi vi accede. E' la differenza sostanziale con il vecchio kind 30024, che
- * finiva sul relay in chiaro.
+ * NIP-37 needs it: a draft is an unsigned event, serialised and encrypted
+ * with your own key, so that it can sit on a relay without being readable by
+ * whoever has access to it. That is the substantial difference from the old
+ * kind 30024, which ended up on the relay in the clear.
  *
- * L'interfaccia e' asincrona anche dove non serve: con NIP-07 la cifratura
- * avviene nell'estensione e passa da una `Promise`, e avere due firme diverse
- * a seconda della modalita' costringerebbe ogni chiamante a distinguerle.
+ * The interface is asynchronous even where it need not be: with NIP-07
+ * encryption happens inside the extension and goes through a `Promise`, and
+ * having two different signatures depending on the mode would force every
+ * caller to tell them apart.
  */
 export interface CifrarioNip44 {
   encrypt(plaintext: string): Promise<string>
@@ -24,16 +25,16 @@ export interface CifrarioNip44 {
 }
 
 /**
- * Cifrario per la modalita' con chiave locale.
+ * The cipher for the local-key mode.
  *
- * La chiave di conversazione si deriva **verso la propria stessa pubkey**: in
- * NIP-44 e' una funzione di una chiave privata e di una pubblica, e usando la
- * propria si ottiene un canale con se stessi. E' esattamente quello che serve
- * qui, perche' il destinatario della bozza e' chi la scrive.
+ * The conversation key is derived **towards your own pubkey**: in NIP-44 it is
+ * a function of a private and a public key, and using your own gives you a
+ * channel with yourself. That is exactly what is needed here, because the
+ * recipient of the draft is whoever writes it.
  */
 export function selfCipher(secret: SecretKey): CifrarioNip44 {
-  // Derivata una volta sola: il calcolo e' costoso e la chiave non cambia
-  // finche' la sessione resta aperta.
+  // Derived once: the computation is expensive and the key does not change
+  // while the session stays open.
   const conversazione = getConversationKey(secret, publicKeyFrom(secret))
 
   return {
