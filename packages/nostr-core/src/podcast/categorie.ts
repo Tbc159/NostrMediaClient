@@ -1,14 +1,14 @@
 /**
- * Le categorie di Apple Podcasts, come dati.
+ * The Apple Podcasts categories, as data.
  *
- * Sono l'elenco ufficiale (podcasters.apple.com/support/1691): Apple le
- * pretende nel feed, Amazon anche, e Spotify le usa per classificare. Stanno
- * qui, nel core, perche' sia il form del 10154 sia la verifica del feed devono
- * leggere la stessa lista — e perche' un nome scritto a mano con una virgola
- * di troppo non e' una categoria per nessuno.
+ * This is the official list (podcasters.apple.com/support/1691): Apple
+ * demands them in the feed, Amazon does too, and Spotify uses them to
+ * classify. They live here, in the core, because both the 10154 form and the
+ * feed check have to read the same list — and because a name typed by hand
+ * with one comma too many is nobody's category.
  *
- * Le stringhe sono quelle esatte di Apple, `&` compresa: e' il generatore del
- * feed a doverla scrivere `&amp;`, non noi a cambiare il nome.
+ * The strings are Apple's exact ones, `&` included: it is the feed generator
+ * that has to write it `&amp;`, not us changing the name.
  */
 export const CATEGORIE_APPLE: Readonly<Record<string, readonly string[]>> = {
   Arts: ['Books', 'Design', 'Fashion & Beauty', 'Food', 'Performing Arts', 'Visual Arts'],
@@ -101,12 +101,12 @@ export interface CategoriaPodcast {
   sotto?: string
 }
 
-/** Vero se la coppia esiste nell'elenco Apple, con la sotto-categoria giusta per quella principale. */
+/** True when the pair exists in Apple's list, with a sub-category that belongs to that main one. */
 export function isCategoriaApple(c: CategoriaPodcast): boolean {
   const sotto = CATEGORIE_APPLE[c.principale]
   if (!sotto) return false
   return c.sotto === undefined || c.sotto === '' || sotto.includes(c.sotto)
 }
 
-/** Apple accetta fino a tre categorie; la prima e' quella primaria. */
+/** Apple accepts up to three categories; the first is the primary one. */
 export const MAX_CATEGORIE = 3

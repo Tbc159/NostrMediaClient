@@ -7,15 +7,15 @@ import type { NostrEvent } from '../kinds/types.js'
 import { mergeRelayLists } from './pool.js'
 
 /**
- * Lettura di eventi dai relay.
+ * Reading events from the relays.
  *
- * Un filtro inviato a piu' relay torna con gli stessi eventi ripetuti e, per
- * gli addressable, con **versioni diverse dello stesso evento**: ogni relay
- * conserva l'ultima che ha visto, e non e' detto che sia la stessa. Ricomporre
- * quel disordine e' il lavoro di questo modulo.
+ * A filter sent to several relays comes back with the same events repeated
+ * and, for addressables, with **different versions of the same event**: each
+ * relay keeps the last one it saw, and they need not be the same. Putting
+ * that disorder back together is this module's job.
  */
 
-/** Filtro NIP-01, nella forma che serve al client. */
+/** A NIP-01 filter, in the shape the client needs. */
 export interface Filtro {
   ids?: string[]
   authors?: string[]
@@ -28,18 +28,18 @@ export interface Filtro {
 }
 
 export interface OpzioniLettura {
-  /** Tempo massimo complessivo, in millisecondi. */
+  /** The overall time limit, in milliseconds. */
   timeoutMs?: number
 }
 
 const TIMEOUT_PREDEFINITO = 8_000
 
 /**
- * Interroga i relay e restituisce gli eventi raccolti.
+ * Queries the relays and returns the events collected.
  *
- * Non lancia se i relay non rispondono: restituisce quello che e' arrivato
- * entro la scadenza, anche se vuoto. Un feed che mostra tre note su cinque e'
- * utile; uno che va in errore perche' un relay e' giu' non lo e'.
+ * It does not throw when relays do not answer: it returns whatever arrived
+ * before the deadline, even if that is nothing. A feed showing three notes
+ * out of five is useful; one that errors out because a relay is down is not.
  */
 export async function requestEvents(
   pool: RelayPool,
@@ -56,7 +56,7 @@ export async function requestEvents(
     pool.request(sorgenti, filtri as never, { timeout: limite }).pipe(
       toArray(),
       timeout({ first: limite, with: () => of([] as NostrEvent[]) }),
-      // Un relay che chiude male non deve far fallire la lettura dagli altri.
+      // A relay that closes badly must not make reading from the others fail.
       catchError(() => of([] as NostrEvent[])),
       defaultIfEmpty([] as NostrEvent[]),
     ),
@@ -65,22 +65,22 @@ export async function requestEvents(
   return eventi
 }
 
-/** Dal piu' recente al piu' vecchio, con l'id come spareggio deterministico. */
+/** Newest to oldest, with the id as a deterministic tie-break. */
 export function ordinaPerData(eventi: readonly NostrEvent[]): NostrEvent[] {
   return [...eventi].sort((a, b) => b.created_at - a.created_at || a.id.localeCompare(b.id))
 }
 
 /**
- * Tiene una sola versione per ogni evento sostituibile.
+ * Keeps a single version of every replaceable event.
  *
- * Relay diversi possono avere versioni diverse dello stesso evento addressable
- * o replaceable: senza questo passaggio la stessa riunione comparirebbe due
- * volte nel calendario, una col titolo vecchio e una col nuovo.
+ * Different relays can hold different versions of the same addressable or
+ * replaceable event: without this step the same meeting would appear twice in
+ * the calendar, once with the old title and once with the new one.
  *
- * Il criterio e' quello di NIP-01: vince il `created_at` piu' alto e, a parita'
- * di istante, l'id lessicograficamente minore. La regola dello spareggio non e'
- * un dettaglio estetico — e' cio' che fa convergere client diversi sulla stessa
- * versione invece di mostrarne una a testa.
+ * The criterion is NIP-01's: the highest `created_at` wins and, at the same
+ * instant, the lexicographically lower id. The tie-break rule is not an
+ * aesthetic detail — it is what makes different clients converge on the same
+ * version instead of each showing one of their own.
  */
 export function ultimaVersione(eventi: readonly NostrEvent[]): NostrEvent[] {
   const migliori = new Map<string, NostrEvent>()
@@ -106,7 +106,7 @@ export function ultimaVersione(eventi: readonly NostrEvent[]): NostrEvent[] {
   return [...migliori.values()]
 }
 
-/** Lettura, deduplica e ordinamento in un passaggio solo: il caso normale. */
+/** Reading, deduplication and ordering in one pass: the normal case. */
 export async function loadTimeline(
   pool: RelayPool,
   relays: readonly string[],
@@ -117,15 +117,16 @@ export async function loadTimeline(
 }
 
 /**
- * Carica **una** versione sostituibile: quella corrente.
+ * Loads **one** replaceable version: the current one.
  *
- * Serve per riaprire in modifica un evento gia' pubblicato. Il filtro chiede
- * per coordinata — kind, autore e tag `d` — perche' e' quella l'identita' di un
- * evento addressable: l'id cambia a ogni riscrittura, la coordinata no.
+ * It is what reopening an already published event for editing needs. The
+ * filter asks by coordinate — kind, author and `d` tag — because that is an
+ * addressable event's identity: the id changes on every rewrite, the
+ * coordinate does not.
  *
- * Interroga piu' relay e tiene la versione piu' recente. Non e' pedanteria:
- * riaprire una versione vecchia e ripubblicarla sovrascriverebbe quella nuova,
- * cancellando in silenzio una modifica fatta altrove.
+ * It queries several relays and keeps the most recent version. That is not
+ * pedantry: reopening an old version and publishing it again would overwrite
+ * the newer one, silently erasing an edit made elsewhere.
  */
 export async function loadReplaceable(
   pool: RelayPool,
@@ -138,8 +139,8 @@ export async function loadReplaceable(
     authors: [coordinata.pubkey],
     limit: 20,
   }
-  // I replaceable puri (kind 0, 10000-19999) non hanno tag `d`: filtrarci
-  // sopra non troverebbe nulla.
+  // Pure replaceables (kind 0, 10000-19999) have no `d` tag: filtering on it
+  // would find nothing.
   if (coordinata.identifier !== undefined && coordinata.identifier !== '') {
     filtro['#d'] = [coordinata.identifier]
   }
@@ -148,7 +149,7 @@ export async function loadReplaceable(
   return ordinaPerData(trovati)[0] ?? null
 }
 
-/** Carica un evento dal suo id. Vale per qualunque kind, anche i regolari. */
+/** Loads an event from its id. It works for any kind, regular ones included. */
 export async function loadEventById(
   pool: RelayPool,
   relays: readonly string[],

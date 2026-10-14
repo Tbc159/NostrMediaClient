@@ -2,34 +2,36 @@ import type { ClientMediaManager } from '../mediamanager/client.js'
 import { sha256Hex } from '../utils/hash.js'
 
 /**
- * Scarica un'immagine da un URL, per lavorarla nel browser.
+ * Downloads an image from a URL, to work on it in the browser.
  *
- * Un'immagine «raggiungibile» non e' per forza leggibile da una pagina: un
- * `<img>` la mostra anche da un server senza CORS, ma `fetch` e la tela no.
- * Chi vuole ritagliare la copertina di un podcast la ha quasi sempre gia'
- * pubblicata da qualche parte, e rifiutarsi di leggerla lo manda a scaricarla
- * a mano per ricaricarla a mano.
+ * A «reachable» image is not necessarily readable from a page: an `<img>`
+ * shows it even from a server without CORS, but `fetch` and the canvas do
+ * not. Whoever wants to crop a podcast cover has almost always published it
+ * somewhere already, and refusing to read it sends them off to download it by
+ * hand and upload it by hand.
  *
- * Quindi due strade, nell'ordine: la lettura diretta, che basta con Blossom e
- * con i server che espongono CORS; altrimenti il media-manager, che scarica
- * l'URL dal proprio lato (dove il CORS non esiste) e restituisce i byte con
- * la chiave. Solo se fallisce anche quella l'immagine e' davvero fuori
- * portata, e lo si dice.
+ * So two routes, in order: the direct read, which is enough with Blossom and
+ * with servers that expose CORS; otherwise the media-manager, which downloads
+ * the URL from its own side (where CORS does not exist) and returns the bytes
+ * with the key. Only if that fails too is the image really out of reach, and
+ * then we say so.
+ *
+ * The messages stay in Italian: they end up in the crop dialog's alert.
  */
 
 export interface OpzioniScaricaImmagine {
   fetch?: typeof globalThis.fetch
-  /** Il servizio, se configurato: e' la seconda strada. */
+  /** The service, when configured: it is the second route. */
   mediaManager?: Pick<ClientMediaManager, 'caricaMediaDaUrl' | 'scaricaContenuto'> | null
 }
 
 export interface ImmagineScaricata {
   blob: Blob
-  /** Da dove sono arrivati i byte: serve a dirlo, non a decidere. */
+  /** Where the bytes came from: to say it, not to decide anything. */
   via: 'diretta' | 'servizio'
 }
 
-/** Il titolo con cui il servizio archivia l'URL: stabile, cosi' la seconda volta e' un 409 e si riusa. */
+/** The title the service archives the URL under: stable, so the second time is a 409 and gets reused. */
 export async function titoloPerUrl(url: string): Promise<string> {
   return `immagine-da-url-${(await sha256Hex(url)).slice(0, 16)}`
 }
