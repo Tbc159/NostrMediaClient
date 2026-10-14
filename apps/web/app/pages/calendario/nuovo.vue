@@ -448,13 +448,18 @@ function nuovo(): void {
           <BaseInput :id="id" v-model="luogo" :described-by="describedBy" />
         </BaseField>
 
-        <BaseField
-          v-slot="{ id, describedBy }"
+        <!--
+          L'immagine si carica da qui: chi ha la locandina sul disco non deve
+          interrompere la composizione dell'evento, andare in Media, caricarla,
+          copiare l'indirizzo e tornare. Lo stesso campo dell'articolo, con
+          l'elenco di quelle gia' su Blossom — che per una locandina e' il caso
+          piu' comune, perche' spesso e' gia' stata usata altrove.
+        -->
+        <MediaCampoImmagine
+          v-model="immagine"
           label="Immagine"
-          hint="URL di una locandina o copertina."
-        >
-          <BaseInput :id="id" v-model="immagine" type="url" :described-by="describedBy" />
-        </BaseField>
+          hint="Locandina o copertina: caricala da qui, scegline una già su Blossom, oppure incolla l’indirizzo di una immagine già online."
+        />
 
         <BaseField
           v-slot="{ id, describedBy }"
