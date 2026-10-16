@@ -10,41 +10,42 @@ import {
 import { defineStore } from 'pinia'
 
 /**
- * Deleghe di firma: identita' altrui per cui questo client puo' chiedere una
- * firma, senza possederne la chiave (NIP-46).
+ * Signing delegations: other people's identities this client can ask for a
+ * signature for, without holding their key (NIP-46).
  *
- * L'utente identifica una delega con un npub, ed e' il modo giusto di
- * pensarla, ma va detto cosa serve davvero per crearla: **un npub da solo non
- * basta**. Non dice su quale relay il banco ascolti, ne' autorizza a
- * parlargli. Serve l'indirizzo `bunker://`, che chi possiede la chiave
- * consegna una volta e che contiene relay e segreto. L'npub interviene subito
- * dopo, come **verifica**: ci si collega, si chiede al banco quale identita'
- * firma, e se non e' quella indicata la delega non viene salvata.
+ * The user identifies a delegation by an npub, and that is the right way to
+ * think of it, but what it really takes to create one is worth saying: **an
+ * npub alone is not enough**. It says neither which relay the desk listens on
+ * nor authorizes talking to it. What is needed is the `bunker://` address,
+ * which whoever holds the key hands over once and which contains the relays
+ * and the secret. The npub steps in straight afterwards, as a **check**: you
+ * connect, you ask the desk which identity signs, and if it is not the one
+ * stated the delegation is not saved.
  */
 
 const CHIAVE_STORAGE = 'nmc.deleghe'
 
-/** Kind per cui si chiede il permesso al collegamento. Il banco applica poi i suoi. */
+/** The kinds permission is asked for when connecting. The desk then applies its own. */
 const KIND_RICHIESTI = [54, 10154, 20, 21, 1]
 
 export interface DelegaSalvata {
-  /** L'identita' che firmera'. */
+  /** The identity that will sign. */
   pubkey: string
-  /** Nome dato dall'utente, per riconoscerla in un menu. */
+  /** A name the user gave it, to recognise it in a menu. */
   etichetta: string
   /**
-   * Sessione NIP-46 gia' autorizzata.
+   * An already authorized NIP-46 session.
    *
-   * **Contiene la chiave privata della sessione**, che non e' l'identita' di
-   * nessuno: autorizza a *chiedere* al banco, non a firmare. Chi la ottenesse
-   * potrebbe presentarsi al banco al posto tuo, e per questo l'interfaccia lo
-   * dice invece di lasciarlo intendere.
+   * **It contains the session's private key**, which is nobody's identity: it
+   * authorizes *asking* the desk, not signing. Whoever obtained it could
+   * present themselves at the desk in your place, and that is why the
+   * interface says so instead of leaving it to be inferred.
    */
   sessione: string
   aggiunta: number
 }
 
-/** Collegamenti aperti, fuori dallo stato: sono oggetti vivi, non dati. */
+/** The open connections, outside the state: they are live objects, not data. */
 const vive = new Map<string, Delega>()
 
 function leggiPersistito(): DelegaSalvata[] {
@@ -61,7 +62,7 @@ export const useDeleghe = defineStore('deleghe', () => {
   const elenco = ref<DelegaSalvata[]>([])
   const errore = ref<string | null>(null)
   const inCorso = ref(false)
-  /** Chiavi delle deleghe con un collegamento aperto adesso. */
+  /** The keys of the delegations with a connection open right now. */
   const collegate = ref<string[]>([])
 
   function salva(): void {
@@ -69,7 +70,7 @@ export const useDeleghe = defineStore('deleghe', () => {
     try {
       localStorage.setItem(CHIAVE_STORAGE, JSON.stringify(elenco.value))
     } catch {
-      // Storage non disponibile: la delega vale per questa sessione soltanto.
+      // Storage unavailable: the delegation holds for this session alone.
     }
   }
 
@@ -80,11 +81,11 @@ export const useDeleghe = defineStore('deleghe', () => {
   const npubDi = (pubkey: string): string => toNpub(pubkey)
 
   /**
-   * Abbina una delega nuova.
+   * Pairs a new delegation.
    *
-   * @param npubAtteso chi ci si aspetta che firmi. E' il controllo che rende
-   *        sicuro l'abbinamento: senza, un indirizzo sbagliato o sostituito
-   *        farebbe firmare un'identita' diversa da quella scelta.
+   * @param npubAtteso who is expected to sign. It is the check that makes the
+   *        pairing safe: without it a wrong or substituted address would have
+   *        an identity other than the chosen one sign.
    */
   async function aggiungi(npubAtteso: string, uri: string, etichetta: string): Promise<boolean> {
     errore.value = null
@@ -151,11 +152,11 @@ export const useDeleghe = defineStore('deleghe', () => {
   }
 
   /**
-   * Riprende un collegamento, o ne apre uno dalla sessione salvata.
+   * Picks a connection up again, or opens one from the saved session.
    *
-   * I collegamenti non sopravvivono a una ricarica della pagina: si riaprono
-   * quando servono, cioe' al momento della firma, invece di tenerne aperti a
-   * vuoto per ogni delega registrata.
+   * The connections do not survive a page reload: they are reopened when they
+   * are needed, that is at signing time, instead of keeping one open to no
+   * purpose for every registered delegation.
    */
   async function collegamento(pubkey: string): Promise<Delega> {
     const gia = vive.get(pubkey)
@@ -179,10 +180,10 @@ export const useDeleghe = defineStore('deleghe', () => {
   }
 
   /**
-   * Chiede la firma di un evento a una delega.
+   * Asks a delegation to sign an event.
    *
-   * L'attesa puo' essere lunga: dall'altra parte una persona deve leggere e
-   * approvare. Chi chiama deve mostrarlo, non farlo sembrare un blocco.
+   * The wait can be long: on the other side a person has to read and approve.
+   * The caller has to show that, not make it look like a freeze.
    */
   async function firma(pubkey: string, template: EventTemplate): Promise<NostrEvent> {
     const delega = await collegamento(pubkey)

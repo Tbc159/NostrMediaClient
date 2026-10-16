@@ -3,19 +3,19 @@ import { z } from 'zod'
 import { defineKind } from '../registry.js'
 
 /**
- * Kind 0 — profilo utente (NIP-01).
+ * Kind 0 — the user profile (NIP-01).
  *
- * Il contenuto e' un oggetto JSON dentro `content`, non nei tag. Nessun campo
- * e' obbligatorio e chiunque puo' aggiungerne di propri, quindi il parsing deve
- * essere tollerante: un profilo malformato non deve impedire di mostrare il
- * resto dell'applicazione.
+ * The content is a JSON object inside `content`, not in the tags. No field is
+ * mandatory and anyone can add fields of their own, so the parsing has to be
+ * tolerant: a malformed profile must not stop the rest of the application
+ * being shown.
  *
- * **I campi che non conosciamo si conservano.** Il profilo e' uno solo ed e'
- * sostituibile: salvarlo da qui riscrive quello che c'era. Un client che
- * scrive `pronouns` o `birthday` — campi veri, fuori da NIP-01 — li vedrebbe
- * sparire al primo salvataggio fatto con noi. Lo schema quindi non scarta
- * l'ignoto: lo tiene da parte e lo riscrive com'era. Vale la stessa regola dei
- * tag: cio' che non sappiamo leggere non e' nostro da cancellare.
+ * **The fields we do not know are kept.** There is a single profile and it is
+ * replaceable: saving it from here rewrites what was there. A client that
+ * writes `pronouns` or `birthday` — real fields, outside NIP-01 — would see
+ * them vanish on the first save made with us. The schema therefore does not
+ * discard the unknown: it sets it aside and rewrites it as it was. The same
+ * rule as for the tags holds: what we cannot read is not ours to delete.
  */
 
 const profileNoti = z.object({
@@ -25,20 +25,20 @@ const profileNoti = z.object({
   picture: z.string().optional(),
   banner: z.string().optional(),
   website: z.string().optional(),
-  /** Identificatore NIP-05, es. `nome@dominio.tld`. */
+  /** The NIP-05 identifier, e.g. `name@domain.tld`. */
   nip05: z.string().optional(),
-  /** Indirizzo Lightning per gli zap (NIP-57). */
+  /** The Lightning address for zaps (NIP-57). */
   lud16: z.string().optional(),
   lud06: z.string().optional(),
-  /** Il profilo dichiara di essere un bot. */
+  /** The profile declares itself a bot. */
   bot: z.boolean().optional(),
 })
 
 /**
- * Lo schema vero: i campi noti piu' qualunque altro, conservato com'e'.
+ * The real schema: the known fields plus any other, kept as it is.
  *
- * `catchall` e' la differenza fra «leggo il profilo» e «riscrivo il profilo
- * buttando via cio' che non capisco».
+ * `catchall` is the difference between «I read the profile» and «I rewrite the
+ * profile throwing away what I do not understand».
  */
 export const profileSchema = profileNoti.catchall(z.unknown())
 
@@ -50,7 +50,7 @@ export const metadataDefinition = defineKind<Profile, Profile>({
   nip: 'NIP-01',
   class: 'replaceable',
   editable: true,
-  deletable: false, // cancellare il proprio profilo non e' un'operazione sensata
+  deletable: false, // deleting your own profile is not a sensible operation
   schema: profileSchema,
   feed: { eligible: false },
   renderer: 'profile',
@@ -63,18 +63,18 @@ export const metadataDefinition = defineKind<Profile, Profile>({
       throw new Error(`profilo con content non JSON: evento ${event.id}`)
     }
 
-    // Un campo noto di tipo sbagliato non deve far perdere tutto il resto: si
-    // riprova tenendo solo cio' che e' sopravvissuto, piu' l'ignoto.
+    // A known field of the wrong type must not cost us all the rest: we try
+    // again keeping only what survived, plus the unknown.
     const esito = profileSchema.safeParse(grezzo)
     if (esito.success) return esito.data
     return typeof grezzo === 'object' && grezzo !== null ? { ...(grezzo as Profile) } : {}
   },
 
   build(input, ctx) {
-    // I campi assenti non vanno scritti come null: un client che rilegge il
-    // profilo li interpreterebbe come "impostato a niente" invece che "non
-    // impostato". I campi altrui passano di qui come gli altri: arrivano da
-    // `parse` dentro lo stesso oggetto e tornano nel JSON senza essere letti.
+    // The absent fields must not be written as null: a client re-reading the
+    // profile would read them as "set to nothing" rather than "not set". Other
+    // people's fields pass through here like the rest: they arrive from `parse`
+    // inside the same object and go back into the JSON without being read.
     const pulito = Object.fromEntries(
       Object.entries(input).filter(([, v]) => v !== undefined && v !== ''),
     )
@@ -88,7 +88,7 @@ export const metadataDefinition = defineKind<Profile, Profile>({
   },
 })
 
-/** Nome da mostrare, con i vari ripieghi in ordine di preferenza. */
+/** The name to display, with the various fallbacks in order of preference. */
 export function displayName(profile: Profile | undefined, pubkey: string): string {
   return (
     profile?.display_name?.trim() ||

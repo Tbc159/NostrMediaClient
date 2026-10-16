@@ -3,41 +3,41 @@ import {
   esito as esitoHttp,
   ErroreServizio,
   normalizzaBaseUrl,
-} from '../servizi/http.js'
+} from '../services/http.js'
 import type { ElencoMedia, MediaItem } from './types.js'
 
 /**
- * Client del microservizio media-manager.
+ * The client for the media-manager microservice.
  *
- * Il servizio elabora contenuti e tiene un proprio archivio di media,
- * separato da Blossom. Le due cose non si sovrappongono: **Blossom conserva
- * cio' che pubblichi**, il media-manager conserva le sorgenti e i prodotti
- * dell'elaborazione. Un file su Blossom non e' automaticamente noto al
- * servizio, e viceversa.
+ * The service processes content and keeps an archive of media of its own,
+ * separate from Blossom. The two do not overlap: **Blossom keeps what you
+ * publish**, the media-manager keeps the sources and the products of
+ * processing. A file on Blossom is not automatically known to the service,
+ * and the other way round.
  *
- * Qui c'e' il dominio `media` (l'archivio); il dominio `audio` ha un client
- * suo in `src/audio/`, sullo stesso indirizzo e con la stessa chiave.
+ * Here is the `media` domain (the archive); the `audio` domain has a client
+ * of its own in `src/audio/`, on the same address and with the same key.
  *
- * `fetch` e' iniettabile perche' il pacchetto resta isomorfico e perche' i
- * test devono poter rispondere senza rete.
+ * `fetch` is injectable because the package stays isomorphic and because the
+ * tests have to be able to answer without a network.
  */
 
 export interface OpzioniClientMediaManager {
-  /** Radice del servizio, senza `/v0`: viene aggiunto qui. */
+  /** The service's root, without `/v0`: that is added here. */
   baseUrl: string
-  /** Chiave per l'header `X-API-Key`. Senza, il servizio risponde 401. */
+  /** The key for the `X-API-Key` header. Without it the service answers 401. */
   apiKey?: string
   fetch?: typeof globalThis.fetch
-  /** Oltre questo tempo la richiesta si considera persa. */
+  /** Past this much time the request is considered lost. */
   timeoutMs?: number
 }
 
 /**
- * Errore del media-manager.
+ * A media-manager error.
  *
- * Specializza quello condiviso invece di sostituirlo: chi filtra per
- * `ErroreServizio` prende anche questi, chi vuole distinguere il servizio ha
- * ancora un tipo suo.
+ * It specialises the shared one instead of replacing it: whoever filters on
+ * `ErroreServizio` catches these too, and whoever wants to tell this service
+ * apart still has a type of its own.
  */
 export class ErroreMediaManager extends ErroreServizio {
   constructor(message: string, stato: number | null, dettaglio?: string) {
@@ -46,38 +46,38 @@ export class ErroreMediaManager extends ErroreServizio {
   }
 }
 
-/** Versione dell'API a cui questo client parla. */
+/** The version of the API this client speaks. */
 export const VERSIONE_API = 'v0'
 
 export interface ClientMediaManager {
   readonly radice: string
-  /** Health check di un dominio pubblico. */
+  /** The health check of a public domain. */
   salute(dominio: 'media' | 'content' | 'audio'): Promise<boolean>
-  /** Senza `tipo` elenca tutto l'archivio: il filtro e' opzionale. */
+  /** Without `tipo` it lists the whole archive: the filter is optional. */
   elencoMedia(
     tipo?: string,
     opzioni?: { title?: string; page?: number; pageSize?: number },
   ): Promise<ElencoMedia>
   caricaMedia(file: Blob, titolo: string, mediaType: string, durataS?: number): Promise<MediaItem>
   /**
-   * Fa scaricare un URL al servizio, che lo mette in archivio (`POST /media/from-url`).
+   * Has the service download a URL and put it in the archive (`POST /media/from-url`).
    *
-   * E' il modo di leggere un file che il browser non puo' leggere: un'immagine
-   * su un server senza CORS si vede in un `<img>` ma non si tocca da script.
-   * Il servizio non ha questo limite. Un 409 e' «ce l'ho gia'»: si ritrova
-   * per titolo e si restituisce quello, come fa il client audio.
+   * It is the way to read a file the browser cannot read: an image on a server
+   * without CORS shows in an `<img>` but cannot be touched from a script. The
+   * service does not have this limit. A 409 is «I have it already»: the record
+   * is found again by title and returned, as the audio client does.
    */
   caricaMediaDaUrl(url: string, titolo: string, mediaType?: string): Promise<MediaItem>
   /**
-   * Scarica i byte di un media dal servizio.
+   * Downloads a medium's bytes from the service.
    *
-   * Passa da qui e non da un `fetch` diretto perche' anche i byte sono dietro
-   * la chiave: un `<img src>` verso il servizio riceverebbe un 401, e la
-   * pagina mostrerebbe un'immagine rotta senza spiegazione. Per visualizzarli
-   * serve scaricarli cosi' e costruire un URL locale.
+   * This is the way through rather than a direct `fetch`, because the bytes
+   * too sit behind the key: an `<img src>` pointing at the service would get a
+   * 401, and the page would show a broken image with no explanation. To
+   * display them you have to download them like this and build a local URL.
    */
   scaricaContenuto(percorsoRelativo: string): Promise<Blob>
-  /** URL assoluto dei byte di un media, a partire da un percorso relativo del servizio. */
+  /** A medium's bytes' absolute URL, starting from a relative path of the service's. */
   urlAssoluto(percorsoRelativo: string): string
 }
 
@@ -95,10 +95,10 @@ export function creaClientMediaManager(opzioni: OpzioniClientMediaManager): Clie
     ...extra,
   })
 
-  // La traduzione degli errori — stati HTTP, scadenza, e il fallimento di rete
-  // che nel browser quasi sempre e' CORS o contenuto misto — vive in
-  // `servizi/http.ts`, condivisa con il client audio. Qui si aggiunge solo il
-  // prefisso di versione e si rietichetta l'errore col nome del servizio.
+  // The translation of errors — HTTP statuses, the timeout, and the network
+  // failure that in the browser is nearly always CORS or mixed content — lives
+  // in `services/http.ts`, shared with the audio client. Here only the version
+  // prefix is added, and the error is relabelled with the service's name.
   const chiama = (percorso: string, init: RequestInit = {}): Promise<Response> =>
     chiamaHttp(`${radice}/${VERSIONE_API}${percorso}`, init, rete).catch(rietichetta)
 
@@ -139,7 +139,7 @@ export function creaClientMediaManager(opzioni: OpzioniClientMediaManager): Clie
       modulo.append('media_type', mediaType)
       if (durataS !== undefined) modulo.append('duration_s', String(durataS))
 
-      // Nessun content-type a mano: il confine multipart lo scrive fetch.
+      // No content-type by hand: fetch writes the multipart boundary.
       return esito<MediaItem>(
         await chiama('/media', { method: 'POST', headers: intestazioni(), body: modulo }),
       )
@@ -171,8 +171,8 @@ export function creaClientMediaManager(opzioni: OpzioniClientMediaManager): Clie
       const risposta = await chiama(percorso.startsWith('/') ? percorso : `/${percorso}`, {
         headers: intestazioni(),
       })
-      // `esito` qui non va: la risposta buona sono byte, non JSON. Si riusa
-      // solo per la traduzione dell'errore, che alla risposta buona non arriva.
+      // `esito` will not do here: the good answer is bytes, not JSON. It is
+      // reused only for translating the error, which a good answer never hits.
       if (!risposta.ok) await esito<never>(risposta)
       return risposta.blob()
     },

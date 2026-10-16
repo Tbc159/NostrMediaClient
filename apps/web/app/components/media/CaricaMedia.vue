@@ -15,14 +15,14 @@ import { useConsegna } from '~/stores/consegna'
 import { useDeleghe } from '~/stores/deleghe'
 
 /**
- * Il caricatore, in due vesti.
+ * The uploader, in two guises.
  *
- * «generico» e' la scheda Carica su Blossom: immagini, video, note, schede
- * file. «podcast» e' la scheda Podcast: stesso flusso — file, Blossom, evento
- * — ma il modo e' fisso, e attorno ci sono le cose che servono solo a un
- * episodio: bozze, proposta, scheda dello show. Un componente solo perche' i
- * tre passi sono davvero gli stessi; due pagine perche' chi pubblica un
- * episodio non deve scegliere «podcast» fra sei formati.
+ * «generico» is the Upload to Blossom tab: images, videos, notes, file cards.
+ * «podcast» is the Podcast tab: the same flow — file, Blossom, event — but the
+ * mode is fixed, and around it are the things an episode alone needs: drafts,
+ * the proposal, the show's card. A single component because the three steps
+ * really are the same; two pages because whoever publishes an episode should
+ * not have to pick «podcast» out of six formats.
  */
 const props = defineProps<{ modalita: 'generico' | 'podcast' }>()
 const perPodcast = computed(() => props.modalita === 'podcast')
@@ -37,45 +37,47 @@ const bozzeEpisodio = useBozzeEpisodio()
 const consegna = useConsegna()
 const rotta = useRoute()
 
-/** Vero quando si sta ricomponendo un evento a partire da uno già pubblicato. */
+/** True when an event is being recomposed starting from an already published one. */
 const daPrecedente = ref(false)
 
 /*
- * Il flusso ha tre momenti, e la pagina li tiene separati perché sono
- * decisioni diverse: scegliere un file non è caricarlo, e caricarlo non è
- * pubblicarlo. Da Blossom non si torna indietro davvero — il blob è
- * identificato dal suo hash e chi lo conosce può riscaricarlo — quindi il
- * caricamento chiede una conferma, invece di partire alla scelta del file.
+ * The flow has three moments, and the page keeps them separate because they
+ * are different decisions: choosing a file is not uploading it, and uploading
+ * it is not publishing it. There is no real coming back from Blossom — the
+ * blob is identified by its hash and whoever knows it can download it again —
+ * so the upload asks for a confirmation, instead of starting when the file is
+ * chosen.
  */
 
-// ─── Opzioni, tutte facoltative ───────────────────────────────────────────
+// ─── The options, all optional ────────────────────────────────────────────
 const avanzate = ref(false)
 const titolo = ref('')
 const descrizione = ref('')
-/** Solo per gli episodi: le note lunghe, in Markdown, che vanno nel content. */
+/** For the episodes alone: the long notes, in Markdown, that go in the content. */
 const noteEpisodio = ref('')
-/** Solo per gli episodi: URL dell'immagine, scritto o ottenuto caricandola. */
+/** For the episodes alone: the image's URL, written or obtained by uploading it. */
 const immagineEpisodio = ref('')
 const hashtag = ref('')
 const avvisoContenuto = ref('')
 const conAvviso = ref(false)
 
 /**
- * Kind con cui pubblicare.
+ * The kind to publish with.
  *
- * Non è una preferenza estetica: cambia chi vedrà il post. Un client
- * picture-first filtra per kind 20 e non mostrerà mai un 1063, e viceversa un
- * client di file non impagina gallerie.
+ * It is not an aesthetic preference: it changes who will see the post. A
+ * picture-first client filters for kind 20 and will never show a 1063, and
+ * conversely a file client does not lay out galleries.
  */
 type Formato = 'nota' | 'immagini' | 'video' | 'video-corto' | 'podcast' | 'file'
 const formato = ref<Formato>(props.modalita === 'podcast' ? 'podcast' : 'nota')
 
 /**
- * Con quale kind pubblicare.
+ * Which kind to publish with.
  *
- * Non è una preferenza estetica: **cambia chi vedrà il post**. I kind media
- * dedicati sono più precisi, ma li mostra solo chi li filtra; una nota con
- * allegato la rende qualunque client sociale. Per questo l'elenco parte da lì.
+ * It is not an aesthetic preference: **it changes who will see the post**. The
+ * dedicated media kinds are more precise, but only whoever filters for them
+ * shows them; a note with an attachment is rendered by any social client. That
+ * is why the list starts there.
  */
 const formati = computed<{ id: Formato; kind: number; etichetta: string; nota: string }[]>(() => {
   const quanti = upload.media.value.length
@@ -114,7 +116,7 @@ const formati = computed<{ id: Formato; kind: number; etichetta: string; nota: s
       nota: 'Kind 1063. Una voce di catalogo interrogabile per hash, non un post: NIP-94 dice che i client sociali non sono tenuti a mostrarla. Utile per indicizzare un file, non per farlo vedere.',
     },
   ]
-  // L'episodio ha la sua scheda: qui non e' un'opzione fra le altre.
+  // The episode has its own tab: here it is not one option among others.
   return perPodcast.value
     ? tutti.filter((f) => f.id === 'podcast')
     : tutti.filter((f) => f.id !== 'podcast')
@@ -123,12 +125,13 @@ const formati = computed<{ id: Formato; kind: number; etichetta: string; nota: s
 const kindScelto = computed(() => formati.value.find((f) => f.id === formato.value)?.kind ?? 1)
 
 /*
- * Chi firmera' l'evento: la propria chiave, oppure una delega NIP-46.
+ * Who will sign the event: your own key, or a NIP-46 delegation.
  *
- * Non e' una preferenza: con una delega l'evento esce con la `pubkey` di un
- * altro, e per Nostr l'autore e' quello. Serve al caso per cui NIP-F4 lascia
- * scoperti tutti gli altri — il podcast *e'* una chiave, quindi chi prepara
- * gli episodi senza possederla non ha altro modo di pubblicarli a suo nome.
+ * It is not a preference: with a delegation the event comes out with somebody
+ * else's `pubkey`, and for Nostr that is the author. It serves the case NIP-F4
+ * leaves everyone else exposed to — the podcast *is* a key, so whoever
+ * prepares the episodes without holding it has no other way of publishing
+ * them in its name.
  */
 const firmaCon = ref('')
 
@@ -152,14 +155,14 @@ const firmatario = computed<Firmatario | undefined>(() => {
   }
 })
 
-// Cambiando firmatario la firma gia' ottenuta non vale piu': e' di un'altra
-// identita'. Tenerla porterebbe a pubblicare a nome di chi non si era scelto.
+// When the signer changes the signature already obtained is no longer valid:
+// it is another identity's. Keeping it would publish in a name not chosen.
 watch(firmaCon, () => {
   bozza.firmato.value = null
 })
 
-// La minuscola si applica a cio' che si scrive qui: i kind scrivono i tag
-// `t` come li ricevono, per non riscrivere quelli letti da altri client.
+// The lower case applies to what is written here: the kinds write the `t`
+// tags as they receive them, so as not to rewrite the ones read from other clients.
 const listaHashtag = computed(() =>
   hashtag.value
     .split(/[,\s]+/)
@@ -168,16 +171,15 @@ const listaHashtag = computed(() =>
 )
 
 /*
- * Il formato si adegua al tipo di file, restando modificabile.
+ * The format adapts to the type of file, while staying editable.
  *
- * Per audio e per tutto il resto il valore predefinito è la nota con allegato,
- * non il kind dedicato: e' l'unico che si vede ovunque, e un default che
- * pubblica qualcosa che nessuno mostra sarebbe una trappola.
+ * For audio and for everything else the default value is the note with an
+ * attachment, not the dedicated kind: it is the only one seen everywhere, and
+ * a default that publishes something nobody shows would be a trap.
  */
 /**
- * Vero quando il formato l'ha deciso chi ci ha mandato qui — la pagina Audio,
- * una bozza, una proposta — e il tipo del file non deve rimetterlo in
- * discussione.
+ * True when the format was decided by whoever sent us here — the Audio page, a
+ * draft, a proposal — and the file's type must not reopen the question.
  */
 const formatoForzato = ref(props.modalita === 'podcast')
 
@@ -201,8 +203,8 @@ async function scegliFile(evento: Event): Promise<void> {
   const target = evento.target as HTMLInputElement
   if (!target.files?.length) return
   await upload.seleziona(target.files)
-  // Azzerare il campo permette di riscegliere lo stesso file, che altrimenti
-  // non genererebbe alcun evento `change`.
+  // Clearing the field allows the same file to be chosen again, which
+  // otherwise would generate no `change` event at all.
   target.value = ''
 }
 
@@ -244,12 +246,12 @@ function componi(): void {
   }
 
   if (kindScelto.value === 54) {
-    // Solo l'audio finisce nel tag `audio`: un'immagine caricata insieme e'
-    // la copertina, e va nel tag `image`, non fra le sorgenti.
+    // The audio alone ends up in the `audio` tag: an image uploaded alongside
+    // is the cover, and goes in the `image` tag, not among the sources.
     const audio = allegati.filter((a) => (a.mime ?? '').startsWith('audio/'))
-    // La durata la misura il browser alla scelta del file; NIP-F4 non la
-    // prevede, ma le app la mostrano (itunes:duration) e senza la riga
-    // dell'episodio resta senza minuti.
+    // The duration is measured by the browser when the file is chosen; NIP-F4
+    // does not provide for it, but the apps show it (itunes:duration) and
+    // without it the episode's row is left without minutes.
     const durata = audio.find((a) => a.duration !== undefined)?.duration
     bozza.costruisci(definizione, {
       title: titolo.value.trim(),
@@ -282,8 +284,8 @@ function componi(): void {
     return
   }
 
-  // 1063: una scheda per file. Si compone la prima e si dice quante restano,
-  // invece di fingere che un solo evento le contenga tutte.
+  // 1063: one card per file. The first is composed and how many are left is
+  // said, instead of pretending a single event holds them all.
   const primo = allegati[0]
   if (!primo) return
   bozza.costruisci(definizione, { content: descrizione.value.trim(), ...primo })
@@ -310,13 +312,13 @@ function ricomincia(): void {
   erroreEpisodio.value = null
 }
 
-// ─── Ripresa di un evento già pubblicato ──────────────────────────────────
+// ─── Picking an already published event up again ───────────────────────────
 /**
- * Ricompone un evento media partendo da uno già pubblicato.
+ * Recomposes a media event starting from an already published one.
  *
- * Non è una modifica e il form lo dice: i kind media sono **regolari**, quindi
- * immutabili come una nota. I file però non si ricaricano — sono già su
- * Blossom, identificati dal loro hash.
+ * It is not an edit and the form says so: the media kinds are **regular**,
+ * hence as immutable as a note. The files, though, are not re-uploaded — they
+ * are on Blossom already, identified by their hash.
  */
 async function riprendi(id: string): Promise<void> {
   const trovato = await esistente.perId(id)
@@ -355,8 +357,8 @@ async function riprendi(id: string): Promise<void> {
               : 'file'
     formatoForzato.value = true
 
-    // Un episodio dichiara l'audio con `audio`, non con `imeta`: niente hash
-    // ne' dimensione. Si adotta quel che c'e', e si dice.
+    // An episode declares its audio with `audio`, not with `imeta`: no hash
+    // and no size. What is there is adopted, and that is said.
     const allegati =
       trovato.kind === 54
         ? (dati.audio ?? []).map((a: { url: string; mime?: string }) => ({
@@ -398,20 +400,20 @@ async function riprendi(id: string): Promise<void> {
   }
 }
 
-// ─── Episodi: bozze, proposte, immagine ───────────────────────────────────
+// ─── Episodes: drafts, proposals, the image ────────────────────────────────
 /*
- * La bozza di episodio e' i dati del form piu' i file gia' su Blossom. Un file
- * scelto ma non ancora caricato non ci sta: non ha un indirizzo. Si dice
- * quando si salva, invece di far credere che ci sia.
+ * An episode draft is the form's data plus the files already on Blossom. A
+ * file chosen but not yet uploaded does not fit: it has no address. That is
+ * said when saving, instead of suggesting it is there.
  */
 const idBozza = ref<string | null>(null)
 const bozzaSalvata = ref<BozzaEpisodio | null>(null)
 const propostaImportata = ref<BozzaEpisodio | null>(null)
-/** npub, facoltativo, di chi dovrebbe pubblicare la proposta esportata. */
+/** The optional npub of whoever should publish the exported proposal. */
 const perChiaveProposta = ref('')
 const erroreEpisodio = ref<string | null>(null)
 const copiaInCorso = ref(false)
-/** `null` finche' non si e' guardato; poi se questa chiave ha una scheda 10154. */
+/** `null` until we have looked; then whether this key has a 10154 card. */
 const haSchedaPodcast = ref<boolean | null>(null)
 
 const allegatiPerBozza = computed(() =>
@@ -439,12 +441,12 @@ const datiEpisodio = computed(() => ({
   ...(immagineEpisodio.value.trim() ? { immagine: immagineEpisodio.value.trim() } : {}),
 }))
 
-/** Cosa manca perche' l'episodio si possa pubblicare. Solo per il podcast. */
+/** What is missing for the episode to be publishable. For the podcast alone. */
 const completezza = computed(() =>
   completezzaEpisodio({ episodio: datiEpisodio.value, allegati: allegatiPerBozza.value }),
 )
 
-/** Quanti file scelti non sono ancora su Blossom, e quindi non entrano in una bozza. */
+/** How many chosen files are not on Blossom yet, and hence do not go into a draft. */
 const nonAncoraCaricati = computed(() => upload.daCaricare.value.length)
 
 function datiBozza(): DatiBozzaEpisodio {
@@ -469,7 +471,7 @@ function salvaBozza(): void {
   }
 }
 
-/** Riempie il form da una bozza: i file tornano come «gia' su Blossom». */
+/** Fills the form from a draft: the files come back as «already on Blossom». */
 function applicaBozza(b: BozzaEpisodio): void {
   formato.value = 'podcast'
   formatoForzato.value = true
@@ -494,8 +496,8 @@ function caricaBozza(id: string): void {
 }
 
 /**
- * Scarica la bozza come proposta: chi la importa vede questi dati, i file gia'
- * su Blossom, e firma con la propria chiave.
+ * Downloads the draft as a proposal: whoever imports it sees this data, the
+ * files already on Blossom, and signs with their own key.
  */
 function esportaProposta(): void {
   erroreEpisodio.value = null
@@ -527,8 +529,8 @@ async function importaProposta(evento: Event): Promise<void> {
   try {
     const letta = leggiBozzaEpisodio(await file.text())
     propostaImportata.value = letta
-    // Una proposta importata e' una bozza nuova di *questa* identita': non
-    // eredita l'id, cosi' salvarla non sovrascrive nulla di chi l'ha scritta.
+    // An imported proposal is a new draft of *this* identity: it does not
+    // inherit the id, so saving it overwrites nothing of the writer's.
     idBozza.value = null
     bozzaSalvata.value = null
     applicaBozza(letta)
@@ -537,7 +539,7 @@ async function importaProposta(evento: Event): Promise<void> {
   }
 }
 
-/** Pubkey esadecimale della chiave attesa dalla proposta, se leggibile. */
+/** The hexadecimal pubkey of the key the proposal expects, when readable. */
 const chiaveAttesa = computed(() => {
   const p = propostaImportata.value?.perChiave
   if (!p) return null
@@ -556,12 +558,12 @@ const propostaPerAltri = computed(
 )
 
 /**
- * Copia i file della proposta sul proprio server Blossom.
+ * Copies the proposal's files to your own Blossom server.
  *
- * Su Blossom un file e' cancellabile solo da chi l'ha caricato: chi pubblica
- * un episodio con file caricati da un altro dipende da lui. La copia mette i
- * byte anche sotto la propria chiave — stesso hash, stesso URL finale con un
- * altro host — e resta facoltativa.
+ * On Blossom a file can be deleted only by whoever uploaded it: whoever
+ * publishes an episode with files uploaded by somebody else depends on them.
+ * The copy puts the bytes under your own key too — the same hash, the same
+ * final URL with another host — and stays optional.
  */
 async function copiaSuMioServer(): Promise<void> {
   const server = upload.server.value[0]
@@ -591,17 +593,18 @@ async function copiaSuMioServer(): Promise<void> {
 }
 
 /**
- * Gli audio che le piattaforme non accettano negli enclosure.
+ * The audio the platforms do not accept in the enclosures.
  *
- * Il feed li dichiara col MIME giusto, ma Apple, Spotify, Amazon e YouTube
- * leggono mp3 e m4a: un wav o un ogg finirebbe nel feed e resterebbe muto
- * nelle app. Si dice qui, dove si puo' ancora tornare alla scheda Audio.
+ * The feed declares them with the right MIME, but Apple, Spotify, Amazon and
+ * YouTube read mp3 and m4a: a wav or an ogg would end up in the feed and stay
+ * mute in the apps. It is said here, where you can still go back to the Audio
+ * tab.
  */
 const audioNonAdatti = computed(() =>
   upload.media.value.filter((m) => m.mime.startsWith('audio/') && !audioAdattoAlPodcast(m.mime)),
 )
 
-// La scheda 10154 si cerca solo quando serve: al primo passaggio su «podcast».
+// The 10154 card is looked up only when needed: on the first visit to «podcast».
 watch(
   formato,
   async (f) => {
@@ -612,10 +615,10 @@ watch(
 )
 
 /*
- * La query si osserva, non si legge una volta sola: «Riprendi» porta da
- * /media/podcast a /media/podcast?bozza=…, stessa rotta, e il componente non
- * si rimonta. Un `onMounted` qui avrebbe caricato la bozza solo arrivando da
- * un'altra pagina — e infatti e' successo.
+ * The query is watched, not read once only: «Resume» leads from
+ * /media/podcast to /media/podcast?bozza=…, the same route, and the component
+ * does not remount. An `onMounted` here would have loaded the draft only when
+ * arriving from another page — and indeed that happened.
  */
 watch(
   () => [rotta.query.da, rotta.query.bozza] as const,
@@ -628,8 +631,8 @@ watch(
 
 onMounted(async () => {
   if (rotta.query.da || rotta.query.bozza) return
-  // Un file passato dalla pagina Audio: come se l'utente l'avesse scelto dal
-  // disco. Lo ritira solo la scheda Podcast: e' li' che la pagina Audio manda.
+  // A file handed over by the Audio page: as though the user had chosen it
+  // from disk. Only the Podcast tab collects it: that is where the Audio page sends.
   if (!perPodcast.value) return
   avanzate.value = true
   const consegnato = consegna.ritira()
@@ -869,7 +872,7 @@ onMounted(async () => {
       </div>
     </BaseCard>
 
-    <!-- ─────────── 2. Opzioni, solo se servono ─────────── -->
+    <!-- ─────────── 2. The options, only when needed ─────────── -->
     <ClientOnly>
       <BaseCard v-if="!upload.nessunoSelezionato.value">
         <details :open="avanzate" @toggle="avanzate = ($event.target as HTMLDetailsElement).open">
@@ -1025,9 +1028,9 @@ onMounted(async () => {
             </div>
 
             <!--
-              Si puo' mettere via il lavoro in qualunque momento, anche prima
-              del caricamento. I file non ancora su Blossom pero' non ci
-              stanno: non hanno un indirizzo, e si dice.
+              The work can be put aside at any moment, even before the upload.
+              The files not yet on Blossom do not fit, though: they have no
+              address, and that is said.
             -->
             <div v-if="formato === 'podcast'" class="flex flex-wrap items-center gap-2">
               <BaseButton size="sm" @click="salvaBozza">Salva come bozza</BaseButton>
@@ -1129,9 +1132,9 @@ onMounted(async () => {
           </BaseAlert>
 
           <!--
-            La delega e' la via *sincrona* per far firmare un'altra chiave:
-            l'altra persona ha il banco aperto e approva adesso. La proposta
-            esportabile, piu' sotto, e' quella asincrona. Convivono.
+            The delegation is the *synchronous* way to have another key sign:
+            the other person has the desk open and approves now. The exportable
+            proposal, further down, is the asynchronous one. They coexist.
           -->
           <BaseField
             v-if="deleghe.elenco.length"
@@ -1176,10 +1179,10 @@ onMounted(async () => {
           </div>
 
           <!--
-            La proposta: gli stessi dati della bozza, scritti su file. Chi la
-            importa vede i file gia' su Blossom e firma con la sua chiave —
-            e' il modo di far pubblicare un episodio alla chiave del podcast
-            senza che quella chiave stia in questo browser.
+            The proposal: the same data as the draft, written to a file.
+            Whoever imports it sees the files already on Blossom and signs with
+            their key — it is the way to have an episode published by the
+            podcast's key without that key being in this browser.
           -->
           <BaseField
             v-if="formato === 'podcast'"

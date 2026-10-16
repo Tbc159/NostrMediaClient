@@ -1,11 +1,11 @@
 <script setup lang="ts">
 /**
- * Riscontro durante la rotazione fra i relay.
+ * Feedback during the rotation among the relays.
  *
- * Con la strategia sequenziale la pubblicazione puo' durare parecchi secondi:
- * senza dire *quale* relay si sta contattando, un'attesa lunga sembra un
- * blocco. Il numero d'ordine conta quanto il nome — dice all'utente che il
- * client sta scorrendo l'elenco e non e' fermo sul primo.
+ * With the sequential strategy the publication can take several seconds:
+ * without saying *which* relay is being contacted, a long wait looks like a
+ * freeze. The ordinal counts as much as the name — it tells the user that the
+ * client is working through the list and is not stuck on the first one.
  */
 defineProps<{
   invio: {

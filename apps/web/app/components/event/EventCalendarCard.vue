@@ -2,13 +2,13 @@
 import { addressOf, formatInTimezone, type NostrEvent } from '@nmc/nostr-core'
 
 /**
- * Evento di calendario, kind 31922 (su data) o 31923 (con orario).
+ * A calendar event, kind 31922 (on a date) or 31923 (with a time).
  *
- * I due kind si mostrano diversamente perche' *sono* diversi: il 31922 non ha
- * orario ne' fuso e va letto come sta scritto, il 31923 e' un istante assoluto
- * che va mostrato nel fuso dichiarato dall'organizzatore. Renderli allo stesso
- * modo significherebbe inventare un orario dove non c'e' o perdere il fuso
- * dove c'e'.
+ * The two kinds are shown differently because they *are* different: the 31922
+ * has neither a time nor a zone and is to be read as written, the 31923 is an
+ * absolute instant to be shown in the zone the organiser declared. Rendering
+ * them the same way would mean inventing a time where there is none or losing
+ * the zone where there is one.
  */
 const props = defineProps<{
   evento: NostrEvent
@@ -26,10 +26,10 @@ const props = defineProps<{
 
 const conOrario = computed(() => props.evento.kind === 31923)
 
-/** Coordinata a cui una risposta deve puntare: non l'id, che cambia a ogni modifica. */
+/** The coordinate an answer has to point at: not the id, which changes on every edit. */
 const coordinata = computed(() => addressOf(props.evento))
 
-/** Fuso dell'osservatore, usato solo per dire se differisce da quello dell'evento. */
+/** The observer's zone, used only to say whether it differs from the event's. */
 const fusoLocale = Intl.DateTimeFormat().resolvedOptions().timeZone
 
 const quandoPrincipale = computed(() => {
@@ -39,9 +39,9 @@ const quandoPrincipale = computed(() => {
 })
 
 /**
- * Secondo orario, mostrato solo quando l'evento si svolge in un fuso diverso
- * dal proprio. Ripeterlo sempre sarebbe rumore; ometterlo sempre farebbe
- * arrivare in ritardo chi partecipa da un altro paese.
+ * A second time, shown only when the event takes place in a zone other than
+ * your own. Always repeating it would be noise; always omitting it would make
+ * whoever attends from another country late.
  */
 const quandoLocale = computed(() => {
   if (!conOrario.value) return null
@@ -53,8 +53,8 @@ const quandoLocale = computed(() => {
 const fineMostrata = computed(() => {
   if (props.dati.end === undefined) return null
   if (!conOrario.value) {
-    // NIP-52 definisce `end` esclusivo: l'ultimo giorno compreso e' il
-    // precedente, e mostrare la data grezza farebbe credere a un giorno in piu'.
+    // NIP-52 defines `end` as exclusive: the last day included is the one
+    // before, and showing the raw date would suggest a day more.
     return `fino al ${formattaGiorno(giornoPrecedente(String(props.dati.end)))} compreso`
   }
   const tz = props.dati.endTzid ?? props.dati.startTzid ?? fusoLocale

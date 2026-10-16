@@ -1,117 +1,118 @@
-# Podcast su Nostr (NIP-F4): guida del client
+# Podcasts on Nostr (NIP-F4): the client's guide
 
-Cosa il client sa fare oggi con i kind 54, 10154 e 10064, e come si comportano
-i sei casi che contano davvero: pubblicare un podcast o un episodio propri,
-pubblicarne uno che non è il tuo, farlo per conto di un terzo, e — il caso che
-il protocollo non prevede — trasferirne la proprietà.
+What the client can do today with kinds 54, 10154 and 10064, and how the six
+cases that actually matter behave: publishing a podcast or an episode of your
+own, publishing one that is not yours, doing it on behalf of a third party,
+and — the case the protocol does not provide for — transferring ownership.
 
-Non è un tutorial passo-passo sui pulsanti: per quello vale la UI stessa, che
-spiega ogni scelta lì dove si fa. Questo documento serve a chi deve capire
-**come i pezzi si incastrano**, e dove smettono di incastrarsi.
+This is not a step-by-step tutorial about buttons: the UI itself covers that,
+explaining every choice where the choice is made. This document is for
+whoever needs to understand **how the pieces fit together**, and where they
+stop fitting.
 
-## Il modello: perché il podcast è una chiave
+## The model: why a podcast is a key
 
-NIP-F4 non ha un concetto di "show" separato da un'identità Nostr: **ogni
-podcast è una coppia di chiavi a sé**. Pubblicare un episodio con la propria
-identità personale significa che quell'identità _diventa_ il podcast — non
-c'è un livello intermedio, non c'è un campo "pubblicato per conto di". Chi
-firma l'evento è, agli occhi del protocollo, l'autore.
+NIP-F4 has no concept of a "show" separate from a Nostr identity: **every
+podcast is a key pair of its own**. Publishing an episode with your personal
+identity means that identity _becomes_ the podcast — there is no intermediate
+layer, there is no "published on behalf of" field. Whoever signs the event
+is, as far as the protocol is concerned, the author.
 
-Questa scelta di design ha una conseguenza che percorre tutto il resto del
-documento: **tutto ciò che assomiglia a "gestire un podcast insieme ad altri"
-o "passarne la proprietà" è un problema di firma**, non un problema di dati.
-La domanda da porsi, in ogni caso d'uso, è sempre la stessa: _quale chiave
-deve comparire come `pubkey` sull'evento, e come si ottiene che sia quella la
-chiave firmante?_
+That design choice has a consequence that runs through the rest of this
+document: **everything that looks like "running a podcast together with other
+people" or "handing it over" is a signing problem**, not a data problem. The
+question to ask, in every use case, is always the same: _which key must appear
+as the `pubkey` on the event, and how do we get that key to be the signer?_
 
-## I tre kind
+## The three kinds
 
-| Kind      | Nome NIP-F4                | Classe                | Cosa dice                                                                                            | File                                                                    |
-| --------- | -------------------------- | --------------------- | ---------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| **54**    | episodio di podcast        | regolare (immutabile) | un episodio: titolo, descrizione, immagine, una o più sorgenti `audio` (url + MIME, **non** `imeta`) | [`podcast.ts`](../packages/nostr-core/src/kinds/definitions/podcast.ts) |
-| **10154** | scheda del podcast         | replaceable           | la scheda dello _show_: titolo, descrizione, immagine, siti, autori dichiarati (`p` con ruolo)       | stesso file                                                             |
-| **10064** | podcast di cui si è autori | replaceable           | pubblicato dall'**autore**, sulla **sua** chiave: elenca gli show a cui dichiara di collaborare      | stesso file                                                             |
+| Kind      | NIP-F4 name         | Class               | What it says                                                                                      | File                                                                    |
+| --------- | ------------------- | ------------------- | ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| **54**    | podcast episode     | regular (immutable) | one episode: title, description, image, one or more `audio` sources (url + MIME, **not** `imeta`) | [`podcast.ts`](../packages/nostr-core/src/kinds/definitions/podcast.ts) |
+| **10154** | podcast card        | replaceable         | the _show_ card: title, description, image, websites, declared authors (`p` with a role)          | same file                                                               |
+| **10064** | podcasts you author | replaceable         | published by the **author**, on **their** key: lists the shows they claim to work on              | same file                                                               |
 
-Il 10154 e il 10064 sono le due metà dello stesso riscontro: il 10154 dice
-_"questi sono i miei autori"_, il 10064 dice _"io collaboro con questo show"_.
-NIP-F4 lo dice esplicitamente — un podcast può attribuirsi chiunque nei suoi
-`p`, quindi quell'elenco da solo non prova nulla; è il 10064 pubblicato
-dall'autore, sulla sua chiave, a dare un riscontro indipendente.
+10154 and 10064 are the two halves of the same corroboration: 10154 says
+_"these are my authors"_, 10064 says _"I work on this show"_. NIP-F4 says so
+explicitly — a podcast can attribute anyone it likes in its `p` tags, so that
+list alone proves nothing; it is the 10064, published by the author on their
+own key, that gives independent corroboration.
 
-Tre vincoli che il client applica e che vale la pena conoscere prima di
-leggere i casi d'uso:
+Three constraints the client enforces, worth knowing before reading the use
+cases:
 
-- **descrizione e immagine sono obbligatorie**, sia per l'episodio sia per la
-  scheda — non lo impone NIP-F4 alla lettera, ma senza non c'è nulla da
-  mostrare in un lettore di podcast, e il client li chiede prima di lasciare
-  che l'errore arrivi da un relay.
-- **l'audio si dichiara con il tag `audio`, non con `imeta`**: niente hash,
-  niente dimensione. Chi ascolta non può verificare che il file sia quello
-  pubblicato — è la specifica a volerlo così, il client lo dice in pagina
-  invece di correggerlo.
-- **10154 e 10064 vanno sempre su tutti i relay di scrittura**, qualunque
-  strategia tu abbia scelto nelle impostazioni — come le note **no**. Un
-  lettore di podcast legge da un relay suo e non chiede al client dove ha
-  pubblicato: se la scheda finisce su un relay solo, per chi legge da un
-  altro relay il podcast semplicemente non esiste. La regola sta nel core
+- **description and image are mandatory**, both for the episode and for the
+  card — NIP-F4 does not require them to the letter, but without them there is
+  nothing for a podcast player to show, and the client asks for them rather
+  than letting the error come back from a relay.
+- **audio is declared with the `audio` tag, not with `imeta`**: no hash, no
+  size. A listener cannot verify that the file is the one that was published —
+  the specification wants it that way, and the client says so on the page
+  instead of silently correcting it.
+- **10154 and 10064 always go to every write relay**, whatever strategy you
+  picked in the settings — unlike notes. A podcast player reads from a relay
+  of its own and does not ask the client where it published: if the card ends
+  up on a single relay, then for anyone reading from another relay the podcast
+  simply does not exist. The rule lives in the core
   (`strategiaPerKind`, [`relays/publish.ts`](../packages/nostr-core/src/relays/publish.ts))
-  e vale anche per il profilo e le altre liste.
+  and holds for the profile and the other lists too.
 
-## Dove si fa, nel client
+## Where it happens, in the client
 
-| Cosa                                           | Pagina                                 | Kind coinvolto                                   |
-| ---------------------------------------------- | -------------------------------------- | ------------------------------------------------ |
-| Scheda del podcast (propria identità)          | _Profilo → Podcast_                    | 10154                                            |
-| "Sono autore di questo podcast"                | _Profilo → Podcast di cui sono autore_ | 10064                                            |
-| Pre-elaborare un audio (silenzi, livellamento) | _Media → Audio_                        | — (non pubblica nulla da sé)                     |
-| Caricare e pubblicare un episodio              | _Media → Podcast_                      | 54                                               |
-| Bozze di episodio lasciate a metà              | _Media → Podcast_ (elenco in testa)    | 54                                               |
-| Concedere/chiedere una firma delegata (NIP-46) | _Firme_                                | qualunque kind delegabile, 54 e 10154 di default |
-| Verificare il feed RSS e scaricarlo come OPML  | _Profilo → Feed RSS_ (sotto la scheda) | derivato da 54 + 10154                           |
+| What                                           | Page                                  | Kind involved                               |
+| ---------------------------------------------- | ------------------------------------- | ------------------------------------------- |
+| Podcast card (your own identity)               | _Profile → Podcast_                   | 10154                                       |
+| "I am an author of this podcast"               | _Profile → Podcasts I author_         | 10064                                       |
+| Pre-processing audio (silences, levelling)     | _Media → Audio_                       | — (publishes nothing by itself)             |
+| Uploading and publishing an episode            | _Media → Podcast_                     | 54                                          |
+| Episode drafts left half-finished              | _Media → Podcast_ (list at the top)   | 54                                          |
+| Granting/asking for a delegated signature      | _Signatures_                          | any delegable kind, 54 and 10154 by default |
+| Checking the RSS feed and downloading the OPML | _Profile → RSS feed_ (under the card) | derived from 54 + 10154                     |
 
-## Due modi di far firmare un'altra chiave
+## Two ways to have another key sign
 
-Ogni caso d'uso che coinvolge più di un'identità passa da uno di questi due
-meccanismi. Non sono intercambiabili: risolvono situazioni diverse.
+Every use case involving more than one identity goes through one of these two
+mechanisms. They are not interchangeable: they solve different situations.
 
-|                       | Proposta esportabile                                                                                                                                             | Delega NIP-46                                                                                                                                                                     |
-| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Modello**           | Un file JSON: dati del form + descrittori dei file già su Blossom. Non è un evento, non è firmato.                                                               | Un vero e proprio _bunker_ remoto: chi tiene la chiave apre una sessione in ascolto su un relay d'incontro.                                                                       |
-| **Sincronia**         | Asincrona: si scarica, si consegna per qualunque canale (email, chat), si importa quando capita.                                                                 | Sincrona: chi chiede la firma e chi la concede devono avere entrambi il client aperto nello stesso momento (la richiesta scade dopo 3 minuti).                                    |
-| **Chi firma davvero** | Chi **importa** il JSON: ricompone dal form ciò che vede e firma con la propria sessione. Non gli arriva mai un evento già impacchettato da qualcun altro.       | Chi tiene la chiave, dal _banco_ — approva o rifiuta ogni richiesta, evento per evento.                                                                                           |
-| **Copre quali kind**  | Solo il **54** (episodio): `esportaProposta` / `importaProposta` sono nel modo "podcast" di _Media → Podcast_.                                                   | Quelli scelti nel banco. Di default 54 e 10154 ([`KIND_RICHIESTI`](../apps/web/app/stores/deleghe.ts), [`KIND_PREDEFINITI`](../apps/web/app/stores/banco.ts)).                    |
-| **Revocabile**        | N/A — è un file, non un permesso.                                                                                                                                | Sì: chi tiene la chiave chiude il banco o rifiuta le richieste da lì in avanti.                                                                                                   |
-| **File**              | [`episodi/index.ts`](../packages/nostr-core/src/episodi/index.ts) (`BozzaEpisodio`), UI in [`CaricaMedia.vue`](../apps/web/app/components/media/CaricaMedia.vue) | [`signers/{bunker,delega}.ts`](../packages/nostr-core/src/signers/), UI in [`firme.vue`](../apps/web/app/pages/firme.vue), [`stores/{banco,deleghe}.ts`](../apps/web/app/stores/) |
+|                        | Exportable proposal                                                                                                                                                   | NIP-46 delegation                                                                                                                                                                     |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Model**              | A JSON file: the form data plus descriptors of files already on Blossom. It is not an event, it is not signed.                                                        | A real remote _bunker_: whoever holds the key opens a session listening on a meeting relay.                                                                                           |
+| **Timing**             | Asynchronous: you download it, deliver it over any channel (email, chat), and import it whenever.                                                                     | Synchronous: the one asking for the signature and the one granting it must both have the client open at the same time (the request expires after 3 minutes).                          |
+| **Who actually signs** | Whoever **imports** the JSON: they rebuild from the form what they can see and sign with their own session. They never receive an event pre-packaged by someone else. | Whoever holds the key, from the _desk_ — approving or refusing each request, event by event.                                                                                          |
+| **Which kinds**        | Only **54** (episode): `esportaProposta` / `importaProposta` live in the "podcast" mode of _Media → Podcast_.                                                         | The ones chosen at the desk. 54 and 10154 by default ([`KIND_RICHIESTI`](../apps/web/app/stores/deleghe.ts), [`KIND_PREDEFINITI`](../apps/web/app/stores/banco.ts)).                  |
+| **Revocable**          | N/A — it is a file, not a permission.                                                                                                                                 | Yes: the key holder closes the desk or stops approving from then on.                                                                                                                  |
+| **Files**              | [`episodes/index.ts`](../packages/nostr-core/src/episodes/index.ts) (`BozzaEpisodio`), UI in [`CaricaMedia.vue`](../apps/web/app/components/media/CaricaMedia.vue)    | [`signers/{bunker,delegation}.ts`](../packages/nostr-core/src/signers/), UI in [`firme.vue`](../apps/web/app/pages/firme.vue), [`stores/{banco,deleghe}.ts`](../apps/web/app/stores/) |
 
-Nota che manca una riga: **non esiste una proposta esportabile per il 10154**.
-Aggiornare la scheda di un podcast che non si possiede è possibile _solo_ per
-delega, mai in modo asincrono. È elencato in fondo, fra le cose non coperte.
+Note the row that is missing: **there is no exportable proposal for 10154**.
+Updating the card of a podcast you do not own is possible _only_ by
+delegation, never asynchronously. It is listed at the end, among the things
+not covered.
 
 ---
 
-## Caso 1 — Pubblico un mio podcast
+## Case 1 — Publishing a podcast of my own
 
-La forma più semplice: la scheda dello show sulla propria identità.
+The simplest shape: the show card on your own identity.
 
 ```mermaid
 sequenceDiagram
-    actor Io
+    actor Me
     participant Client
     participant Blossom
     participant RelayA as Relay A
     participant RelayB as Relay B
 
-    Io->>Client: Profilo -> "Podcast": titolo, descrizione
-    opt copertina non ancora caricata
-        Io->>Client: "Carica un'immagine"
+    Me->>Client: Profile -> "Podcast": title, description
+    opt cover not uploaded yet
+        Me->>Client: "Upload an image"
         Client->>Blossom: PUT /upload
         Blossom-->>Client: URL
     end
-    Io->>Client: "Componi evento"
+    Me->>Client: "Compose event"
     Note over Client: podcastMetadataDefinition.build() -> kind 10154
-    Io->>Client: "Firma e pubblica"
-    Client->>Client: firma con la chiave attiva
-    par 10154 va sempre su tutti i relay
+    Me->>Client: "Sign and publish"
+    Client->>Client: signs with the active key
+    par 10154 always goes to every relay
         Client->>RelayA: EVENT kind 10154
         RelayA-->>Client: OK
     and
@@ -120,35 +121,35 @@ sequenceDiagram
     end
 ```
 
-Ripubblicare (`Componi evento` di nuovo, con dati diversi) **sostituisce** la
-versione precedente: 10154 è replaceable, non si accumula.
+Publishing again (`Compose event` once more, with different data)
+**replaces** the previous version: 10154 is replaceable, it does not pile up.
 
-## Caso 2 — Pubblico un mio episodio
+## Case 2 — Publishing an episode of my own
 
-Il percorso completo, con la pre-elaborazione audio come passo facoltativo ma
-integrato: l'audio elaborato arriva già nel modo giusto, senza scaricarlo e
-ricaricarlo a mano.
+The whole path, with audio pre-processing as an optional but integrated step:
+the processed audio arrives in the right place without downloading and
+re-uploading it by hand.
 
 ```mermaid
 sequenceDiagram
-    actor Io
+    actor Me
     participant Client
-    participant ServizioAudio as Servizio Audio
+    participant AudioService as Audio service
     participant Blossom
     participant RelayA as Relay A
     participant RelayB as Relay B
 
-    Io->>Client: Media -> Audio: scelgo il file, "Avvia l'elaborazione"
-    Client->>ServizioAudio: carica + job (silenzi, poi livellamento)
-    ServizioAudio-->>Client: file elaborato
-    Io->>Client: "Pubblica come podcast"
-    Note over Client: il file passa in memoria a Media/Podcast (stores/consegna.ts)
-    Io->>Client: titolo, descrizione, "Carica su Blossom"
+    Me->>Client: Media -> Audio: pick the file, "Start processing"
+    Client->>AudioService: upload + job (silences, then levelling)
+    AudioService-->>Client: processed file
+    Me->>Client: "Publish as a podcast"
+    Note over Client: the file is handed in memory to Media/Podcast (stores/consegna.ts)
+    Me->>Client: title, description, "Upload to Blossom"
     Client->>Blossom: PUT /upload (audio)
     Blossom-->>Client: URL, sha256
-    Io->>Client: "Componi evento" -> "Firma e pubblica"
-    Note over Client: podcastEpisodeDefinition.build() -> kind 54, tag "audio"
-    par 54 va sempre su tutti i relay
+    Me->>Client: "Compose event" -> "Sign and publish"
+    Note over Client: podcastEpisodeDefinition.build() -> kind 54, "audio" tag
+    par 54 always goes to every relay
         Client->>RelayA: EVENT kind 54
         RelayA-->>Client: OK
     and
@@ -157,248 +158,250 @@ sequenceDiagram
     end
 ```
 
-Si può anche partire direttamente da _Media → Podcast_ con un file già pronto,
-saltando la pagina Audio. E in qualunque momento, prima di "Componi evento",
-**"Salva come bozza"** mette via il lavoro — utile se manca ancora un dato,
-tipicamente l'immagine dell'episodio.
+You can also start straight from _Media → Podcast_ with a file that is already
+ready, skipping the Audio page. And at any point before "Compose event",
+**"Save as draft"** puts the work away — useful when a piece is still
+missing, typically the episode image.
 
-## Caso 3 — Pubblico un podcast di altri
+## Case 3 — Publishing someone else's podcast
 
-"Di altri" qui significa: la scheda (10154) deve uscire con la `pubkey` di
-un'identità di cui **non** possiedo la chiave privata. L'unico modo che il
-client offre è la delega NIP-46 — non esiste una proposta esportabile per
-questo kind.
+"Someone else's" here means: the card (10154) has to go out with the `pubkey`
+of an identity whose private key I do **not** hold. The only way the client
+offers is NIP-46 delegation — there is no exportable proposal for this kind.
 
 ```mermaid
 sequenceDiagram
-    actor Titolare as Chi tiene la chiave del podcast
-    actor Io as Operatore delegato
-    participant BancoClient as Client del titolare
-    participant RelayIncontro as Relay NIP-46
-    participant MioClient as Il mio client
-    participant Relay as Relay di pubblicazione
+    actor Holder as The podcast key holder
+    actor Me as Delegated operator
+    participant DeskClient as The holder's client
+    participant MeetRelay as NIP-46 relay
+    participant MyClient as My client
+    participant Relay as Publishing relay
 
-    Titolare->>BancoClient: Firme -> "Firmo io per altri" -> kind 10154 fra i consentiti -> "Apri il banco"
-    BancoClient-->>Titolare: indirizzo bunker://... (contiene un segreto)
-    Titolare-->>Io: consegna il bunker:// per un canale privato
-    Io->>MioClient: Firme -> "Chiedo la firma a un'altra identita'" (npub atteso + bunker://)
-    MioClient->>RelayIncontro: collega, verifica get_public_key == npub atteso
-    RelayIncontro-->>MioClient: collegata
-    Io->>MioClient: Profilo -> Podcast -> "Chi firma": seleziona la delega
-    Note over MioClient: il form si ricarica con la scheda 10154 GIA' ESISTENTE<br/>di quella chiave, non con la mia
-    Io->>MioClient: modifico, "Chiedi la firma e pubblica"
-    MioClient->>RelayIncontro: richiesta di firma (kind 10154)
-    RelayIncontro->>BancoClient: inoltra la richiesta
-    BancoClient-->>Titolare: "Da approvare": titolo + JSON del template
-    Titolare->>BancoClient: "Firma"
-    BancoClient->>RelayIncontro: evento firmato
-    RelayIncontro-->>MioClient: evento firmato ricevuto
-    MioClient->>Relay: EVENT kind 10154 (pubkey = del podcast)
+    Holder->>DeskClient: Signatures -> "I sign for others" -> kind 10154 among the allowed -> "Open the desk"
+    DeskClient-->>Holder: bunker://... address (contains a secret)
+    Holder-->>Me: hands over the bunker:// through a private channel
+    Me->>MyClient: Signatures -> "I ask another identity to sign" (expected npub + bunker://)
+    MyClient->>MeetRelay: connects, checks get_public_key == expected npub
+    MeetRelay-->>MyClient: connected
+    Me->>MyClient: Profile -> Podcast -> "Who signs": pick the delegation
+    Note over MyClient: the form reloads with the EXISTING 10154 card<br/>of that key, not with mine
+    Me->>MyClient: edit, "Ask for the signature and publish"
+    MyClient->>MeetRelay: signature request (kind 10154)
+    MeetRelay->>DeskClient: forwards the request
+    DeskClient-->>Holder: "To approve": title + the template's JSON
+    Holder->>DeskClient: "Sign"
+    DeskClient->>MeetRelay: signed event
+    MeetRelay-->>MyClient: signed event received
+    MyClient->>Relay: EVENT kind 10154 (pubkey = the podcast's)
 ```
 
-Un dettaglio che conta: scegliendo la delega in _Profilo → Podcast_, il form
-**non parte vuoto e non parte dal mio profilo** — va a cercare sui relay
-l'ultima scheda pubblicata da quella chiave (`perCoordinata(10154, undefined,
-pubkeyDelegata)`) e la carica per modificarla. Se quella chiave non ha ancora
-una scheda, il form è vuoto e la prima pubblicazione la crea.
+One detail that matters: choosing the delegation in _Profile → Podcast_, the
+form **does not start empty and does not start from my profile** — it goes
+looking on the relays for the last card published by that key
+(`perCoordinata(10154, undefined, pubkeyDelegata)`) and loads it for editing.
+If that key has no card yet, the form is empty and the first publication
+creates it.
 
-## Caso 4 — Pubblico un episodio di altri
+## Case 4 — Publishing someone else's episode
 
-Stessa domanda del caso 3, applicata al kind 54. Qui però esiste anche la via
-asincrona, ed è quella mostrata: chi prepara l'episodio non deve essere online
-insieme a chi possiede la chiave.
+The same question as case 3, applied to kind 54. Here, though, the
+asynchronous path also exists, and that is the one shown: whoever prepares the
+episode does not have to be online at the same time as the key holder.
 
 ```mermaid
 sequenceDiagram
-    actor Preparatore as Io
-    participant MioClient as Il mio client
+    actor Preparer as Me
+    participant MyClient as My client
     participant Blossom
-    actor Titolare as Chi tiene la chiave del podcast
-    participant SuoClient as Il suo client
+    actor Holder as The podcast key holder
+    participant TheirClient as Their client
     participant Relay
 
-    Preparatore->>MioClient: Media -> Podcast: file audio, titolo, descrizione
-    MioClient->>Blossom: PUT /upload
-    Blossom-->>MioClient: URL, sha256
-    Preparatore->>MioClient: "Prepara per un'altra identita'" (npub del podcast, facoltativo)
-    MioClient-->>Preparatore: scarica proposta-episodio-*.json
-    Preparatore-->>Titolare: consegna il file (email, chat: nessun protocollo)
-    Titolare->>SuoClient: Media -> Podcast -> "Importala"
-    SuoClient->>SuoClient: legge il JSON, riempie il form
-    Note over SuoClient: avviso se l'npub atteso nel file != la propria chiave
-    opt vuole i byte anche sotto la propria chiave
-        SuoClient->>Blossom: PUT /mirror (stesso sha256, altro host)
+    Preparer->>MyClient: Media -> Podcast: audio file, title, description
+    MyClient->>Blossom: PUT /upload
+    Blossom-->>MyClient: URL, sha256
+    Preparer->>MyClient: "Prepare for another identity" (the podcast's npub, optional)
+    MyClient-->>Preparer: downloads proposta-episodio-*.json
+    Preparer-->>Holder: delivers the file (email, chat: no protocol involved)
+    Holder->>TheirClient: Media -> Podcast -> "Import it"
+    TheirClient->>TheirClient: reads the JSON, fills the form
+    Note over TheirClient: warns if the expected npub in the file != their own key
+    opt wants the bytes under their own key too
+        TheirClient->>Blossom: PUT /mirror (same sha256, another host)
     end
-    Titolare->>SuoClient: controlla, "Componi evento" -> "Firma e pubblica"
-    Note over SuoClient: firma con la PROPRIA chiave (quella del podcast)
-    SuoClient->>Relay: EVENT kind 54 (pubkey = del podcast)
+    Holder->>TheirClient: checks, "Compose event" -> "Sign and publish"
+    Note over TheirClient: signs with THEIR OWN key (the podcast's)
+    TheirClient->>Relay: EVENT kind 54 (pubkey = the podcast's)
 ```
 
-L'alternativa sincrona esiste ed è identica, nello scheletro, al caso 3: da
-_Media → Podcast_, con una delega attiva, il campo "Chi firma" e il pulsante
-diventa "Chiedi la firma e pubblica". Si sceglie l'una o l'altra in base a se
-chi possiede la chiave è raggiungibile nello stesso momento.
+The synchronous alternative exists and is, in outline, identical to case 3:
+from _Media → Podcast_, with an active delegation, the "Who signs" field
+appears and the button becomes "Ask for the signature and publish". You pick
+one or the other depending on whether the key holder is reachable at the same
+moment.
 
-## Caso 5 — Pubblico un episodio di altri per conto di altri
+## Case 5 — Publishing someone else's episode on behalf of someone else
 
-Qui gli attori sono **tre**: chi fornisce il materiale (una persona che può
-non usare affatto questo client — un ospite che manda un audio per email),
-chi lo carica e lo impacchetta, e chi possiede la chiave del podcast e firma.
-Tecnicamente è lo stesso meccanismo del caso 4; la differenza è che
-"prepara" e "vuole che venga pubblicato" sono due persone diverse.
+Here there are **three** actors: whoever provides the material (a person who
+may not use this client at all — a guest who emails an audio file), whoever
+uploads and packages it, and whoever holds the podcast key and signs.
+Technically it is the same mechanism as case 4; the difference is that
+"prepares" and "wants it published" are two different people.
 
 ```mermaid
 sequenceDiagram
-    actor Richiedente as Persona B
-    actor Operatore as Io
-    participant MioClient as Il mio client
+    actor Requester as Person B
+    actor Operator as Me
+    participant MyClient as My client
     participant Blossom
-    actor Titolare as Chi tiene la chiave del podcast
-    participant SuoClient as Il suo client
+    actor Holder as The podcast key holder
+    participant TheirClient as Their client
     participant Relay
 
-    Richiedente-->>Operatore: file audio e note, per un canale qualunque
-    Operatore->>MioClient: Media -> Podcast: carico, titolo, descrizione
-    MioClient->>Blossom: PUT /upload
-    Blossom-->>MioClient: URL, sha256
-    Operatore->>MioClient: "Prepara per un'altra identita'" (npub del podcast)
-    Note over MioClient: preparataDa = il MIO npub (chi ha impacchettato).<br/>Il legame con B resta informale: non entra nell'evento firmato.
-    MioClient-->>Operatore: proposta-episodio-*.json
-    Operatore-->>Titolare: consegna la proposta
-    Titolare->>SuoClient: "Importala", controlla, "Firma e pubblica"
-    SuoClient->>Relay: EVENT kind 54 (pubkey = del podcast; nessun riferimento a B)
+    Requester-->>Operator: audio file and notes, over any channel
+    Operator->>MyClient: Media -> Podcast: upload, title, description
+    MyClient->>Blossom: PUT /upload
+    Blossom-->>MyClient: URL, sha256
+    Operator->>MyClient: "Prepare for another identity" (the podcast's npub)
+    Note over MyClient: preparataDa = MY npub (whoever packaged it).<br/>The link to B stays informal: it does not enter the signed event.
+    MyClient-->>Operator: proposta-episodio-*.json
+    Operator-->>Holder: delivers the proposal
+    Holder->>TheirClient: "Import it", checks, "Sign and publish"
+    TheirClient->>Relay: EVENT kind 54 (pubkey = the podcast's; no reference to B)
 ```
 
-**Onestà su un punto che conta**: il campo `preparataDa` della proposta è
-informativo e locale — vive nel file JSON, non nell'evento pubblicato, e
-riporta chi ha _impacchettato_ la proposta (l'operatore), non chi ha
-_fornito_ il contenuto originale (Persona B). Se il credito verso B deve
-comparire da qualche parte in modo verificabile, l'unico posto protocollare è
-dentro il contenuto dell'episodio stesso (il `content`, in Markdown) o, se B
-collabora stabilmente, come autore nel 10154 — riscontrato dal suo 10064.
-Non c'è un modo automatico di dire "pubblicato da X per conto di Y" su Nostr,
-perché un evento ha una `pubkey` sola.
+**Being straight about something that matters**: the proposal's `preparataDa`
+field is informational and local — it lives in the JSON file, not in the
+published event, and it records who _packaged_ the proposal (the operator),
+not who _provided_ the original content (Person B). If credit to B has to
+appear somewhere verifiable, the only place the protocol offers is inside the
+episode's own content (the `content`, in Markdown) or, if B works on the show
+regularly, as an author in the 10154 — corroborated by their 10064. There is
+no automatic way to say "published by X on behalf of Y" on Nostr, because an
+event has exactly one `pubkey`.
 
-## Caso 6 — Trasferisco la proprietà di un podcast
+## Case 6 — Transferring ownership of a podcast
 
-Qui la risposta onesta è: **NIP-F4 non lo prevede**, perché non c'è nulla da
-trasferire a livello di dati — il podcast _è_ la chiave, e una chiave o la si
-possiede o non la si possiede. Non esiste un evento "cambio di proprietario"
-né un tag "moved to" come esiste per altri usi su Nostr. Il client non può
-inventare un meccanismo che il protocollo non ha; può solo essere chiaro su
-quali sono le tre strade reali, e quanto ciascuna costa.
+Here the honest answer is: **NIP-F4 does not provide for it**, because there
+is nothing to transfer at the data level — the podcast _is_ the key, and a key
+is either yours or it is not. There is no "ownership changed" event, nor a
+"moved to" tag as there is for other uses on Nostr. The client cannot invent a
+mechanism the protocol does not have; it can only be clear about the three
+real paths, and what each one costs.
 
-| Opzione                                        | Cosa succede                                                                         | Reversibile                                                                                                       | Continuità del feed RSS                                  | Quando ha senso                                                                                                                                               |
-| ---------------------------------------------- | ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Consegna della nsec**                        | Il nuovo titolare riceve la chiave privata e pubblica come se fosse sempre stato lui | **No.** Chi l'ha posseduta prima _può sempre_ ripubblicare con quella chiave: consegnarla non la revoca, la copia | Totale — stesso npub, stesso feed, stesso `podcast:guid` | Fiducia totale e uscita definitiva di chi cede                                                                                                                |
-| **Delega NIP-46** (quella che il client offre) | Il vecchio titolare mantiene la chiave, concede una delega di firma a chi opera      | **Sì** — chiude il banco o smette di approvare quando vuole                                                       | Totale                                                   | È un passaggio _operativo_, non una vera cessione. Il caso giusto quando il titolare vuole restare responsabile ma non vuole più operare il giorno per giorno |
-| **Rotazione della chiave**                     | Nasce un'identità nuova; agli occhi del protocollo è un podcast diverso              | Non si "torna indietro": è una scelta, non un rollback                                                            | **Nessuna, automaticamente**                             | Rottura netta voluta, o chiave vecchia compromessa                                                                                                            |
+| Option                                         | What happens                                                                          | Reversible                                                                                                                | RSS feed continuity                               | When it makes sense                                                                                                                              |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Handing over the nsec**                      | The new owner receives the private key and publishes as if it had always been theirs  | **No.** Whoever held it before _can always_ publish with that key again: handing it over does not revoke it, it copies it | Total — same npub, same feed, same `podcast:guid` | Complete trust and a final exit by whoever is handing over                                                                                       |
+| **NIP-46 delegation** (what the client offers) | The old owner keeps the key and grants a signing delegation to whoever operates       | **Yes** — they close the desk or stop approving whenever they want                                                        | Total                                             | This is an _operational_ handover, not a real transfer. The right case when the owner wants to stay responsible but no longer run the day to day |
+| **Key rotation**                               | A new identity is born; as far as the protocol is concerned it is a different podcast | There is no "going back": it is a choice, not a rollback                                                                  | **None, automatically**                           | A deliberate clean break, or an old key that has been compromised                                                                                |
 
-La rotazione è l'opzione con conseguenze meno ovvie, perché il feed RSS di
-questo client è **legato all'npub** (`/v0/feed/{npub}.xml`,
-[`urlFeedPodcast`](../packages/nostr-core/src/feed/index.ts)): cambiare
-chiave cambia l'indirizzo del feed, e nessuna delle directory esterne lo sa da
-sola.
+Rotation is the option with the least obvious consequences, because this
+client's RSS feed is **tied to the npub** (`/v0/feed/{npub}.xml`,
+[`urlFeedPodcast`](../packages/nostr-core/src/feed/index.ts)): changing key
+changes the feed address, and none of the external directories learns that by
+itself.
 
 ```mermaid
 sequenceDiagram
-    actor Vecchio as Titolare A
-    actor Nuovo as Nuovo titolare B
+    actor Old as Owner A
+    actor New as New owner B
     participant Relay
-    participant ServizioFeed as Servizio Feed
-    participant Fountain as App esterna
+    participant FeedService as Feed service
+    participant Fountain as External app
 
-    Note over Vecchio,Nuovo: Nessun evento NIP-F4 di "trasferimento": il podcast e' la chiave stessa.
-    Vecchio->>Relay: ultimo kind 10154 su chiave A: annuncio del cambio + npub di B, a mano
-    Nuovo->>Relay: kind 10154 su chiave B (un podcast NUOVO, per il protocollo)
-    Nuovo->>Relay: kind 54 successivi, firmati con la chiave B
-    Note over ServizioFeed: /v0/feed/{npub}.xml e' per chiave:<br/>A e B hanno DUE feed distinti, con DUE podcast:guid distinti
-    Fountain->>ServizioFeed: rilegge /v0/feed/npub-A.xml (quello sottoposto a Podcast Index)
-    ServizioFeed-->>Fountain: canale di A, nessun episodio dopo il cambio
-    Note over Fountain: chi segue il feed di A non vede gli episodi di B,<br/>finche' qualcuno non sottopone il feed di B a Podcast Index
+    Note over Old,New: No NIP-F4 "transfer" event: the podcast is the key itself.
+    Old->>Relay: last kind 10154 on key A: announcement of the change + B's npub, by hand
+    New->>Relay: kind 10154 on key B (a NEW podcast, to the protocol)
+    New->>Relay: subsequent kind 54, signed with key B
+    Note over FeedService: /v0/feed/{npub}.xml is per key:<br/>A and B have TWO distinct feeds, with TWO distinct podcast:guid
+    Fountain->>FeedService: re-reads /v0/feed/npub-A.xml (the one submitted to Podcast Index)
+    FeedService-->>Fountain: A's channel, no episodes after the change
+    Note over Fountain: whoever follows A's feed does not see B's episodes,<br/>until someone submits B's feed to Podcast Index
 ```
 
-Non essendoci un tag standard per l'annuncio, il modo pratico è metterlo a
-mano nella `description` del 10154 finale di A e in un kind 1 che lo linka:
-è una convenzione, non un meccanismo — e va detto a chi lo fa, non lasciato
-scoprire quando gli ascoltatori spariscono.
+With no standard tag for the announcement, the practical way is to put it by
+hand in the `description` of A's final 10154 and in a kind 1 that links to it:
+it is a convention, not a mechanism — and whoever does it should be told, not
+left to find out when the listeners disappear.
 
 ---
 
-## Il feed RSS: la stessa storia vista da fuori Nostr
+## The RSS feed: the same story seen from outside Nostr
 
-Il feed (_Profilo → Feed RSS_, sotto la scheda del podcast) non è un settimo caso d'uso: è una
-**proiezione in sola lettura** dei kind 54 e 10154 di una chiave, generata da
-un servizio esterno (non da questo client — vedi
-[`doc/api-da-sviluppare.md`](../doc/api-da-sviluppare.md), Prompt F/G) perché
-né GitHub Pages né Blossom possono servire un URL stabile. Vale la pena
-ripeterlo qui perché i sei casi sopra ne sono tutti la fonte: **qualunque
-identità pubblichi l'episodio o la scheda — propria, delegata, per proposta —
-finisce nello stesso feed**, quello dell'npub che compare come `pubkey`
-sull'evento. Il feed non sa e non gli importa _come_ quell'evento è stato
-composto; sa solo di chi è firmato.
+The feed (_Profile → RSS feed_, under the podcast card) is not a seventh use
+case: it is a **read-only projection** of a key's kind 54 and 10154 events,
+generated by an external service (not by this client — see
+[`doc/api-to-build.md`](../doc/api-to-build.md), Prompts F/G) because neither
+GitHub Pages nor Blossom can serve a stable URL. It is worth repeating here
+because all six cases above are its source: **whichever identity publishes the
+episode or the card — your own, delegated, by proposal — it ends up in the
+same feed**, the one of the npub that appears as the `pubkey` on the event.
+The feed neither knows nor cares _how_ that event was composed; it only knows
+whose signature is on it.
 
-La scheda "Feed RSS" verifica il feed scaricandolo davvero e confronta gli
-episodi che contiene con quelli che il client vede sui relay: se manca
-qualcosa, o un relay era lento quando il servizio ha costruito il feed (che
-ne tiene una copia per qualche minuto), oppure l'evento è finito su un relay
-da cui il servizio non legge — la stessa regola "tutti i relay per il
-podcast" spiegata sopra. Per il secondo caso c'è «Ridistribuisci sui relay»,
-nella stessa scheda e in quella del podcast: rimanda scheda ed episodi, già
-firmati, a tutti i relay di scrittura.
+The "RSS feed" card verifies the feed by actually downloading it and compares
+the episodes it contains with the ones the client sees on the relays: if
+something is missing, either a relay was slow when the service built the feed
+(which it keeps a copy of for a few minutes), or the event ended up on a relay
+the service does not read from — the same "every relay for a podcast" rule
+explained above. For the second case there is «Redistribute to the relays», in
+that card and in the podcast card: it sends the card and the episodes, already
+signed, to every write relay.
 
-## I tag che non conosciamo, e il tag `client`
+## The tags we do not know, and the `client` tag
 
-Ogni evento che esce da qui porta `["client", "NostrMediaClient"]` (NIP-89):
-dice con cosa è stato composto, e sostituisce il nome di un altro client
-quando si ripubblica un evento letto altrove — perché quell'evento nuovo lo
-scrive questo programma.
+Every event that leaves here carries `["client", "NostrMediaClient"]`
+(NIP-89): it says what composed it, and it replaces another client's name when
+you republish an event read elsewhere — because that new event is written by
+this program.
 
-L'altra faccia della stessa scelta: **modificare un evento non cancella ciò
-che il form non sa rappresentare**. Quando si riapre un evento pubblicato, i
-tag che il kind non scrive — quelli di un altro client, o quelli che il nostro
-form non passa ancora — finiscono nella sezione «Tag» in fondo al form, si
-possono correggere o togliere a mano, e tornano nell'evento ripubblicato. Vale
-per la scheda del podcast (10154) come per gli altri kind sostituibili. Da lì
-si aggiungono anche tag liberi, per quello che il client non prevede.
+The other side of the same choice: **editing an event does not delete what the
+form cannot represent**. When a published event is reopened, the tags the kind
+does not write — another client's, or the ones our form does not pass on yet —
+land in the «Tags» section at the bottom of the form, where they can be
+corrected or removed by hand, and they go back out with the republished event.
+This holds for the podcast card (10154) as for the other replaceable kinds.
+That section is also where free tags are added, for whatever the client does
+not provide for.
 
-## Cosa non è coperto oggi
+## What is not covered today
 
-Onestà, non un elenco di scuse — perché chi progetta il passo successivo
-sappia da dove parte:
+Honesty, not a list of excuses — so that whoever designs the next step knows
+where they are starting from:
 
-- **Nessuna proposta asincrona per il 10154.** Aggiornare la scheda di un
-  podcast altrui è possibile solo per delega NIP-46, mai offline. Chi vuole
-  proporre una modifica alla scheda senza essere online insieme al titolare
-  oggi non ha una via nel client.
-- **Il 10064 non ha una scheda dedicata.** `KindRenderer.vue` non ha un ramo
-  per `renderer: 'podcast-authored'`: ricade sul rendering grezzo
-  (`EventRawCard`) invece che su una card leggibile. Non è rotto — è il
-  comportamento di ripiego voluto per i kind senza renderer — ma è meno
-  chiaro di quanto potrebbe essere.
-- **Nessun trasferimento di proprietà a livello di protocollo**, per le
-  ragioni del caso 6: è un limite di NIP-F4, non del client.
-- **La revoca di un 10064 non è garantita.** Pubblicarlo vuoto è vietato
-  dalla `build()` apposta (un elenco vuoto non ha senso: si toglierebbe
-  l'unico segnale che porta); l'unica via è una richiesta di cancellazione
-  (kind 5), che i relay possono ignorare.
-- **Nessun avviso, nel client, quando si sta per ruotare la chiave di un
-  podcast** con episodi già pubblicati: non c'è nulla che lo intercetti,
-  perché "ruotare la chiave" per il client è semplicemente "usare
-  un'identità diversa", indistinguibile da qualunque altro cambio di chiave.
+- **No asynchronous proposal for 10154.** Updating someone else's podcast card
+  is only possible through NIP-46 delegation, never offline. Anyone who wants
+  to propose a change to the card without being online together with the owner
+  has no path in the client today.
+- **10064 has no card of its own.** `KindRenderer.vue` has no branch for
+  `renderer: 'podcast-authored'`: it falls back to the raw rendering
+  (`EventRawCard`) instead of a readable card. It is not broken — that is the
+  intended fallback for kinds without a renderer — but it is less clear than
+  it could be.
+- **No ownership transfer at the protocol level**, for the reasons in case 6:
+  that is a NIP-F4 limit, not the client's.
+- **Revoking a 10064 is not guaranteed.** Publishing it empty is forbidden by
+  `build()` on purpose (an empty list makes no sense: it would remove the only
+  signal it carries); the only path is a deletion request (kind 5), which
+  relays may ignore.
+- **No warning, in the client, when you are about to rotate the key of a
+  podcast** that already has published episodes: nothing intercepts it,
+  because "rotating the key" is, to the client, simply "using a different
+  identity", indistinguishable from any other key change.
 
-## Riferimenti
+## References
 
-- [NIP-F4](https://github.com/nostr-protocol/nips/blob/podcasts/54.md) — la
-  specifica: kind 54, 10154, e il kind correlato 10064.
+- [NIP-F4](https://github.com/nostr-protocol/nips/blob/podcasts/54.md) — the
+  specification: kinds 54 and 10154, and the related kind 10064.
 - [`packages/nostr-core/src/kinds/definitions/podcast.ts`](../packages/nostr-core/src/kinds/definitions/podcast.ts) —
-  le tre definizioni, con i test in
-  [`podcast-allegati.test.ts`](../packages/nostr-core/test/podcast-allegati.test.ts).
-- [`packages/nostr-core/src/episodi/index.ts`](../packages/nostr-core/src/episodi/index.ts) —
-  la bozza/proposta di episodio, con [`episodi.test.ts`](../packages/nostr-core/test/episodi.test.ts).
+  the three definitions, with tests in
+  [`podcast-attachments.test.ts`](../packages/nostr-core/test/podcast-attachments.test.ts).
+- [`packages/nostr-core/src/episodes/index.ts`](../packages/nostr-core/src/episodes/index.ts) —
+  the episode draft/proposal, with [`episodes.test.ts`](../packages/nostr-core/test/episodes.test.ts).
 - [`packages/nostr-core/src/signers/`](../packages/nostr-core/src/signers/) —
-  banco e delega NIP-46, con [`firma-delegata.test.ts`](../packages/nostr-core/test/firma-delegata.test.ts).
+  NIP-46 desk and delegation, with [`delegated-signing.test.ts`](../packages/nostr-core/test/delegated-signing.test.ts).
 - [`packages/nostr-core/src/feed/index.ts`](../packages/nostr-core/src/feed/index.ts) —
-  lettura e verifica del feed, generatore OPML, con [`feed.test.ts`](../packages/nostr-core/test/feed.test.ts).
-- [`doc/api-da-sviluppare.md`](../doc/api-da-sviluppare.md) — i prompt per il
-  servizio esterno (dominio audio, dominio feed).
+  reading and verifying the feed, OPML generator, with [`feed.test.ts`](../packages/nostr-core/test/feed.test.ts).
+- [`doc/api-to-build.md`](../doc/api-to-build.md) — the prompts for the
+  external service (audio domain, feed domain).

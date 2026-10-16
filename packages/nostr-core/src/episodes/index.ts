@@ -4,17 +4,19 @@ import type { ImetaInput } from '../kinds/imeta.js'
 import type { BlobDescriptor } from '../media/blossom.js'
 
 /**
- * Bozza di episodio: il lavoro di pubblicazione prima che diventi un evento.
+ * An episode draft: the publishing work before it becomes an event.
  *
- * Porta **i dati del form e i file gia' su Blossom**, non un evento. E' la
- * stessa cosa in tre usi: salvata nel browser e' una bozza da riprendere,
- * scaricata come file e' una proposta da consegnare a un'altra identita',
- * importata da quell'identita' e' un episodio da controllare e firmare. Chi
- * firma ricompone dal form cio' che vede: non gli arriva mai un evento gia'
- * impacchettato da qualcun altro.
+ * It carries **the form's data and the files already on Blossom**, not an
+ * event. It is the same thing in three uses: saved in the browser it is a
+ * draft to pick up again, downloaded as a file it is a proposal to hand to
+ * another identity, imported by that identity it is an episode to check and
+ * sign. Whoever signs recomposes from the form what they can see: they never
+ * receive an event already packaged by someone else.
  *
- * Per questo puo' essere **incompleta**: e' il suo scopo. `completezza()` dice
- * cosa manca, e sta al pulsante «pubblica» consultarla.
+ * That is why it can be **incomplete**: that is its purpose. `completezza()`
+ * says what is missing, and it is up to the «publish» button to consult it.
+ *
+ * The messages stay in Italian: they are shown when a proposal is imported.
  */
 
 export const VERSIONE_BOZZA_EPISODIO = 1 as const
@@ -38,9 +40,9 @@ export const bozzaEpisodioSchema = z.object({
   id: z.string().min(1),
   creataAlle: z.number(),
   aggiornataAlle: z.number(),
-  /** Chi l'ha preparata, in npub. Solo informativo. */
+  /** Who prepared it, as an npub. Informational only. */
   preparataDa: z.string().optional(),
-  /** Chi dovrebbe pubblicarla, in npub. Se chi importa e' un altro, si avvisa: non si vieta. */
+  /** Who should publish it, as an npub. If the importer is someone else we warn: we do not forbid. */
   perChiave: z.string().optional(),
   episodio: z.object({
     titolo: z.string(),
@@ -52,7 +54,7 @@ export const bozzaEpisodioSchema = z.object({
   allegati: z.array(allegatoSchema),
 })
 
-/** Un file gia' su Blossom, nella forma che il caricatore sa riadottare. */
+/** A file already on Blossom, in the shape the uploader can adopt again. */
 export interface AllegatoBozza {
   nome: string
   imeta: ImetaInput
@@ -79,14 +81,14 @@ export interface BozzaEpisodio {
 }
 
 export interface DatiBozzaEpisodio {
-  /** Assente per una bozza nuova: viene generato. */
+  /** Absent for a new draft: it gets generated. */
   id?: string
   creataAlle?: number
   preparataDa?: string
   perChiave?: string
   episodio: BozzaEpisodio['episodio']
   allegati: AllegatoBozza[]
-  /** Iniettabile nei test. */
+  /** Injectable in tests. */
   adesso?: () => number
 }
 
@@ -98,7 +100,7 @@ function nuovoId(): string {
   return `episodio-${casuale}`
 }
 
-/** Timbra una bozza. Valida la forma, non la completezza: puo' mancare tutto. */
+/** Stamps a draft. It validates the shape, not completeness: anything may be missing. */
 export function creaBozzaEpisodio(dati: DatiBozzaEpisodio): BozzaEpisodio {
   const adesso = (dati.adesso ?? (() => Math.floor(Date.now() / 1000)))()
   return bozzaEpisodioSchema.parse({
@@ -121,11 +123,11 @@ export function creaBozzaEpisodio(dati: DatiBozzaEpisodio): BozzaEpisodio {
 }
 
 /**
- * Legge una bozza da testo JSON — un file importato, o lo storage.
+ * Reads a draft from JSON text — an imported file, or storage.
  *
- * @throws con un messaggio leggibile se non e' una bozza, o se e' di una
- *         versione che questo client non conosce: meglio dirlo che caricare
- *         un form a meta' senza spiegazioni.
+ * @throws with a readable message if it is not a draft, or if it is of a
+ *         version this client does not know: better to say so than to load
+ *         half a form with no explanation.
  */
 export function leggiBozzaEpisodio(testo: string): BozzaEpisodio {
   let grezzo: unknown
@@ -153,15 +155,16 @@ export function leggiBozzaEpisodio(testo: string): BozzaEpisodio {
 
 export interface Completezza {
   pronta: boolean
-  /** Cosa manca per poter pubblicare, nell'ordine in cui va colmato. */
+  /** What is missing before publishing is possible, in the order to fill it in. */
   manca: string[]
 }
 
 /**
- * Cosa manca perche' la bozza diventi un kind 54 valido.
+ * What is missing for the draft to become a valid kind 54.
  *
- * Rispecchia i controlli di `podcastEpisodeDefinition.build`, ma prima e
- * senza lanciare: serve a un pulsante per spiegarsi, non a un errore.
+ * It mirrors the checks in `podcastEpisodeDefinition.build`, but earlier and
+ * without throwing: it is there for a button to explain itself, not for an
+ * error.
  */
 export function completezzaEpisodio(b: Pick<BozzaEpisodio, 'episodio' | 'allegati'>): Completezza {
   const manca: string[] = []

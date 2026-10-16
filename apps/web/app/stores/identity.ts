@@ -17,22 +17,22 @@ import {
 import { defineStore } from 'pinia'
 
 /**
- * Identita' dell'utente e firma degli eventi.
+ * The user's identity and the signing of the events.
  *
- * Tre modalita', in ordine di sicurezza decrescente:
+ * Three modes, in decreasing order of security:
  *
- *   - `nip07`     estensione del browser. La chiave non entra mai nel nostro
- *                 codice: le passiamo l'evento e ci torna firmato.
- *   - `readonly`  solo npub. Si legge tutto, non si pubblica nulla.
- *   - `locale`    chiave privata incollata dall'utente. Cifrata NIP-49 prima
- *                 di essere scritta, ma resta la modalita' piu' esposta:
- *                 chiunque acceda al browser e conosca la password possiede
- *                 l'identita' per sempre, senza possibilita' di revoca.
+ *   - `nip07`     a browser extension. The key never enters our code: we pass
+ *                 it the event and it comes back signed.
+ *   - `readonly`  an npub alone. Everything can be read, nothing published.
+ *   - `locale`    a private key pasted by the user. NIP-49-encrypted before
+ *                 being written, but it remains the most exposed mode: anyone
+ *                 with access to the browser who knows the password holds the
+ *                 identity for ever, with no possibility of revocation.
  *
- * REGOLA NON NEGOZIABILE: la chiave decifrata non entra nello stato dello
- * store. Vive in una variabile di modulo, quindi non e' reattiva, non finisce
- * nei devtools e soprattutto non puo' essere serializzata nel payload SSR di
- * Nuxt, che verrebbe scritto in chiaro nell'HTML.
+ * A NON-NEGOTIABLE RULE: the decrypted key does not enter the store's state.
+ * It lives in a module variable, hence it is not reactive, does not end up in
+ * the devtools and above all cannot be serialised into Nuxt's SSR payload,
+ * which would be written in the clear into the HTML.
  */
 
 let chiaveInMemoria: SecretKey | null = null
@@ -44,7 +44,7 @@ export type ModoAccesso = 'nip07' | 'locale' | 'readonly'
 interface IdentitaPersistita {
   modo: ModoAccesso
   pubkey: string
-  /** Solo per il modo `locale`: la chiave cifrata NIP-49. Mai quella in chiaro. */
+  /** For the `locale` mode alone: the NIP-49-encrypted key. Never the plain one. */
   chiaveCifrata?: string
 }
 
@@ -54,11 +54,11 @@ interface Nip07 {
   signEvent(event: EventTemplate): Promise<NostrEvent>
   getRelays?(): Promise<Record<string, { read: boolean; write: boolean }>>
   /**
-   * Cifratura NIP-44, usata da NIP-37 per le bozze.
+   * NIP-44 encryption, which NIP-37 uses for the drafts.
    *
-   * Facoltativa: non tutte le estensioni la espongono, e chiamarla senza
-   * verificarne la presenza produrrebbe un errore illeggibile invece di un
-   * messaggio che dice cosa fare.
+   * Optional: not every extension exposes it, and calling it without checking
+   * that it is there would produce an unreadable error instead of a message
+   * that says what to do.
    */
   nip44?: {
     encrypt(pubkey: string, plaintext: string): Promise<string>
@@ -78,8 +78,8 @@ function leggiPersistito(): IdentitaPersistita | null {
     const grezzo = localStorage.getItem(CHIAVE_STORAGE)
     return grezzo ? (JSON.parse(grezzo) as IdentitaPersistita) : null
   } catch {
-    // Storage disabilitato o dato corrotto: si riparte da non autenticati
-    // invece di impedire l'avvio dell'applicazione.
+    // Storage disabled or data corrupted: we start again unauthenticated
+    // instead of preventing the application from starting.
     return null
   }
 }
@@ -90,29 +90,29 @@ function scriviPersistito(dati: IdentitaPersistita | null): void {
     if (dati) localStorage.setItem(CHIAVE_STORAGE, JSON.stringify(dati))
     else localStorage.removeItem(CHIAVE_STORAGE)
   } catch {
-    // Modalita' privata o quota esaurita: la sessione resta valida in memoria.
+    // Private mode or quota exhausted: the session stays valid in memory.
   }
 }
 
 export const useIdentity = defineStore('identity', () => {
   const modo = ref<ModoAccesso | null>(null)
   const pubkey = ref<string | null>(null)
-  /** Solo per il modo locale: c'e' una chiave cifrata da sbloccare. */
+  /** For the local mode alone: there is an encrypted key to unlock. */
   const chiaveCifrata = ref<string | null>(null)
-  /** Vero quando la chiave locale e' stata decifrata e si puo' firmare. */
+  /** True when the local key has been decrypted and signing is possible. */
   const sbloccato = ref(false)
 
   const autenticato = computed(() => pubkey.value !== null)
   const npub = computed(() => (pubkey.value ? toNpub(pubkey.value) : null))
 
-  /** Se in questo stato e' possibile firmare e pubblicare. */
+  /** Whether signing and publishing are possible in this state. */
   const puoFirmare = computed(() => {
     if (modo.value === 'nip07') return true
     if (modo.value === 'locale') return sbloccato.value
     return false
   })
 
-  /** Perche' non si puo' firmare, da mostrare in UI. */
+  /** Why signing is not possible, to be shown in the UI. */
   const motivoNonFirmabile = computed(() => {
     if (!autenticato.value) return 'Devi prima accedere.'
     if (modo.value === 'readonly') return 'Sei in sola lettura: non e’ possibile pubblicare.'
@@ -121,27 +121,28 @@ export const useIdentity = defineStore('identity', () => {
   })
 
   /**
-   * Se `window.nostr` c'e'.
+   * Whether `window.nostr` is there.
    *
-   * E' un `ref` e non un `computed` perche' non ha dipendenze reattive: un
-   * computed lo calcolerebbe una volta sola, al primo accesso, e resterebbe
-   * fermo li'. Le estensioni iniettano `window.nostr` in modo asincrono e
-   * possono arrivare **dopo** l'avvio dell'applicazione, lasciando l'utente
-   * davanti a un «nessuna estensione rilevata» che una ricarica smentisce.
+   * It is a `ref` and not a `computed` because it has no reactive
+   * dependencies: a computed would evaluate it once only, on the first access,
+   * and would stay stuck there. Extensions inject `window.nostr`
+   * asynchronously and can arrive **after** the application has started,
+   * leaving the user in front of a «no extension detected» that a reload
+   * contradicts.
    */
   const estensioneDisponibile = ref(false)
 
-  /** Ricontrolla la presenza dell'estensione. */
+  /** Checks again whether the extension is there. */
   function rilevaEstensione(): boolean {
     if (!import.meta.client) return false
     estensioneDisponibile.value = typeof window.nostr !== 'undefined'
     return estensioneDisponibile.value
   }
 
-  /** Ricarica lo stato salvato. Da chiamare all'avvio, lato client. */
+  /** Reloads the saved state. To be called at start-up, on the client side. */
   function ripristina(): void {
-    // Un paio di controlli ravvicinati coprono le estensioni che si iniettano
-    // subito dopo il caricamento della pagina.
+    // A couple of checks close together cover the extensions that inject
+    // themselves just after the page has loaded.
     if (!rilevaEstensione() && import.meta.client) {
       for (const ritardo of [150, 600, 1500]) setTimeout(rilevaEstensione, ritardo)
     }
@@ -151,7 +152,7 @@ export const useIdentity = defineStore('identity', () => {
     modo.value = salvato.modo
     pubkey.value = salvato.pubkey
     chiaveCifrata.value = salvato.chiaveCifrata ?? null
-    // La chiave locale resta bloccata: la password non si memorizza mai.
+    // The local key stays locked: the password is never remembered.
     sbloccato.value = salvato.modo === 'nip07'
   }
 
@@ -179,10 +180,10 @@ export const useIdentity = defineStore('identity', () => {
   }
 
   /**
-   * Accesso con chiave privata.
+   * Logging in with a private key.
    *
-   * La chiave viene cifrata con la password prima di toccare lo storage; la
-   * versione in chiaro resta solo in memoria e sparisce a fine sessione.
+   * The key is encrypted with the password before it touches the storage; the
+   * plain version stays in memory alone and vanishes at the end of the session.
    */
   function accediConChiave(input: string, password: string): void {
     const sk = parseSecretKeyInput(input)
@@ -197,14 +198,14 @@ export const useIdentity = defineStore('identity', () => {
     scriviPersistito({ modo: 'locale', pubkey: pk, chiaveCifrata: cifrata })
   }
 
-  /** Sblocca una chiave gia' salvata, cifrata. */
+  /** Unlocks an already saved, encrypted key. */
   function sblocca(password: string): void {
     if (!chiaveCifrata.value) throw new Error('Nessuna chiave salvata da sbloccare.')
     const sk = decryptSecretKey(chiaveCifrata.value, password)
 
-    // Se la chiave salvata non corrisponde alla pubkey attesa qualcosa non
-    // torna: meglio fermarsi che firmare con un'identita' diversa da quella
-    // mostrata in interfaccia.
+    // When the saved key does not match the expected pubkey something is
+    // wrong: better to stop than to sign with an identity other than the one
+    // shown in the interface.
     const pk = publicKeyFrom(sk)
     if (pubkey.value && pk !== pubkey.value) {
       wipeSecretKey(sk)
@@ -215,7 +216,7 @@ export const useIdentity = defineStore('identity', () => {
     sbloccato.value = true
   }
 
-  /** Richiude la chiave senza uscire dall'account. */
+  /** Locks the key again without logging out of the account. */
   function blocca(): void {
     if (chiaveInMemoria) wipeSecretKey(chiaveInMemoria)
     chiaveInMemoria = null
@@ -231,20 +232,20 @@ export const useIdentity = defineStore('identity', () => {
   }
 
   /**
-   * Cifrario NIP-44 verso se stessi, per le bozze (NIP-37).
+   * The NIP-44 cipher to yourself, for the drafts (NIP-37).
    *
-   * `null` quando non e' disponibile, con tre cause distinte che l'interfaccia
-   * deve saper distinguere: sola lettura, chiave bloccata, oppure
-   * un'estensione che non espone NIP-44. Vedi `motivoNonCifrabile`.
+   * `null` when it is not available, with three distinct causes the interface
+   * has to be able to tell apart: read-only, a locked key, or an extension
+   * that does not expose NIP-44. See `motivoNonCifrabile`.
    */
   const cifrario = computed<CifrarioNip44 | null>(() => {
     if (modo.value === 'nip07') {
       if (!import.meta.client || !window.nostr?.nip44 || !pubkey.value) return null
       const nip44 = window.nostr.nip44
       const pk = pubkey.value
-      // Verso se stessi: in NIP-44 la chiave di conversazione si deriva da una
-      // privata e una pubblica, e usando la propria si ottiene un canale con
-      // se stessi.
+      // To yourself: in NIP-44 the conversation key is derived from a private
+      // and a public key, and using your own gives you a channel with
+      // yourself.
       return {
         encrypt: (testo) => nip44.encrypt(pk, testo),
         decrypt: (cifrato) => nip44.decrypt(pk, cifrato),
@@ -258,7 +259,7 @@ export const useIdentity = defineStore('identity', () => {
     return null
   })
 
-  /** Perche' non si possono usare le bozze cifrate, da mostrare in UI. */
+  /** Why the encrypted drafts cannot be used, to be shown in the UI. */
   const motivoNonCifrabile = computed(() => {
     if (cifrario.value) return null
     if (!autenticato.value) return 'Devi prima accedere.'
@@ -272,11 +273,12 @@ export const useIdentity = defineStore('identity', () => {
     return 'Cifratura non disponibile in questa modalita’.'
   })
 
-  /** Firma un template con la modalita' attiva. */
+  /** Signs a template with the active mode. */
   async function firma(template: EventTemplate): Promise<NostrEvent> {
-    // Il template arriva quasi sempre da un `ref`, e Vue avvolge in un Proxy
-    // reattivo qualunque oggetto ci si metta dentro. Va appiattito **prima** di
-    // consegnarlo a chi firma: vedi il commento su `plainEventTemplate`.
+    // The template nearly always comes from a `ref`, and Vue wraps whatever
+    // object you put inside one in a reactive Proxy. It has to be flattened
+    // **before** being handed to the signer: see the comment on
+    // `plainEventTemplate`.
     const piano = plainEventTemplate(template)
 
     if (modo.value === 'nip07') {

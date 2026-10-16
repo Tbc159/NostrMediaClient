@@ -2,10 +2,10 @@
 import type { NostrEvent, PodcastMetadataParsed } from '@nmc/nostr-core'
 
 /**
- * Kind 10154 — descrizione del podcast (NIP-F4).
+ * Kind 10154 — the podcast's description (NIP-F4).
  *
- * E' la scheda dello *show*, non della persona, anche quando la chiave e' la
- * stessa: i lettori di podcast leggono questa e possono ignorare il kind 0.
+ * It is the *show's* card, not the person's, even when the key is the same:
+ * podcast players read this one and can ignore kind 0.
  */
 defineProps<{ evento: NostrEvent; dati: PodcastMetadataParsed }>()
 </script>

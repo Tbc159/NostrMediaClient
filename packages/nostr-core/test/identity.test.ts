@@ -16,8 +16,8 @@ import {
   wipeSecretKey,
 } from '../src/identity/keys.js'
 
-describe('lettura delle chiavi inserite dall utente', () => {
-  it('accetta indifferentemente nsec ed esadecimale, ottenendo la stessa chiave', () => {
+describe('reading the keys the user enters', () => {
+  it('accepts nsec and hexadecimal alike, getting the same key', () => {
     const sk = newSecretKey()
     const daNsec = parseSecretKeyInput(toNsec(sk))
     const hex = Buffer.from(sk).toString('hex')
@@ -26,24 +26,24 @@ describe('lettura delle chiavi inserite dall utente', () => {
     expect(Buffer.from(daHex).toString('hex')).toBe(hex)
   })
 
-  it('tollera spazi attorno al valore incollato', () => {
+  it('tolerates spaces around the pasted value', () => {
     const sk = newSecretKey()
     expect(parseSecretKeyInput(`  ${toNsec(sk)}  `)).toEqual(sk)
   })
 
-  it('avverte in modo esplicito se al posto della privata arriva una pubblica', () => {
+  it('warns explicitly when a public key arrives in place of the private one', () => {
     const npub = toNpub(publicKeyFrom(newSecretKey()))
     expect(() => parseSecretKeyInput(npub)).toThrow(/chiave pubblica/)
   })
 
-  it('avverte se nel campo della chiave pubblica finisce una privata', () => {
-    // Il caso pericoloso: va segnalato a voce alta, non accettato in silenzio.
+  it('warns when a private key ends up in the public key field', () => {
+    // The dangerous case: it has to be flagged loudly, not accepted silently.
     const nsec = toNsec(newSecretKey())
     expect(() => parsePublicKeyInput(nsec)).toThrow(/PRIVATA/)
   })
 
-  it('non riporta il valore inserito nei messaggi d errore', () => {
-    // Finirebbe nei log del browser: una chiave trapelata resta trapelata.
+  it('does not repeat the entered value in the error messages', () => {
+    // It would end up in the browser's logs: a leaked key stays leaked.
     const segreto = 'nsec1' + 'q'.repeat(58)
     try {
       parseSecretKeyInput(segreto)
@@ -53,12 +53,12 @@ describe('lettura delle chiavi inserite dall utente', () => {
     }
   })
 
-  it('rifiuta un formato irriconoscibile', () => {
+  it('refuses an unrecognisable format', () => {
     expect(() => parseSecretKeyInput('ciao')).toThrow(/Formato non riconosciuto/)
     expect(() => parseSecretKeyInput('')).toThrow(/mancante/)
   })
 
-  it('accetta npub, nprofile ed esadecimale per la chiave pubblica', () => {
+  it('accepts npub, nprofile and hexadecimal for the public key', () => {
     const pk = publicKeyFrom(newSecretKey())
     expect(parsePublicKeyInput(toNpub(pk))).toBe(pk)
     expect(parsePublicKeyInput(pk)).toBe(pk)
@@ -66,24 +66,24 @@ describe('lettura delle chiavi inserite dall utente', () => {
   })
 })
 
-describe('cifratura a riposo (NIP-49)', () => {
-  it('cifra e decifra restituendo la chiave originale', () => {
+describe('encryption at rest (NIP-49)', () => {
+  it('encrypts and decrypts, returning the original key', () => {
     const sk = newSecretKey()
-    // logn basso: qui interessa la correttezza, non il costo di derivazione.
+    // A low logn: what matters here is correctness, not the derivation cost.
     const cifrata = encryptSecretKey(sk, 'password-di-prova', 8)
     expect(isEncryptedSecretKey(cifrata)).toBe(true)
     expect(decryptSecretKey(cifrata, 'password-di-prova')).toEqual(sk)
   })
 
-  it('non lascia trapelare la chiave nel testo cifrato', () => {
+  it('does not let the key leak into the ciphertext', () => {
     const sk = newSecretKey()
     const cifrata = encryptSecretKey(sk, 'password-di-prova', 8)
     expect(cifrata).not.toContain(Buffer.from(sk).toString('hex'))
   })
 
-  it('con la password sbagliata non distingue il motivo del fallimento', () => {
-    // Dire "password errata" invece che "dato corrotto" aiuterebbe chi prova
-    // a indovinare: il messaggio resta volutamente unico.
+  it('does not distinguish the reason for the failure on a wrong password', () => {
+    // Saying "wrong password" rather than "corrupted data" would help whoever
+    // is guessing: the message stays deliberately the same.
     const cifrata = encryptSecretKey(newSecretKey(), 'giusta', 8)
     expect(() => decryptSecretKey(cifrata, 'sbagliata')).toThrow(/Password errata, oppure/)
     expect(() => decryptSecretKey('ncryptsec1rovinato', 'giusta')).toThrow(
@@ -91,13 +91,13 @@ describe('cifratura a riposo (NIP-49)', () => {
     )
   })
 
-  it('pretende una password', () => {
+  it('demands a password', () => {
     expect(() => encryptSecretKey(newSecretKey(), '')).toThrow(/password/)
   })
 })
 
-describe('robustezza della password', () => {
-  it('classifica senza mai bloccare', () => {
+describe('the strength of the password', () => {
+  it('classifies without ever blocking', () => {
     expect(passwordStrength('').score).toBe(0)
     expect(passwordStrength('corta').score).toBe(0)
     expect(passwordStrength('soltantolettere').score).toBe(1)
@@ -106,8 +106,8 @@ describe('robustezza della password', () => {
   })
 })
 
-describe('firma', () => {
-  it('produce un evento con id, firma e autore corretti', () => {
+describe('signing', () => {
+  it('produces an event with the right id, signature and author', () => {
     const sk = newSecretKey()
     const firmato = signWithSecretKey(
       { kind: 1, content: 'ciao', tags: [], created_at: 1_800_000_000 },
@@ -119,8 +119,8 @@ describe('firma', () => {
   })
 })
 
-describe('pulizia della memoria', () => {
-  it('azzera i byte della chiave', () => {
+describe('clearing the memory', () => {
+  it("zeroes the key's bytes", () => {
     const sk = newSecretKey()
     wipeSecretKey(sk)
     expect(sk.every((b) => b === 0)).toBe(true)
@@ -138,19 +138,19 @@ describe('plainEventTemplate', () => {
     created_at: 1_800_000_000,
   }
 
-  it('rende clonabile un template avvolto in un Proxy', () => {
-    // E' il guasto vero, non un caso di scuola: le estensioni NIP-07 passano
-    // l'evento al proprio content script con postMessage, che usa lo
-    // structured clone, e lo structured clone rifiuta i Proxy. Un template
-    // composto in un'interfaccia reattiva e' quasi sempre dentro un Proxy.
+  it('makes a template wrapped in a Proxy cloneable', () => {
+    // It is the real failure, not a textbook case: NIP-07 extensions pass the
+    // event to their own content script with postMessage, which uses the
+    // structured clone, and the structured clone refuses Proxies. A template
+    // composed in a reactive interface is nearly always inside a Proxy.
     const avvolto = new Proxy(template, {})
     expect(() => structuredClone(avvolto)).toThrow(/clone/i)
     expect(() => structuredClone(plainEventTemplate(avvolto))).not.toThrow()
   })
 
-  it('appiattisce anche i tag, che sono array annidati', () => {
-    // Appiattire solo il livello esterno lascerebbe i proxy piu' in
-    // profondita', e lo structured clone li troverebbe comunque.
+  it('flattens the tags too, which are nested arrays', () => {
+    // Flattening the outer level alone would leave the proxies deeper down,
+    // and the structured clone would find them anyway.
     const conTagAvvolti = {
       ...template,
       tags: template.tags.map((t) => new Proxy(t, {})),
@@ -159,13 +159,13 @@ describe('plainEventTemplate', () => {
     expect(() => structuredClone(plainEventTemplate(conTagAvvolti))).not.toThrow()
   })
 
-  it('non altera il contenuto del template', () => {
+  it("does not alter the template's content", () => {
     expect(plainEventTemplate(template)).toEqual(template)
   })
 
-  it("scarta le proprieta' estranee, che il relay rifiuterebbe", () => {
-    // Un evento Nostr ha esattamente quattro campi prima della firma: quello
-    // che arriva in piu' da uno store reattivo non deve finire nella firma.
+  it('discards the foreign properties, which the relay would refuse', () => {
+    // A Nostr event has exactly four fields before the signature: whatever
+    // arrives on top from a reactive store must not end up in the signature.
     const sporco = { ...template, __v_isRef: false, extra: 'roba' }
     expect(Object.keys(plainEventTemplate(sporco)).sort()).toEqual([
       'content',

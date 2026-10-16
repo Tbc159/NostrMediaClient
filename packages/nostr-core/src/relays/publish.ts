@@ -5,67 +5,67 @@ import type { NostrEvent } from '../kinds/types.js'
 import { mergeRelayLists } from './pool.js'
 
 /**
- * Pubblicazione di un evento sui relay.
+ * Publishing an event to the relays.
  *
- * Su Nostr non esiste "pubblicato" in senso assoluto: esiste un elenco di
- * relay, ciascuno dei quali accetta o rifiuta per conto proprio. Non c'e'
- * transazione, non c'e' rollback, e un relay puo' accettare l'evento e
- * dimenticarlo il giorno dopo. Questo modulo restituisce percio' l'esito
- * **per relay**, e lascia alla UI il compito di dirlo all'utente invece di
- * ridurre tutto a un booleano che nasconde meta' della verita'.
+ * On Nostr there is no "published" in an absolute sense: there is a list of
+ * relays, each of which accepts or refuses on its own. There is no
+ * transaction, no rollback, and a relay can accept the event and forget it the
+ * next day. This module therefore returns the outcome **per relay**, and
+ * leaves the UI the job of telling the user, instead of reducing everything to
+ * a boolean that hides half the truth.
  */
 
-/** Esito di una pubblicazione su un singolo relay. */
+/** The outcome of a publication on a single relay. */
 export type EsitoRelay =
-  /** Accettato e memorizzato. */
+  /** Accepted and stored. */
   | 'accettato'
-  /** Il relay lo aveva gia': per l'utente equivale a un successo. */
+  /** The relay had it already: for the user that amounts to a success. */
   | 'duplicato'
-  /** Rifiutato per una regola del relay (permessi, spam, proof-of-work). */
+  /** Refused by a rule of the relay's (permissions, spam, proof-of-work). */
   | 'rifiutato'
-  /** Il relay pretende l'autenticazione NIP-42 e non e' stato possibile darla. */
+  /** The relay demands NIP-42 authentication and it could not be given. */
   | 'autenticazione'
-  /** Connessione fallita, scaduta, o errore non attribuibile all'evento. */
+  /** The connection failed or timed out, or an error not attributable to the event. */
   | 'irraggiungibile'
-  /** Mai contattato: un relay precedente aveva gia' preso in carico l'evento. */
+  /** Never contacted: an earlier relay had already taken the event on. */
   | 'non tentato'
 
 /**
- * Come distribuire l'evento fra i relay dell'elenco.
+ * How to distribute the event among the relays on the list.
  *
- * - `sequenziale` — uno per volta, in ordine, fermandosi al primo che lo
- *   prende in carico. E' il modo piu' affidabile: apre una sola connessione
- *   per volta, quindi non incappa nei limiti per IP dei relay ne' in quelli
- *   del browser sul numero di WebSocket aperti insieme.
- * - `tutti` — tutti in parallelo. Piu' veloce e piu' ridondante, ma se il
- *   primo tentativo apre cinque connessioni insieme e' anche il modo piu'
- *   facile per vederne fallire qualcuna.
+ * - `sequenziale` — one at a time, in order, stopping at the first that takes
+ *   it on. It is the most reliable way: it opens one connection at a time, so
+ *   it runs into neither the relays' per-IP limits nor the browser's on the
+ *   number of WebSockets open together.
+ * - `tutti` — all of them in parallel. Faster and more redundant, but if the
+ *   first attempt opens five connections at once it is also the easiest way to
+ *   see some of them fail.
  *
- * Il compromesso e' reale e non ha una risposta unica: `sequenziale` mette
- * l'evento su **un** relay, quindi meno raggiungibile da chi non lo legge;
- * `tutti` lo mette ovunque, ma fallisce piu' spesso. Per questo la scelta
- * resta del chiamante invece di essere cablata qui.
+ * The trade-off is real and has no single answer: `sequenziale` puts the event
+ * on **one** relay, hence less reachable by whoever does not read it; `tutti`
+ * puts it everywhere, but fails more often. That is why the choice stays with
+ * the caller instead of being hard-wired here.
  */
 export type StrategiaPubblicazione = 'sequenziale' | 'tutti'
 
 /**
- * Kind che vanno **ovunque**, qualunque strategia l'utente abbia scelto.
+ * The kinds that go **everywhere**, whatever strategy the user has chosen.
  *
- * La rotazione ha senso per una nota: e' su un relay, chi la cerca la trova
- * per relay hint. Un podcast no: un lettore di podcast legge da un relay suo,
- * non chiede a te dove hai pubblicato — e uno show con la scheda su `nos.lol`
- * e' invisibile a chi legge `relay.damus.io`. E' successo, ed e' il motivo di
- * questa lista.
+ * The rotation makes sense for a note: it is on one relay, and whoever looks
+ * for it finds it by relay hint. Not for a podcast: a podcast player reads
+ * from a relay of its own, it does not ask you where you published — and a
+ * show whose card is on `nos.lol` is invisible to whoever reads
+ * `relay.damus.io`. It happened, and it is the reason for this list.
  */
 export const KIND_OVUNQUE: readonly number[] = [54, 10064, 10154]
 
 /**
- * La strategia da usare davvero per un evento.
+ * The strategy actually to use for an event.
  *
- * Quella preferita dall'utente vale per gli eventi regolari; per i replaceable
- * e gli addressable — profilo, liste, scheda del podcast, articoli — e per i
- * kind di `KIND_OVUNQUE` si va su tutti i relay: sono eventi che devono
- * essere *trovati*, non solo esistere da qualche parte.
+ * The user's preferred one holds for regular events; for the replaceable and
+ * the addressable ones — profile, lists, the podcast's card, articles — and
+ * for the kinds in `KIND_OVUNQUE` we go to every relay: these are events that
+ * have to be *found*, not merely to exist somewhere.
  */
 export function strategiaPerKind(
   kind: number,
@@ -81,34 +81,34 @@ export function strategiaPerKind(
 export interface RisultatoRelay {
   url: string
   esito: EsitoRelay
-  /** Testo pronto da mostrare, gia' tradotto dal prefisso NIP-01. */
+  /** Text ready to show, already translated from the NIP-01 prefix. */
   motivo: string
-  /** Messaggio grezzo del relay, per la diagnostica. */
+  /** The relay's raw message, for diagnostics. */
   messaggio?: string
 }
 
 export interface RisultatoPubblicazione {
   evento: NostrEvent
   risultati: RisultatoRelay[]
-  /** Relay che hanno l'evento (accettato o gia' presente). */
+  /** The relays that have the event (accepted, or there already). */
   accettati: string[]
   /**
-   * Vero se **almeno un** relay ha l'evento.
+   * True when **at least one** relay has the event.
    *
-   * La soglia e' uno perche' un evento presente su un solo relay e' comunque
-   * raggiungibile e replicabile; pretendere l'unanimita' farebbe fallire la
-   * pubblicazione ogni volta che un relay qualsiasi e' giu'.
+   * The threshold is one because an event present on a single relay is
+   * reachable and replicable all the same; demanding unanimity would make the
+   * publication fail every time any one relay is down.
    */
   riuscita: boolean
 }
 
 /**
- * Spiega un messaggio OK del relay secondo i prefissi standardizzati da NIP-01.
+ * Explains a relay's OK message according to the prefixes NIP-01 standardises.
  *
- * Attenzione all'ordine: **e' il booleano a dire se l'evento e' stato
- * accettato, non il prefisso**. `pow:` e `duplicate:` compaiono anche su
- * risposte positive, e leggere solo il prefisso porterebbe a segnalare come
- * fallita una pubblicazione riuscita.
+ * Mind the order: **it is the boolean that says whether the event was
+ * accepted, not the prefix**. `pow:` and `duplicate:` appear on positive
+ * answers too, and reading the prefix alone would lead to reporting a
+ * successful publication as failed.
  */
 export function spiegaRispostaRelay(
   ok: boolean,
@@ -167,47 +167,47 @@ export function spiegaRispostaRelay(
         motivo: `Errore del relay${dettaglio ? `: ${dettaglio}` : '.'}`,
       }
     default:
-      // Un relay puo' rispondere senza prefisso: la specifica lo impone ma non
-      // tutti lo rispettano. Il testo grezzo e' comunque meglio di "errore".
+      // A relay can answer without a prefix: the specification requires one
+      // but not everyone follows it. The raw text still beats "error".
       return { esito: 'rifiutato', motivo: testo.length > 0 ? testo : 'Rifiutato senza motivo.' }
   }
 }
 
 export interface OpzioniPubblicazione {
   /**
-   * Tempo massimo per relay, in millisecondi.
+   * The maximum time per relay, in milliseconds.
    *
-   * Serve anche a proteggere da un caso preciso: un relay che pretende NIP-42
-   * lascia la pubblicazione **in attesa** finche' non arriva l'autenticazione.
-   * Senza un tetto, il pulsante resterebbe a girare per sempre.
+   * It also protects against one specific case: a relay that demands NIP-42
+   * leaves the publication **pending** until the authentication arrives.
+   * Without a ceiling, the button would spin for ever.
    */
   timeoutMs?: number
 
   /**
-   * Firmatario per l'autenticazione NIP-42.
+   * The signer for NIP-42 authentication.
    *
-   * Viene usato **solo qui, in pubblicazione**, mai in lettura. Autenticarsi
-   * significa dire al relay chi sei: quando gli stai gia' consegnando un
-   * evento firmato con quella chiave non aggiungi nulla, mentre farlo in
-   * lettura gli rivelerebbe cosa leggi e quando.
+   * It is used **only here, when publishing**, never when reading.
+   * Authenticating means telling the relay who you are: when you are already
+   * handing it an event signed with that key you add nothing, whereas doing it
+   * when reading would reveal to it what you read and when.
    */
   auth?: AuthSigner
 
-  /** Distribuzione fra i relay. Predefinita: `sequenziale`. */
+  /** The distribution among the relays. The default: `sequenziale`. */
   strategia?: StrategiaPubblicazione
 
-  /** Notifica il relay che si sta tentando, per dare riscontro durante l'attesa. */
+  /** Announces the relay being tried, to give feedback during the wait. */
   onTentativo?: (url: string, indice: number, totale: number) => void
 }
 
 const TIMEOUT_PREDEFINITO = 12_000
 
 /**
- * Invia un evento gia' firmato a un elenco di relay.
+ * Sends an already signed event to a list of relays.
  *
- * Non lancia mai per il fallimento di un relay: un rifiuto e' un dato, non
- * un'eccezione. Lancia solo se l'elenco e' vuoto, che e' un errore di
- * configurazione del chiamante.
+ * It never throws because a relay failed: a refusal is a piece of data, not an
+ * exception. It throws only when the list is empty, which is a configuration
+ * error on the caller's side.
  */
 export async function publishEvent(
   pool: RelayPool,
@@ -240,17 +240,17 @@ export async function publishEvent(
   return { evento: event, risultati, accettati, riuscita: accettati.length > 0 }
 }
 
-/** Se il relay ha l'evento, comunque ci sia arrivato. */
+/** Whether the relay has the event, however it got there. */
 const preso = (r: RisultatoRelay): boolean => r.esito === 'accettato' || r.esito === 'duplicato'
 
 /**
- * Prova i relay uno per volta, in ordine, fermandosi al primo che prende in
- * carico l'evento.
+ * Tries the relays one at a time, in order, stopping at the first that takes
+ * the event on.
  *
- * I relay non tentati compaiono comunque nel risultato, marcati come tali:
- * ometterli farebbe sembrare che l'elenco configurato sia piu' corto di
- * quello che e', e chi legge non capirebbe perche' il suo relay preferito non
- * risulta da nessuna parte.
+ * The relays not tried appear in the result all the same, marked as such:
+ * leaving them out would make the configured list look shorter than it is, and
+ * whoever read it would not understand why their favourite relay is nowhere to
+ * be seen.
  */
 async function aRotazione(
   pool: RelayPool,
@@ -279,7 +279,7 @@ async function aRotazione(
   return risultati
 }
 
-/** Pubblica su un solo relay, gestendo autenticazione e scadenza. */
+/** Publishes to a single relay, handling the authentication and the timeout. */
 async function pubblicaSuUno(
   pool: RelayPool,
   url: string,
@@ -289,15 +289,16 @@ async function pubblicaSuUno(
 ): Promise<RisultatoRelay> {
   const relay = pool.relay(url)
 
-  // Se il relay ha gia' fatto sapere che pretende l'autenticazione, la si
-  // fornisce prima di provare: altrimenti la publish resterebbe appesa in
-  // attesa e verrebbe chiusa solo dalla scadenza.
+  // When the relay has already let us know that it demands authentication, it
+  // is provided before trying: otherwise the publish would hang waiting and
+  // would only be closed by the timeout.
   if (auth && relay.challenge !== null && !relay.authenticated) {
     try {
       await relay.authenticate(auth)
     } catch {
-      // L'esito della pubblicazione dira' se mancava davvero: fermarsi qui
-      // impedirebbe di pubblicare su un relay che l'AUTH non la esigeva.
+      // The publication's outcome will say whether it was really missing:
+      // stopping here would prevent publishing to a relay that did not
+      // actually require the AUTH.
     }
   }
 
@@ -305,8 +306,8 @@ async function pubblicaSuUno(
     const risposta = await conScadenza(relay.publish(event, { timeout: timeoutMs }), timeoutMs, url)
     const { esito, motivo } = spiegaRispostaRelay(risposta.ok, risposta.message)
 
-    // Alcuni relay mandano la sfida solo dopo aver visto un EVENT: al primo
-    // tentativo rispondono `auth-required`, e solo ora possiamo autenticarci.
+    // Some relays send the challenge only after seeing an EVENT: on the first
+    // attempt they answer `auth-required`, and only now can we authenticate.
     if (esito === 'autenticazione' && auth) {
       const riprovato = await autenticaERiprova(relay, event, timeoutMs, auth, url)
       if (riprovato) return riprovato
@@ -327,7 +328,7 @@ async function pubblicaSuUno(
   }
 }
 
-/** Secondo tentativo dopo un `auth-required`. */
+/** The second attempt, after an `auth-required`. */
 async function autenticaERiprova(
   relay: ReturnType<RelayPool['relay']>,
   event: NostrEvent,
@@ -358,11 +359,11 @@ async function autenticaERiprova(
 }
 
 /**
- * Applica una scadenza a una promise.
+ * Applies a deadline to a promise.
  *
- * `relay.publish` accetta gia' un `timeout`, ma quella scadenza copre l'attesa
- * dell'OK, non l'attesa dell'autenticazione: senza questo secondo tetto un
- * relay che pretende NIP-42 lascerebbe la promise irrisolta.
+ * `relay.publish` already accepts a `timeout`, but that deadline covers the
+ * wait for the OK, not the wait for the authentication: without this second
+ * ceiling a relay that demands NIP-42 would leave the promise unsettled.
  */
 function conScadenza<T>(promise: Promise<T>, ms: number, url: string): Promise<T> {
   let timer: ReturnType<typeof setTimeout>
@@ -376,12 +377,12 @@ function conScadenza<T>(promise: Promise<T>, ms: number, url: string): Promise<T
 }
 
 /**
- * Ricava un messaggio leggibile da cio' che il WebSocket ha lanciato.
+ * Derives a readable message from whatever the WebSocket threw.
  *
- * Non e' quasi mai un `Error`: rxjs propaga direttamente l'evento DOM, e un
- * `ErrorEvent` o un `CloseEvent` convertiti con `String()` diventano
- * `[object ErrorEvent]`, che non dice niente a nessuno. I campi utili stanno
- * dentro l'oggetto e vanno estratti a mano.
+ * It is hardly ever an `Error`: rxjs propagates the DOM event directly, and an
+ * `ErrorEvent` or a `CloseEvent` converted with `String()` become
+ * `[object ErrorEvent]`, which tells nobody anything. The useful fields are
+ * inside the object and have to be extracted by hand.
  */
 function messaggioErrore(errore: unknown): string {
   if (errore instanceof Error && errore.message) return errore.message
@@ -398,7 +399,7 @@ function messaggioErrore(errore: unknown): string {
     if (typeof e.message === 'string' && e.message.length > 0) return e.message
     if (e.error !== undefined && e.error !== errore) return messaggioErrore(e.error)
 
-    // CloseEvent: il codice dice piu' della descrizione, che spesso e' vuota.
+    // CloseEvent: the code says more than the description, which is often empty.
     if (typeof e.code === 'number') {
       const motivo = typeof e.reason === 'string' && e.reason.length > 0 ? ` (${e.reason})` : ''
       return `connessione chiusa dal relay, codice ${e.code}${motivo}`

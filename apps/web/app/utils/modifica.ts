@@ -1,21 +1,21 @@
 import { getKindDefinition, identifier, type NostrEvent } from '@nmc/nostr-core'
 
 /**
- * Dove si va per rimettere mano a un evento gia' pubblicato.
+ * Where you go to put your hand to an already published event again.
  *
- * La distinzione fondamentale non e' "quale kind": e' la **classe** dell'evento
- * secondo NIP-01, e il registry la conosce gia'.
+ * The fundamental distinction is not "which kind": it is the event's **class**
+ * under NIP-01, and the registry knows it already.
  *
- *  - `replaceable` e `addressable` si **modificano davvero**: ripubblicando con
- *    la stessa coordinata il relay sostituisce la versione precedente, e id,
- *    reazioni e risposte restano appesi alla stessa coordinata.
- *  - i `regular` — nota, immagini, video, schede file — sono **immutabili**.
- *    Non e' una limitazione di questo client: il protocollo non prevede la
- *    sostituzione, e l'unica cosa che si puo' fare e' pubblicarne uno nuovo,
- *    che avra' un id diverso e nessuna delle reazioni ricevute.
+ *  - `replaceable` and `addressable` are **really editable**: on republishing
+ *    with the same coordinate the relay replaces the previous version, and the
+ *    id, the reactions and the replies stay hung on the same coordinate.
+ *  - the `regular` ones — a note, images, video, file cards — are
+ *    **immutable**. It is not a limitation of this client: the protocol has no
+ *    replacement, and the only thing to be done is to publish a new one, which
+ *    will have a different id and none of the reactions received.
  *
- * Confondere le due cose e' l'errore che il piano vieta esplicitamente: la UI
- * non deve simulare una modifica che il protocollo non offre.
+ * Confusing the two is the mistake the plan explicitly forbids: the UI must
+ * not simulate an edit the protocol does not offer.
  */
 
 export type AzioneEvento =
@@ -23,7 +23,7 @@ export type AzioneEvento =
   | { tipo: 'ripubblica'; rotta: string; etichetta: string; avviso: string }
   | { tipo: 'nessuna'; avviso: string }
 
-/** Rotta del form che sa comporre questo kind, con la coordinata da riaprire. */
+/** The route of the form that can compose this kind, with the coordinate to reopen. */
 function rottaPerKind(evento: NostrEvent, d: string): string | null {
   switch (evento.kind) {
     case 0:
@@ -40,8 +40,8 @@ function rottaPerKind(evento: NostrEvent, d: string): string | null {
     case 21:
     case 22:
     case 1063:
-      // Regolare: non si modifica. Si puo' pero' ricomporne uno nuovo dagli
-      // stessi file, che sono gia' su Blossom e non vanno ricaricati.
+      // Regular: not editable. A new one can be recomposed, though, from the
+      // same files, which are on Blossom already and need no re-uploading.
       return `/media/nuovo?da=${evento.id}`
     default:
       return null

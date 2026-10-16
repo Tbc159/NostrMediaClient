@@ -2,20 +2,21 @@
 import type { EsitoRelay, RisultatoPubblicazione } from '@nmc/nostr-core'
 
 /**
- * Esito di una pubblicazione, relay per relay.
+ * The outcome of a publication, relay by relay.
  *
- * Deliberatamente non riassume in "pubblicato" o "non pubblicato": un evento
- * accettato da due relay su cinque e' un caso normale su Nostr, e l'utente
- * deve poter vedere quali due — e' da li' che capisce se il suo relay privato
- * sta funzionando o se sta scrivendo solo su quelli pubblici.
+ * Deliberately not summarised into "published" or "not published": an event
+ * accepted by two relays out of five is a normal case on Nostr, and the user
+ * has to be able to see which two — that is how they tell whether their
+ * private relay is working or whether they are writing only to the public
+ * ones.
  */
 const props = defineProps<{ esito: RisultatoPubblicazione }>()
 
 /*
- * L'esito mostrato puo' cambiare da qui: con la rotazione l'evento e' su un
- * relay solo, e chi vuole metterlo anche sugli altri non deve ricomporre
- * niente — e' gia' firmato. Si rimanda lo stesso evento con «tutti» e si
- * mostra il nuovo esito al posto del vecchio.
+ * The outcome shown can change from here: with the rotation the event is on a
+ * single relay, and whoever wants it on the others too has nothing to
+ * recompose — it is signed already. The same event is sent again with «all»
+ * and the new outcome is shown in place of the old.
  */
 const invio = usePublish()
 const esitoMostrato = ref<RisultatoPubblicazione>(props.esito)
@@ -50,9 +51,9 @@ const etichette: Record<EsitoRelay, string> = {
 const accettati = computed(() => esitoMostrato.value.accettati.length)
 
 /*
- * Con la rotazione i relay non tentati non sono fallimenti: contarli nel
- * denominatore farebbe leggere «1 su 4» a una pubblicazione andata come
- * doveva.
+ * With the rotation the relays not tried are not failures: counting them in
+ * the denominator would have a publication that went as it should read «1 out
+ * of 4».
  */
 const tentati = computed(
   () => esitoMostrato.value.risultati.filter((r) => r.esito !== 'non tentato').length,

@@ -1,15 +1,15 @@
 import { describe, expect, it } from 'vitest'
 
-import plektos from './fixtures/evento-plektos.json' with { type: 'json' }
+import plektos from './fixtures/plektos-event.json' with { type: 'json' }
 import { calendarTimeEventDefinition } from '../src/kinds/definitions/calendar-time.js'
 import { metadataDefinition } from '../src/kinds/definitions/metadata.js'
-import { fondiTag, tagAggiuntivi } from '../src/kinds/conservazione.js'
+import { fondiTag, tagAggiuntivi } from '../src/kinds/preservation.js'
 import type { NostrEvent, Tag } from '../src/index.js'
 
 /**
- * Il giro vero: un evento scritto da un altro client, riaperto e
- * ripubblicato da qui. La prova non e' che il codice funzioni, e' che
- * l'evento che esce **contenga ancora** quello che l'evento che entra aveva.
+ * The real round trip: an event written by another client, reopened and
+ * republished from here. The check is not that the code works, it is that the
+ * event that comes out **still contains** what the event going in had.
  */
 
 const CTX = { pubkey: plektos.pubkey, now: 1_800_000_000 }
@@ -18,7 +18,7 @@ const nomi = (tags: readonly Tag[]): string[] => tags.map((t) => t[0] as string)
 const valori = (tags: readonly Tag[], nome: string): string[] =>
   tags.filter((t) => t[0] === nome).map((t) => t[1] as string)
 
-/** Riapre l'evento come fa un form: parse, poi ricostruzione dai dati letti. */
+/** Reopens the event as a form does: parse, then rebuild from what was read. */
 function riapri(evento: NostrEvent) {
   const dati = calendarTimeEventDefinition.parse(evento)
   const input = {
@@ -36,15 +36,15 @@ function riapri(evento: NostrEvent) {
   return { dati, input, aggiuntivi: tagAggiuntivi(evento, comeEra) }
 }
 
-describe('un evento di un altro client, riaperto qui', () => {
-  it('riconosce come aggiuntivo solo cio’ che il kind non scrive', () => {
+describe("another client's event, reopened here", () => {
+  it('counts as extra only what the kind does not write', () => {
     const { aggiuntivi } = riapri(originale)
-    // `lat`, `lon`, `place_id`, i tre `c`, `description`: dati veri di cui il
-    // nostro form non sa nulla. Ma anche `g` e `end_tzid`, che il kind
-    // saprebbe scrivere e che il form non gli passa: la conservazione non
-    // guarda cosa il kind *potrebbe* fare, guarda cosa ha fatto per questo
-    // evento — ed e' il motivo per cui salva anche i buchi del nostro form.
-    // `client` no: quello lo scriviamo noi.
+    // `lat`, `lon`, `place_id`, the three `c`s, `description`: real data our
+    // form knows nothing about. But `g` and `end_tzid` too, which the kind
+    // could write and which the form does not pass it: the preservation does
+    // not look at what the kind *could* do, it looks at what it did for this
+    // event — and that is why it saves the holes in our form as well.
+    // Not `client`: that one we write ourselves.
     expect(nomi(aggiuntivi).sort()).toEqual([
       'c',
       'c',
@@ -61,7 +61,7 @@ describe('un evento di un altro client, riaperto qui', () => {
     expect(nomi(aggiuntivi)).not.toContain('d')
   })
 
-  it('l’evento ripubblicato conserva tutto quello che aveva', () => {
+  it('has the republished event keep everything it had', () => {
     const { input, aggiuntivi } = riapri(originale)
     const nuovo = calendarTimeEventDefinition.build({ ...input, title: 'Titolo corretto' }, CTX)
     const tags = fondiTag(nuovo.tags, aggiuntivi)
@@ -82,7 +82,7 @@ describe('un evento di un altro client, riaperto qui', () => {
     expect(valori(tags, 'client')).toEqual(['NostrMediaClient'])
   })
 
-  it('gli hashtag restano quelli, non cinque parole spezzate', () => {
+  it('leaves the hashtags as they were, not five broken words', () => {
     const { input, aggiuntivi } = riapri(originale)
     const tags = fondiTag(calendarTimeEventDefinition.build(input, CTX).tags, aggiuntivi)
     expect(valori(tags, 't')).toEqual([
@@ -94,9 +94,9 @@ describe('un evento di un altro client, riaperto qui', () => {
     ])
   })
 
-  it('svuotare un campo non fa rientrare il vecchio valore', () => {
-    // La fotografia si scatta all'apertura: `image` apparteneva al kind in
-    // quel momento, e toglierla dal form la toglie davvero.
+  it('does not let the old value back in when a field is emptied', () => {
+    // The snapshot is taken when the event is opened: `image` belonged to the
+    // kind at that moment, and removing it from the form really removes it.
     const { input, aggiuntivi } = riapri(originale)
     const senzaImmagine = { ...input }
     delete (senzaImmagine as { image?: string }).image
@@ -104,7 +104,7 @@ describe('un evento di un altro client, riaperto qui', () => {
     expect(valori(tags, 'image')).toEqual([])
   })
 
-  it('un tag aggiunto a mano finisce nell’evento', () => {
+  it('puts a tag added by hand into the event', () => {
     const { input, aggiuntivi } = riapri(originale)
     const tags = fondiTag(calendarTimeEventDefinition.build(input, CTX).tags, [
       ...aggiuntivi,
@@ -115,7 +115,7 @@ describe('un evento di un altro client, riaperto qui', () => {
 })
 
 describe('fondiTag', () => {
-  it('scarta i doppioni esatti ma tiene gli omonimi diversi', () => {
+  it('discards the exact duplicates but keeps the differing namesakes', () => {
     const fusi = fondiTag(
       [
         ['d', 'x'],
@@ -133,15 +133,15 @@ describe('fondiTag', () => {
     ])
   })
 
-  it('non muta gli array che riceve', () => {
+  it('does not mutate the arrays it receives', () => {
     const costruiti: Tag[] = [['d', 'x']]
     fondiTag(costruiti, [['lat', '1']])
     expect(costruiti).toEqual([['d', 'x']])
   })
 })
 
-describe('profilo di un altro client', () => {
-  it('conserva i campi che non conosciamo quando lo si risalva', () => {
+describe("another client's profile", () => {
+  it('keeps the fields we do not know when it is saved again', () => {
     const evento = {
       id: 'ff'.repeat(32),
       pubkey: CTX.pubkey,

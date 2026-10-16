@@ -6,18 +6,18 @@ import { podcastEpisodeDefinition } from '../src/kinds/definitions/podcast.js'
 import type { EventTemplate } from '../src/kinds/types.js'
 import { createRelayPool, type RelayPool } from '../src/relays/pool.js'
 import { avviaBanco, type Banco } from '../src/signers/bunker.js'
-import { collegaDelega } from '../src/signers/delega.js'
+import { collegaDelega } from '../src/signers/delegation.js'
 import type { RichiestaFirma } from '../src/signers/types.js'
-import { avviaRelayFinto, type RelayFinto } from './helpers/relay-finto.js'
+import { avviaRelayFinto, type RelayFinto } from './helpers/fake-relay.js'
 
 /**
- * Firma delegata NIP-46, dal vero: due parti, un relay in mezzo.
+ * NIP-46 delegated signing, for real: two parties, a relay in between.
  *
- * Non ci sono mock. Il banco e il richiedente hanno pool distinti, quindi
- * WebSocket distinti, e tutto quello che si scambiano passa da un relay
- * NIP-01 e dalla cifratura NIP-44 della libreria. E' l'unico modo per
- * verificare cio' che conta davvero: che l'evento che torna sia firmato
- * dalla chiave del podcast e non da quella di chi lo ha chiesto.
+ * There are no mocks. The desk and the requester have distinct pools, hence
+ * distinct WebSockets, and everything they exchange goes through a NIP-01
+ * relay and the library's NIP-44 encryption. It is the only way to verify what
+ * really counts: that the event that comes back is signed by the podcast's key
+ * and not by the key of whoever asked for it.
  */
 
 const chiavePodcast = generateSecretKey()
@@ -61,11 +61,11 @@ afterAll(async () => {
 })
 
 /**
- * Apre un banco nuovo per ogni prova.
+ * Opens a new desk for every test.
  *
- * Ognuno con la propria chiave di trasporto, e non per pulizia: la libreria
- * ammette **un solo richiedente per volta**, quindi banchi condivisi fra prove
- * si rifiuterebbero a vicenda.
+ * Each with its own transport key, and not for tidiness: the library allows
+ * **one requester at a time**, so desks shared between tests would refuse each
+ * other.
  */
 async function apriBanco(opzioni: {
   kinds?: number[]
@@ -91,8 +91,8 @@ async function apriBanco(opzioni: {
   return banco
 }
 
-describe('firma delegata fra due parti', () => {
-  it('restituisce un episodio firmato dalla chiave del podcast, non da chi lo chiede', async () => {
+describe('delegated signing between two parties', () => {
+  it("returns an episode signed by the podcast's key, not by the requester's", async () => {
     const banco = await apriBanco({})
     const delega = await collegaDelega({
       pool: poolDelega,
@@ -104,30 +104,26 @@ describe('firma delegata fra due parti', () => {
 
     const firmato = await delega.firma(episodio('Puntata uno'))
 
-    // Il punto di tutto il meccanismo: chi ha preparato l'episodio non
-    // compare da nessuna parte, e la firma regge la verifica.
+    // The point of the whole mechanism: whoever prepared the episode appears
+    // nowhere, and the signature stands up to verification.
     expect(firmato.pubkey).toBe(pubkeyPodcast)
     expect(verifyEvent(firmato)).toBe(true)
     expect(firmato.kind).toBe(54)
     expect(firmato.tags).toContainEqual(['title', 'Puntata uno'])
   }, 20_000)
 
-  it(
-    'dichiara quale identita' + ' firma, cosi da poterla confrontare con un npub',
-    async () => {
-      const banco = await apriBanco({})
-      const delega = await collegaDelega({ pool: poolDelega, uri: banco.uri, kinds: [54] })
-      daChiudere.push({ ferma: () => delega.scollega() })
+  it('declares which identity signs, so it can be compared with an npub', async () => {
+    const banco = await apriBanco({})
+    const delega = await collegaDelega({ pool: poolDelega, uri: banco.uri, kinds: [54] })
+    daChiudere.push({ ferma: () => delega.scollega() })
 
-      // L'indirizzo del banco porta la chiave di *trasporto*, che per NIP-46
-      // e' un'altra cosa: l'identita' si conosce solo chiedendola.
-      expect(delega.autore).toBe(pubkeyPodcast)
-      expect(delega.autore).not.toBe(banco.trasporto)
-    },
-    20_000,
-  )
+    // The desk's address carries the *transport* key, which under NIP-46 is
+    // a different thing: the identity is known only by asking for it.
+    expect(delega.autore).toBe(pubkeyPodcast)
+    expect(delega.autore).not.toBe(banco.trasporto)
+  }, 20_000)
 
-  it('rifiuta il collegamento se il banco firma con un altra identita', async () => {
+  it('refuses the connection when the desk signs with another identity', async () => {
     const banco = await apriBanco({})
     const altro = getPublicKey(generateSecretKey())
 
@@ -142,8 +138,8 @@ describe('firma delegata fra due parti', () => {
   }, 20_000)
 })
 
-describe('cosa il banco non firma', () => {
-  it('respinge un kind fuori elenco senza nemmeno disturbare chi approva', async () => {
+describe('what the desk does not sign', () => {
+  it('turns down a kind off the list without even disturbing whoever approves', async () => {
     const registro: RichiestaFirma[] = []
     const banco = await apriBanco({ kinds: [54], registro })
     const delega = await collegaDelega({ pool: poolDelega, uri: banco.uri, kinds: [54, 1] })
@@ -152,14 +148,15 @@ describe('cosa il banco non firma', () => {
     const nota: EventTemplate = { kind: 1, content: 'a nome tuo', tags: [], created_at: CTX.now }
     await expect(delega.firma(nota)).rejects.toThrow()
 
-    // Il filtro sui kind viene prima del giudizio umano: chi tiene il banco
-    // non deve poter approvare per stanchezza una nota firmata a suo nome.
+    // The filter on the kinds comes before the human judgement: whoever keeps
+    // the desk must not be able to approve, out of weariness, a note signed in
+    // their name.
     expect(registro).toHaveLength(0)
   }, 20_000)
 
-  it('lo stesso kind, se in elenco, viene firmato: il filtro discrimina davvero', async () => {
-    // Controprova del caso qui sopra. Senza, un rifiuto dovuto a un guasto
-    // qualsiasi passerebbe per un rifiuto di politica.
+  it('signs the same kind when it is on the list: the filter really discriminates', async () => {
+    // The counter-check to the case above. Without it, a refusal due to any
+    // old fault would pass for a refusal on policy.
     const registro: RichiestaFirma[] = []
     const banco = await apriBanco({ kinds: [54, 1], registro })
     const delega = await collegaDelega({ pool: poolDelega, uri: banco.uri, kinds: [54, 1] })
@@ -172,7 +169,7 @@ describe('cosa il banco non firma', () => {
     expect(registro).toHaveLength(1)
   }, 20_000)
 
-  it('non firma se chi tiene la chiave rifiuta', async () => {
+  it('does not sign when the key holder refuses', async () => {
     const registro: RichiestaFirma[] = []
     const banco = await apriBanco({ decidi: () => false, registro })
     const delega = await collegaDelega({ pool: poolDelega, uri: banco.uri, kinds: [54] })
@@ -183,11 +180,11 @@ describe('cosa il banco non firma', () => {
     expect(registro[0]?.kind).toBe(54)
   }, 20_000)
 
-  it('non decifra nulla con la chiave del titolare', async () => {
-    // NIP-46 non offre solo la firma: espone anche `nip04_*` e `nip44_*`.
-    // Un richiedente potrebbe farsi aprire le bozze cifrate o i messaggi
-    // diretti di chi tiene il banco, che non ha nulla a che vedere con il
-    // permesso di pubblicare un episodio.
+  it("decrypts nothing with the holder's key", async () => {
+    // NIP-46 does not offer signing alone: it also exposes `nip04_*` and
+    // `nip44_*`. A requester could have the encrypted drafts or the direct
+    // messages of whoever keeps the desk opened for them, which has nothing to
+    // do with permission to publish an episode.
     const banco = await apriBanco({})
     const cliente = await NostrConnectSigner.fromBunkerURI(banco.uri, { pool: poolDelega })
     daChiudere.push({ ferma: () => cliente.close() })

@@ -1,19 +1,21 @@
 import { npubEncode } from 'nostr-tools/nip19'
 
-import { normalizzaBaseUrl } from '../servizi/http.js'
+import { normalizzaBaseUrl } from '../services/http.js'
 
 /**
- * Il feed RSS del podcast: il client non lo genera, lo governa.
+ * The podcast's RSS feed: the client does not generate it, it governs it.
  *
- * Un feed e' un URL stabile che le app di podcast rileggono da sole; ne'
- * GitHub Pages (statico) ne' Blossom (l'indirizzo cambia a ogni modifica)
- * possono servirlo. Lo serve il dominio `feed` del media-manager, senza
- * chiave. Qui c'e' cio' che il client deve saper fare: comporre l'URL per una
- * chiave, e leggere un feed per dire com'e' — quanti episodi, l'ultimo, cosa
- * manca — senza fidarsi di un 200.
+ * A feed is a stable URL that podcast apps re-read by themselves; neither
+ * GitHub Pages (static) nor Blossom (the address changes on every edit) can
+ * serve it. The media-manager's `feed` domain serves it, without a key. Here
+ * is what the client has to be able to do: compose the URL for a key, and
+ * read a feed to say how it is — how many episodes, the latest one, what is
+ * missing — without trusting a 200.
+ *
+ * The messages in the summary stay in Italian: the RSS feed card shows them.
  */
 
-/** L'URL del feed di una chiave, sul servizio dato. */
+/** A key's feed URL, on the given service. */
 export function urlFeedPodcast(radiceServizio: string, pubkey: string, lingua?: string): string {
   const radice = normalizzaBaseUrl(radiceServizio)
   if (radice === '') throw new Error('Indirizzo del servizio mancante.')
@@ -23,12 +25,12 @@ export function urlFeedPodcast(radiceServizio: string, pubkey: string, lingua?: 
 }
 
 export interface EpisodioFeed {
-  /** Il `guid`: per il nostro servizio e' l'id dell'evento kind 54. */
+  /** The `guid`: for our service it is the kind 54 event's id. */
   id: string | null
   titolo: string
   data: Date | null
   audioUrl: string | null
-  /** Lunghezza dichiarata nell'enclosure; 0 se il servizio non e' riuscito a misurarla. */
+  /** The length declared in the enclosure; 0 when the service could not measure it. */
   byte: number
 }
 
@@ -37,28 +39,28 @@ export interface RiassuntoFeed {
   descrizione: string
   immagine: string | null
   lingua: string | null
-  /** La categoria primaria (`itunes:category`), se il feed la dichiara. */
+  /** The primary category (`itunes:category`), when the feed declares it. */
   categoria: string | null
-  /** L'email dell'owner (`itunes:email`), se c'e': e' li' che Spotify, Amazon e YouTube verificano. */
+  /** The owner's email (`itunes:email`), when present: that is where Spotify, Amazon and YouTube verify. */
   email: string | null
-  /** Vero se il feed dichiara <itunes:explicit>true</itunes:explicit>. */
+  /** True when the feed declares <itunes:explicit>true</itunes:explicit>. */
   explicit: boolean
   episodi: EpisodioFeed[]
-  /** Relay interrogati dal servizio, se li dichiara in un commento in testa. */
+  /** The relays the service queried, when it declares them in a comment at the top. */
   relays: string[]
-  /** Cose che un'app di podcast rifiuterebbe o mostrerebbe male. */
+  /** Things a podcast app would refuse or display badly. */
   problemi: string[]
 }
 
 /*
- * Lettura mirata, non un parser XML.
+ * Targeted reading, not an XML parser.
  *
- * Il feed lo produce un servizio nostro a partire da un contratto scritto da
- * noi: si estraggono i pochi tag che servono a riassumerlo, e si resta
- * isomorfici — nel browser c'e' DOMParser, in Node no, e un parser XML come
- * dipendenza per leggere sei tag sarebbe sproporzionato. Se il formato
- * cambiasse, il riassunto direbbe «nessun episodio» e la pagina lo
- * mostrerebbe: un fallimento visibile, non silenzioso.
+ * The feed is produced by a service of ours from a contract written by us: we
+ * extract the few tags needed to summarise it, and we stay isomorphic — the
+ * browser has DOMParser, Node does not, and an XML parser as a dependency to
+ * read six tags would be out of proportion. If the format changed, the
+ * summary would say «no episodes» and the page would show it: a visible
+ * failure, not a silent one.
  */
 const decodifica = (t: string): string =>
   t
@@ -80,7 +82,7 @@ function attributo(blocco: string, tag: string, attr: string): string | null {
   return m ? decodifica(m[1] ?? '') : null
 }
 
-/** Legge un feed RSS e ne restituisce un riassunto con i problemi trovati. */
+/** Reads an RSS feed and returns a summary of it with the problems found. */
 export function riassumiFeedPodcast(xml: string): RiassuntoFeed {
   const problemi: string[] = []
   if (!/<rss\b/i.test(xml)) {
@@ -113,8 +115,8 @@ export function riassumiFeedPodcast(xml: string): RiassuntoFeed {
       'manca l’email dell’owner (itunes:email): Spotify, Amazon e YouTube verificano lì',
     )
   }
-  // Un <itunes:owner> senza email e' un errore per il validatore: se c'e' il
-  // blocco, dentro deve esserci l'email.
+  // An <itunes:owner> without an email is an error for the validator: when
+  // the block is there, the email has to be inside it.
   if (/<itunes:owner>/i.test(canale) && !email) {
     problemi.push(
       '<itunes:owner> senza <itunes:email>: il validatore lo rifiuta, va omesso o completato',
@@ -172,11 +174,12 @@ export function riassumiFeedPodcast(xml: string): RiassuntoFeed {
 }
 
 /**
- * Confronta il feed con gli episodi che il client vede sui relay.
+ * Compares the feed with the episodes the client sees on the relays.
  *
- * E' la diagnosi che conta: un feed con meno episodi di quelli pubblicati
- * significa quasi sempre che un episodio sta su un relay da cui il servizio
- * non legge — e il rimedio e' ridistribuirlo, non ripubblicarlo.
+ * It is the diagnosis that matters: a feed with fewer episodes than were
+ * published almost always means an episode sits on a relay the service does
+ * not read from — and the remedy is redistributing it, not publishing it
+ * again.
  */
 export function episodiFuoriDalFeed(
   feed: Pick<RiassuntoFeed, 'episodi'>,
@@ -190,13 +193,12 @@ const xmlEsc = (t: string): string =>
   t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 
 /**
- * Un OPML con il solo feed del podcast.
+ * An OPML with the podcast's feed alone.
  *
- * E' il formato con cui le app di podcast si scambiano gli abbonamenti:
- * Fountain, Apple, Overcast lo importano. Contiene l'URL del feed e il
- * titolo, nient'altro — chi lo importa segue il podcast senza cercarlo in una
- * directory, ed e' il modo per condividerlo anche prima che una directory lo
- * indicizzi.
+ * It is the format podcast apps exchange subscriptions in: Fountain, Apple
+ * and Overcast import it. It holds the feed's URL and the title, nothing else
+ * — whoever imports it follows the podcast without searching a directory, and
+ * it is the way to share it even before a directory has indexed it.
  */
 export function opmlPerFeed(dati: { titolo: string; urlFeed: string; sito?: string }): string {
   const titolo = xmlEsc(dati.titolo.trim() || 'Podcast')

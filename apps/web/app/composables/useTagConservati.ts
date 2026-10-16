@@ -1,40 +1,40 @@
 import { tagAggiuntivi, type AnyKindDefinition, type NostrEvent, type Tag } from '@nmc/nostr-core'
 
 /**
- * I tag di un evento pubblicato che il form non sa scrivere.
+ * The tags of a published event that the form cannot write.
  *
- * Riaprire un evento per modificarlo significa ricomporlo dal form, e il form
- * conosce solo i suoi campi: tutto il resto — le coordinate geografiche di
- * Plektos, i colori del tema, un tag inventato da un client che non abbiamo
- * mai visto — sparirebbe nel momento in cui si cambia il titolo. Qui si
- * mettono da parte e tornano nell'evento ripubblicato.
+ * Reopening an event to edit it means recomposing it from the form, and the
+ * form knows only its own fields: all the rest — Plektos's geographic
+ * coordinates, the theme's colours, a tag invented by a client we have never
+ * seen — would vanish the moment the title is changed. Here they are set
+ * aside, and they return in the republished event.
  *
- * **La fotografia si scatta una volta sola**, all'apertura: si ricostruisce il
- * template dai dati appena letti e si guarda quali nomi di tag il kind
- * scrive. Ricalcolarla a ogni ricomposizione farebbe rientrare dalla finestra
- * i campi che l'utente ha appena svuotato — tolta l'immagine dal form,
- * `image` non sarebbe piu' fra i tag costruiti e il vecchio valore tornerebbe
- * buono come «tag da conservare».
+ * **The snapshot is taken once only**, when the event is opened: the template
+ * is rebuilt from the data just read and we look at which tag names the kind
+ * writes. Recomputing it on every recomposition would let the fields the user
+ * has just emptied back in through the window — with the image removed from
+ * the form, `image` would no longer be among the built tags and the old value
+ * would pass for a «tag to preserve».
  */
 export function useTagConservati(nomiDelForm: MaybeRefOrGetter<readonly string[]>) {
   const tags = ref<Tag[]>([])
 
   /**
-   * Scatta la fotografia sull'evento appena letto.
+   * Takes the snapshot of the event just read.
    *
-   * @param input i dati che il form produrrebbe **senza modifiche**, cioe' la
-   *              ricostruzione fedele di cio' che si e' letto.
+   * @param input the data the form would produce **with no changes**, that is
+   *              the faithful reconstruction of what was read.
    */
   function fotografa(definizione: AnyKindDefinition, evento: NostrEvent, input: unknown): void {
     try {
       const comeEra = definizione.build(input, { pubkey: evento.pubkey, now: evento.created_at })
       tags.value = tagAggiuntivi(evento, comeEra)
     } catch {
-      // La ricostruzione puo' fallire su un evento che il kind considera
-      // malformato (una fine prima dell'inizio, un fuso inesistente): e'
-      // proprio il caso in cui conservare conta di piu', perche' l'utente e'
-      // qui per correggerlo. Si ripiega sui nomi che il form dichiara di
-      // scrivere — meno preciso, ma non perde nulla.
+      // The reconstruction can fail on an event the kind considers malformed
+      // (an end before the start, a non-existent zone): that is precisely the
+      // case where preserving counts most, because the user is here to correct
+      // it. It falls back on the names the form declares it writes — less
+      // precise, but it loses nothing.
       const nostri = new Set(toValue(nomiDelForm))
       tags.value = evento.tags
         .filter((t) => t.length > 0 && !nostri.has(t[0] as string))

@@ -10,7 +10,7 @@ import type { NostrEvent } from '../src/kinds/types.js'
 
 const CTX = { pubkey: 'ab'.repeat(32), now: 1_800_000_000 }
 
-/** Evento minimo per i test di parsing. */
+/** A minimal event for the parsing tests. */
 function evento(parziale: Partial<NostrEvent>): NostrEvent {
   return {
     id: 'ff'.repeat(32),
@@ -24,12 +24,12 @@ function evento(parziale: Partial<NostrEvent>): NostrEvent {
   } as NostrEvent
 }
 
-/** Valore del primo tag con quel nome nel template costruito. */
+/** The value of the first tag with that name in the built template. */
 const tag = (tags: string[][], nome: string): string | undefined =>
   tags.find((t) => t[0] === nome)?.[1]
 
-describe('kind 1 — nota', () => {
-  it('marca radice e padre quando risponde dentro un thread', () => {
+describe('kind 1 — a note', () => {
+  it('marks the root and the parent when replying inside a thread', () => {
     const t = noteDefinition.build(
       {
         content: 'ci sto',
@@ -44,7 +44,7 @@ describe('kind 1 — nota', () => {
     ])
   })
 
-  it('usa un solo tag marcato root quando risponde direttamente alla radice', () => {
+  it('uses a single root-marked tag when replying to the root directly', () => {
     const t = noteDefinition.build(
       { content: 'ok', replyTo: { id: 'aa'.repeat(32), pubkey: 'cc'.repeat(32) } },
       CTX,
@@ -52,7 +52,7 @@ describe('kind 1 — nota', () => {
     expect(t.tags.filter((x) => x[0] === 'e')).toEqual([['e', 'aa'.repeat(32), '', 'root']])
   })
 
-  it('riporta gli autori del thread senza duplicarli', () => {
+  it("carries the thread's authors without duplicating them", () => {
     const autore = 'cc'.repeat(32)
     const t = noteDefinition.build(
       {
@@ -66,11 +66,11 @@ describe('kind 1 — nota', () => {
     expect(p).toEqual([autore, 'dd'.repeat(32)])
   })
 
-  it('scrive gli hashtag come li riceve, senza riscriverli', () => {
-    // La convenzione minuscola sta in `normalizeHashtag`, che il form applica
-    // a cio' che l'utente scrive. Qui no: un hashtag puo' arrivare da un
-    // evento di un altro client — «Food & drink» — e abbassarlo di caso
-    // significherebbe cambiargli il dato mentre gli si corregge il titolo.
+  it('writes the hashtags as it receives them, without rewriting them', () => {
+    // The lower-case convention lives in `normalizeHashtag`, which the form
+    // applies to what the user writes. Not here: a hashtag can arrive from
+    // another client's event — «Food & drink» — and lower-casing it would mean
+    // changing their data while correcting their title.
     const t = noteDefinition.build({ content: 'x', hashtags: ['#Nostr', 'Food & drink'] }, CTX)
     expect(t.tags.filter((x) => x[0] === 't')).toEqual([
       ['t', '#Nostr'],
@@ -79,8 +79,8 @@ describe('kind 1 — nota', () => {
     expect(normalizeHashtag('#Nostr')).toBe('nostr')
   })
 
-  it('interpreta i thread vecchi con tag e non marcati', () => {
-    // Convenzione pre-marcatori: primo `e` = radice, ultimo = risposta diretta.
+  it('reads the old threads with unmarked e tags', () => {
+    // The pre-marker convention: the first `e` = the root, the last = the direct reply.
     const parsed = noteDefinition.parse(
       evento({
         content: 'vecchio',
@@ -95,32 +95,32 @@ describe('kind 1 — nota', () => {
     expect(parsed.replyToId).toBe('cc'.repeat(32))
   })
 
-  it('non e' + ' modificabile: il protocollo non lo consente', () => {
+  it('is not editable: the protocol does not allow it', () => {
     expect(noteDefinition.editable).toBe(false)
   })
 })
 
-describe('kind 31922 — evento su data', () => {
+describe('kind 31922 — an event on a date', () => {
   const base = { identifier: 'id-1', title: 'Ferie', start: '2026-08-01' }
 
-  it('accetta un end successivo allo start', () => {
+  it('accepts an end later than the start', () => {
     const t = calendarDateEventDefinition.build({ ...base, end: '2026-08-08' }, CTX)
     expect(tag(t.tags, 'end')).toBe('2026-08-08')
   })
 
-  it('rifiuta un end uguale allo start, perche' + ' NIP-52 lo definisce esclusivo', () => {
-    // Un evento di un giorno solo omette end oppure lo mette al giorno dopo:
-    // end uguale a start descriverebbe una durata nulla.
+  it('refuses an end equal to the start, because NIP-52 defines it exclusive', () => {
+    // A single-day event either omits end or sets it to the next day: an end
+    // equal to the start would describe a duration of zero.
     expect(() => calendarDateEventDefinition.build({ ...base, end: '2026-08-01' }, CTX)).toThrow(
       /esclusivo/,
     )
   })
 
-  it('rifiuta una data inesistente nel calendario', () => {
+  it('refuses a date that does not exist in the calendar', () => {
     expect(() => calendarDateEventDefinition.build({ ...base, start: '2026-02-30' }, CTX)).toThrow()
   })
 
-  it('non scrive tag vuoti per i campi opzionali non valorizzati', () => {
+  it('writes no empty tags for the optional fields left unset', () => {
     const t = calendarDateEventDefinition.build(base, CTX)
     const nomi = t.tags.map((x) => x[0])
     expect(nomi).not.toContain('location')
@@ -129,7 +129,7 @@ describe('kind 31922 — evento su data', () => {
   })
 })
 
-describe('kind 31923 — evento su orario', () => {
+describe('kind 31923 — an event with a time', () => {
   const base = {
     identifier: 'id-2',
     title: 'Riunione',
@@ -137,15 +137,15 @@ describe('kind 31923 — evento su orario', () => {
     startTzid: 'Asia/Tokyo',
   }
 
-  it('conserva il fuso orario accanto al timestamp', () => {
-    // Il timestamp dice quando accade, il tzid come va mostrato: servono
-    // entrambi, e il fuso non e' ricavabile dall'istante.
+  it('keeps the time zone next to the timestamp', () => {
+    // The timestamp says when it happens, the tzid how it is to be shown:
+    // both are needed, and the zone cannot be derived from the instant.
     const t = calendarTimeEventDefinition.build(base, CTX)
     expect(tag(t.tags, 'start')).toBe('1800000000')
     expect(tag(t.tags, 'start_tzid')).toBe('Asia/Tokyo')
   })
 
-  it('omette end_tzid quando coincide con quello di inizio', () => {
+  it("omits end_tzid when it is the same as the start's", () => {
     const t = calendarTimeEventDefinition.build(
       { ...base, end: base.start + 3600, endTzid: 'Asia/Tokyo' },
       CTX,
@@ -153,7 +153,7 @@ describe('kind 31923 — evento su orario', () => {
     expect(tag(t.tags, 'end_tzid')).toBeUndefined()
   })
 
-  it('scrive end_tzid quando l' + "'evento cambia fuso", () => {
+  it('writes end_tzid when the event changes zone', () => {
     const t = calendarTimeEventDefinition.build(
       { ...base, end: base.start + 36000, endTzid: 'Europe/Rome' },
       CTX,
@@ -161,9 +161,9 @@ describe('kind 31923 — evento su orario', () => {
     expect(tag(t.tags, 'end_tzid')).toBe('Europe/Rome')
   })
 
-  it('esige una fine strettamente successiva all inizio', () => {
-    // NIP-52: «start ... Must be less than end, if it exists». Una fine uguale
-    // all'inizio descriverebbe una durata nulla, che si esprime omettendo end.
+  it('requires an end strictly later than the start', () => {
+    // NIP-52: «start ... Must be less than end, if it exists». An end equal to
+    // the start would describe a duration of zero, expressed by omitting end.
     expect(() => calendarTimeEventDefinition.build({ ...base, end: base.start - 1 }, CTX)).toThrow(
       /successiva/,
     )
@@ -172,19 +172,19 @@ describe('kind 31923 — evento su orario', () => {
     )
   })
 
-  it('rifiuta un fuso orario inventato', () => {
+  it('refuses an invented time zone', () => {
     expect(() =>
       calendarTimeEventDefinition.build({ ...base, startTzid: 'Marte/Olympus' }, CTX),
     ).toThrow()
   })
 
-  it('rifiuta in lettura un evento senza start', () => {
+  it('refuses to read an event without a start', () => {
     expect(() =>
       calendarTimeEventDefinition.parse(evento({ kind: 31923, tags: [['d', 'x']] })),
     ).toThrow(/senza tag "start"/)
   })
 
-  it('sopravvive a un round-trip build → parse mantenendo il fuso', () => {
+  it('survives a build → parse round trip keeping the zone', () => {
     const t = calendarTimeEventDefinition.build({ ...base, end: base.start + 3600 }, CTX)
     const parsed = calendarTimeEventDefinition.parse(
       evento({ kind: 31923, tags: t.tags, content: t.content }),
@@ -202,25 +202,25 @@ describe('kind 31925 — RSVP', () => {
     status: 'accepted' as const,
   }
 
-  it('punta alla coordinata dell' + "'evento, non al suo id", () => {
-    // Gli eventi calendario sono addressable: legare l'RSVP all'id lo
-    // aggancerebbe a una versione che l'organizzatore puo' sostituire.
+  it("points at the event's coordinate, not at its id", () => {
+    // Calendar events are addressable: tying the RSVP to the id would hook it
+    // to a version the organiser can replace.
     const t = calendarRsvpDefinition.build(base, CTX)
     expect(tag(t.tags, 'a')).toBe(`31923:${CTX.pubkey}:id-2`)
   })
 
-  it('scarta la disponibilita' + ' su un rifiuto', () => {
+  it('discards the availability on a refusal', () => {
     const t = calendarRsvpDefinition.build({ ...base, status: 'declined', freebusy: 'free' }, CTX)
     expect(tag(t.tags, 'fb')).toBeUndefined()
     expect(tag(t.tags, 'status')).toBe('declined')
   })
 
-  it('mantiene la disponibilita' + ' su una partecipazione', () => {
+  it('keeps the availability on an acceptance', () => {
     const t = calendarRsvpDefinition.build({ ...base, freebusy: 'busy' }, CTX)
     expect(tag(t.tags, 'fb')).toBe('busy')
   })
 
-  it('rifiuta in lettura un RSVP senza riferimento all' + "'evento", () => {
+  it('refuses to read an RSVP with no reference to the event', () => {
     expect(() =>
       calendarRsvpDefinition.parse(
         evento({
@@ -235,20 +235,20 @@ describe('kind 31925 — RSVP', () => {
   })
 })
 
-describe('kind 0 — profilo', () => {
-  it('non scrive i campi vuoti, che verrebbero letti come "impostato a niente"', () => {
+describe('kind 0 — the profile', () => {
+  it('writes no empty fields, which would be read as "set to nothing"', () => {
     const t = metadataDefinition.build({ name: 'pad', about: '', picture: undefined }, CTX)
     expect(JSON.parse(t.content)).toEqual({ name: 'pad' })
   })
 
-  it('restituisce un profilo vuoto invece di rompersi su campi sconosciuti', () => {
+  it('returns an empty profile instead of breaking on unknown fields', () => {
     const parsed = metadataDefinition.parse(
       evento({ kind: 0, content: JSON.stringify({ name: 'pad', campoStrano: 42 }) }),
     )
     expect(parsed.name).toBe('pad')
   })
 
-  it('segnala chiaramente un content che non e' + ' JSON', () => {
+  it('reports a content that is not JSON clearly', () => {
     expect(() => metadataDefinition.parse(evento({ kind: 0, content: 'non json' }))).toThrow(
       /non JSON/,
     )

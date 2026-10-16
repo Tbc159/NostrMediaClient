@@ -13,30 +13,31 @@ import {
 } from './calendar-common.js'
 
 /**
- * Kind 31923 — evento calendario con orario (NIP-52).
+ * Kind 31923 — a calendar event with a time (NIP-52).
  *
- * Il punto delicato di tutto il NIP sta qui. `start` e' un timestamp unix,
- * quindi un istante assoluto, ma `start_tzid` dice in quale fuso l'evento va
- * *mostrato*. Le due informazioni servono a scopi diversi e nessuna sostituisce
- * l'altra:
+ * The delicate point of the whole NIP is here. `start` is a unix timestamp,
+ * hence an absolute instant, but `start_tzid` says which zone the event is to
+ * be *shown* in. The two pieces of information serve different purposes and
+ * neither replaces the other:
  *
- *   - il timestamp dice quando accade, uguale per tutti;
- *   - il tzid dice come va letto sull'orologio del luogo.
+ *   - the timestamp says when it happens, the same for everyone;
+ *   - the tzid says how it is to be read on the clock of the place.
  *
- * Un evento alle 09:00 a Tokyo resta "le 09:00" anche per chi lo guarda da
- * Roma: mostrarlo come "le 02:00" sarebbe tecnicamente esatto e praticamente
- * sbagliato. Per questo il fuso va conservato e non ricavato dal timestamp.
+ * An event at 09:00 in Tokyo stays "09:00" even for whoever looks at it from
+ * Rome: showing it as "02:00" would be technically exact and practically
+ * wrong. That is why the zone has to be kept and not derived from the
+ * timestamp.
  */
 
 export const timeEventSchema = calendarSharedSchema.extend({
-  /** Istante di inizio, secondi unix. */
+  /** The starting instant, in unix seconds. */
   start: z.number().int().positive(),
-  /** Istante di fine, secondi unix. Assente se l'evento non ha durata dichiarata. */
+  /** The ending instant, in unix seconds. Absent when the event declares no duration. */
   end: z.number().int().positive().optional(),
-  /** Fuso in cui l'evento va mostrato. */
+  /** The zone the event is to be shown in. */
   startTzid: z.string().optional(),
   endTzid: z.string().optional(),
-  /** Indici giornalieri dichiarati dai tag `D`. */
+  /** The daily indices the `D` tags declare. */
   days: z.array(z.number().int()),
 })
 
@@ -54,7 +55,7 @@ export const calendarTimeEventDefinition = defineKind<TimeEventParsed, TimeEvent
   name: 'evento-calendario-orario',
   nip: 'NIP-52',
   class: 'addressable',
-  editable: true, // addressable: ripubblicare con lo stesso `d` sostituisce
+  editable: true, // addressable: republishing with the same `d` replaces
   deletable: true,
   schema: timeEventSchema,
   feed: { eligible: false },
@@ -88,17 +89,17 @@ export const calendarTimeEventDefinition = defineKind<TimeEventParsed, TimeEvent
       ...(end !== undefined ? { end } : {}),
       ...(startTzid !== undefined ? { startTzid } : {}),
       ...(endTzid !== undefined ? { endTzid } : {}),
-      // Se i tag D mancano — evento scritto da un client piu' vecchio della
-      // revisione che li ha introdotti — si ricavano dall'istante, cosi' il
-      // dato letto e' comunque completo.
+      // When the D tags are missing — an event written by a client older than
+      // the revision that introduced them — they are derived from the instant,
+      // so what is read is complete all the same.
       days: days.length > 0 ? days : [dayIndex(start)],
     })
   },
 
   build(input, ctx) {
-    // NIP-52: «start ... Must be less than `end`, if it exists». Il confronto
-    // e' stretto: una fine uguale all'inizio descriverebbe una durata nulla,
-    // che si esprime invece omettendo `end`.
+    // NIP-52: «start ... Must be less than `end`, if it exists». The
+    // comparison is strict: an end equal to the start would describe a
+    // duration of zero, which is expressed by omitting `end` instead.
     if (input.end !== undefined && input.end <= input.start) {
       throw new Error(
         'La fine deve essere successiva all’inizio. Per un evento istantaneo ometti end.',
@@ -115,11 +116,11 @@ export const calendarTimeEventDefinition = defineKind<TimeEventParsed, TimeEvent
         ...buildSharedTags(input),
         ['start', String(input.start)],
         ...(input.end !== undefined ? [['end', String(input.end)]] : []),
-        // Richiesto da NIP-52: un tag per ogni giorno coperto dall'evento.
+        // Required by NIP-52: one tag for every day the event covers.
         ...buildDayTags(input.start, input.end),
         ...optionalTag('start_tzid', input.startTzid),
-        // Il fuso di fine si scrive solo se diverso: ripeterlo uguale a quello
-        // di inizio e' rumore che ogni lettore dovrebbe poi ignorare.
+        // The end zone is written only when it differs: repeating it the same
+        // as the start's is noise every reader would then have to ignore.
         ...optionalTag(
           'end_tzid',
           input.endTzid && input.endTzid !== input.startTzid ? input.endTzid : undefined,

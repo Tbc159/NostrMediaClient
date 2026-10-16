@@ -1,23 +1,26 @@
 import { z } from 'zod'
 
 /**
- * Configurazione degli endpoint.
+ * Endpoint configuration.
  *
- * Regola di progetto (ADR 0003): questi sono **default di primo avvio, mai
- * dipendenze**. L'utente deve poterli sostituire e ottenere un client
- * funzionante puntando altrove; le sue scelte vivono poi sui relay come
- * kind 10002 (NIP-65) e 10063 (Blossom BUD-03).
+ * Project rule (ADR 0003): these are **first-run defaults, never
+ * dependencies**. The user must be able to replace them and get a working
+ * client pointing elsewhere; their choices then live on the relays as kind
+ * 10002 (NIP-65) and 10063 (Blossom BUD-03).
  *
- * I valori arrivano da variabili d'ambiente e non sono versionati: i
- * puntamenti privati restano fuori dal repository. Vedi `.env.example`.
+ * The values come from environment variables and are not versioned: private
+ * endpoints stay out of the repository. See `.env.example`.
+ *
+ * The validation messages stay in Italian: they reach the settings page and
+ * the diagnostics, which the user reads.
  */
 
 /**
- * Toglie gli slash finali.
+ * Drops trailing slashes.
  *
- * Un `https://esempio.tld/` copiaincollato produrrebbe poi `//upload` nelle
- * richieste Blossom, che alcuni server rifiutano. Normalizzare qui evita di
- * doverci pensare in ogni punto di chiamata.
+ * A pasted `https://example.tld/` would later produce `//upload` in Blossom
+ * requests, which some servers refuse. Normalising here saves having to think
+ * about it at every call site.
  */
 const senzaSlashFinale = (u: string): string => u.replace(/\/+$/, '')
 
@@ -37,7 +40,7 @@ const httpUrl = z
   })
   .transform(senzaSlashFinale)
 
-/** Trasforma "a, b ,c" in ["a","b","c"], scartando i vuoti. */
+/** Turns "a, b ,c" into ["a","b","c"], dropping the empty ones. */
 function splitList(raw: string | undefined): string[] {
   if (!raw) return []
   return raw
@@ -47,37 +50,37 @@ function splitList(raw: string | undefined): string[] {
 }
 
 export const clientConfigSchema = z.object({
-  /** Relay da cui leggere prima di conoscere la relay list dell'utente. */
+  /** Relays to read from before the user's relay list is known. */
   readRelays: z.array(relayUrl).min(1, 'serve almeno un relay di lettura'),
 
-  /** Relay su cui pubblicare per default. */
+  /** Relays to publish to by default. */
   writeRelays: z.array(relayUrl).min(1, 'serve almeno un relay di scrittura'),
 
-  /** Relay usati per risolvere profili e relay list altrui (outbox model). */
+  /** Relays used to resolve other people's profiles and relay lists (outbox model). */
   indexerRelays: z.array(relayUrl),
 
   /**
-   * Relay privato per le bozze long-form (kind 30024).
+   * The private relay for long-form drafts (kind 30024).
    *
-   * `null` disabilita il salvataggio delle bozze in UI. Non esiste fallback su
-   * relay pubblico: una bozza finita su un relay pubblico e' a tutti gli
-   * effetti una pubblicazione non voluta.
+   * `null` disables saving drafts in the UI. There is no fallback onto a
+   * public relay: a draft that ends up on a public relay is, to all intents
+   * and purposes, a publication nobody wanted.
    */
   draftRelay: relayUrl.nullable(),
 
-  /** Server Blossom in ordine di preferenza; il primo e' il primario. */
+  /** Blossom servers in order of preference; the first is the primary one. */
   blossomServers: z.array(httpUrl),
 
-  /** URL pubblico del client, per link canonici e meta tag Open Graph. */
+  /** The client's public URL, for canonical links and Open Graph meta tags. */
   siteUrl: httpUrl,
 
-  /** Gateway pubblico per i link di condivisione verso client terzi. */
+  /** The public gateway for sharing links towards third-party clients. */
   njumpUrl: httpUrl,
 })
 
 export type ClientConfig = z.infer<typeof clientConfigSchema>
 
-/** Chiavi lette dall'ambiente. */
+/** The keys read from the environment. */
 export interface RawEnv {
   NUXT_PUBLIC_DEFAULT_READ_RELAYS?: string | undefined
   NUXT_PUBLIC_DEFAULT_WRITE_RELAYS?: string | undefined
@@ -89,14 +92,14 @@ export interface RawEnv {
 }
 
 /**
- * Costruisce la configurazione a partire dall'ambiente.
+ * Builds the configuration from the environment.
  *
- * Prende l'ambiente come parametro invece di leggere `process.env`: il core
- * deve restare isomorfico, e cosi' la funzione e' anche testabile senza
- * sporcare le variabili del processo.
+ * It takes the environment as a parameter instead of reading `process.env`:
+ * the core has to stay isomorphic, and this way the function is also testable
+ * without touching the process variables.
  *
- * @throws se un valore e' malformato — meglio fallire all'avvio che scoprire
- *         a runtime che il client sta parlando con un endpoint sbagliato.
+ * @throws if a value is malformed — better to fail at startup than to find
+ *         out at runtime that the client is talking to the wrong endpoint.
  */
 export function resolveClientConfig(env: RawEnv): ClientConfig {
   const draft = env.NUXT_PUBLIC_DRAFT_RELAY?.trim()
@@ -112,6 +115,8 @@ export function resolveClientConfig(env: RawEnv): ClientConfig {
   })
 
   if (!parsed.success) {
+    // Italian for the same reason as the messages above: this one reaches the
+    // settings page and the diagnostics, which the user reads.
     const details = parsed.error.issues
       .map((i) => `  - ${i.path.join('.') || '(radice)'}: ${i.message}`)
       .join('\n')
@@ -121,7 +126,7 @@ export function resolveClientConfig(env: RawEnv): ClientConfig {
   return parsed.data
 }
 
-/** Se il salvataggio delle bozze (kind 30024) puo' essere offerto in UI. */
+/** Whether saving drafts (kind 30024) can be offered in the UI. */
 export function draftsEnabled(config: ClientConfig): boolean {
   return config.draftRelay !== null
 }

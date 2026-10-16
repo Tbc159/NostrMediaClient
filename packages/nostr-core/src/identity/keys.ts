@@ -5,33 +5,36 @@ import { finalizeEvent, generateSecretKey, getPublicKey } from 'nostr-tools/pure
 import type { EventTemplate, NostrEvent } from '../kinds/types.js'
 
 /**
- * Gestione delle chiavi.
+ * Key handling.
  *
- * La chiave privata **e'** l'identita': chi la possiede la possiede per sempre.
- * Non esiste reset, revoca o recupero, e nessun relay puo' invalidarla. Da qui
- * le due regole che governano questo modulo:
+ * The private key **is** the identity: whoever holds it holds it forever.
+ * There is no reset, revocation or recovery, and no relay can invalidate it.
+ * Hence the two rules that govern this module:
  *
- *   1. la chiave in chiaro non viene mai serializzata: chi la riceve la tiene
- *      in memoria e la cifra (NIP-49) prima di scriverla da qualche parte;
- *   2. niente accessi a `localStorage` o ad altre API del browser, che
- *      renderebbero il modulo non isomorfico e legherebbero la scelta della
- *      persistenza a questo livello.
+ *   1. the key in the clear is never serialised: whoever receives it keeps it
+ *      in memory and encrypts it (NIP-49) before writing it anywhere;
+ *   2. no access to `localStorage` or other browser APIs, which would make
+ *      the module non-isomorphic and tie the choice of persistence to this
+ *      level.
  *
- * La persistenza e la sua durata sono decisioni dell'applicazione, non del
- * dominio.
+ * Persistence and how long it lasts are decisions for the application, not
+ * for the domain.
+ *
+ * The error messages stay in Italian: they are shown to whoever is typing a
+ * key, and the interface is Italian.
  */
 
-/** Chiave privata: 32 byte grezzi. */
+/** A private key: 32 raw bytes. */
 export type SecretKey = Uint8Array
 
 const HEX_64 = /^[0-9a-f]{64}$/i
 
-/** Genera una chiave privata nuova. */
+/** Generates a new private key. */
 export function newSecretKey(): SecretKey {
   return generateSecretKey()
 }
 
-/** Chiave pubblica esadecimale corrispondente a una privata. */
+/** The hexadecimal public key corresponding to a private one. */
 export function publicKeyFrom(secret: SecretKey): string {
   return getPublicKey(secret)
 }
@@ -45,10 +48,10 @@ export function toNpub(publicKey: string): string {
 }
 
 /**
- * Interpreta una chiave privata scritta dall'utente.
+ * Interprets a private key typed by the user.
  *
- * Accetta sia il formato `nsec1…` sia i 64 caratteri esadecimali. I messaggi
- * d'errore evitano di riportare il valore inserito: finirebbe nei log.
+ * It accepts both the `nsec1…` form and the 64 hexadecimal characters. The
+ * error messages avoid repeating the value entered: it would end up in logs.
  */
 export function parseSecretKeyInput(input: string): SecretKey {
   const pulito = input.trim()
@@ -88,8 +91,8 @@ export function parseSecretKeyInput(input: string): SecretKey {
 }
 
 /**
- * Interpreta una chiave pubblica scritta dall'utente.
- * Accetta `npub1…`, `nprofile1…` o l'esadecimale.
+ * Interprets a public key typed by the user.
+ * It accepts `npub1…`, `nprofile1…` or the hexadecimal form.
  */
 export function parsePublicKeyInput(input: string): string {
   const pulito = input.trim()
@@ -120,43 +123,44 @@ export function parsePublicKeyInput(input: string): string {
   throw new Error('Formato non riconosciuto: attesa una chiave npub1… o 64 caratteri esadecimali.')
 }
 
-// --- Cifratura a riposo (NIP-49) --------------------------------------------
+// --- Encryption at rest (NIP-49) --------------------------------------------
 
-/** Riconosce una chiave gia' cifrata. */
+/** Recognises a key that is already encrypted. */
 export function isEncryptedSecretKey(valore: string): boolean {
   return valore.trim().startsWith('ncryptsec1')
 }
 
 /**
- * Cifra la chiave privata con una password (NIP-49).
+ * Encrypts the private key with a password (NIP-49).
  *
- * `logn` regola il costo di scrypt: piu' alto significa piu' lento da
- * derivare, quindi piu' costoso da attaccare a forza bruta. Il valore 16
- * (~65k iterazioni) e' il compromesso raccomandato dal NIP e resta accettabile
- * anche su un telefono.
+ * `logn` sets scrypt's cost: higher means slower to derive, and therefore
+ * more expensive to brute-force. The value 16 (~65k iterations) is the
+ * compromise the NIP recommends and stays acceptable even on a phone.
  */
 export function encryptSecretKey(secret: SecretKey, password: string, logn = 16): string {
   if (!password) throw new Error('Serve una password per cifrare la chiave.')
   return nip49Encrypt(secret, password, logn)
 }
 
-/** Decifra una chiave protetta da password. */
+/** Decrypts a password-protected key. */
 export function decryptSecretKey(encrypted: string, password: string): SecretKey {
   try {
     return nip49Decrypt(encrypted.trim(), password)
   } catch {
-    // L'errore vero non si propaga: distinguere "password sbagliata" da
-    // "dato corrotto" darebbe informazioni utili a chi prova a indovinare.
+    // The real error is not propagated: telling "wrong password" from
+    // "corrupted data" would give useful information to someone guessing.
     throw new Error('Password errata, oppure la chiave salvata e' + "' danneggiata.")
   }
 }
 
 /**
- * Robustezza della password, per guidare l'utente senza imporgli nulla.
+ * Password strength, to guide the user without imposing anything.
  *
- * Non e' un cancello: e' un indicatore. Una password debole che protegge una
- * chiave e' comunque meglio della chiave in chiaro, e bloccare l'utente qui lo
- * spingerebbe solo verso soluzioni peggiori.
+ * It is not a gate: it is an indicator. A weak password protecting a key is
+ * still better than the key in the clear, and blocking the user here would
+ * only push them towards worse solutions.
+ *
+ * The labels are Italian: they are shown next to the password field.
  */
 export function passwordStrength(password: string): {
   score: 0 | 1 | 2 | 3
@@ -181,31 +185,31 @@ export function passwordStrength(password: string): {
   return { score: 3, label: 'robusta' }
 }
 
-// --- Firma ------------------------------------------------------------------
+// --- Signing ----------------------------------------------------------------
 
 /**
- * Copia piana di un template, senza involucri.
+ * A plain copy of a template, with no wrappers.
  *
- * Va applicata **prima di consegnare un template a un firmatario esterno**, e
- * il motivo e' tutt'altro che teorico. Le estensioni NIP-07 non vivono nella
- * pagina: il codice iniettato passa l'evento al proprio content script con
- * `window.postMessage`, che copia l'oggetto con lo **structured clone**. Lo
- * structured clone rifiuta i `Proxy`, con un errore che parla di clonazione e
- * non di Nostr:
+ * It must be applied **before handing a template to an external signer**, and
+ * the reason is anything but theoretical. NIP-07 extensions do not live in
+ * the page: the injected code passes the event to its own content script with
+ * `window.postMessage`, which copies the object using the **structured
+ * clone**. The structured clone refuses `Proxy` objects, with an error that
+ * talks about cloning and not about Nostr:
  *
  *     Failed to execute 'postMessage' on 'Window':
  *     #<Object> could not be cloned.        (Chrome)
  *     Proxy object could not be cloned.     (Firefox)
  *
- * Un template composto in un'interfaccia reattiva vive quasi sempre dentro un
- * involucro di quel tipo — Vue avvolge in un proxy qualunque oggetto messo in
- * un `ref` — e consegnarlo cosi' com'e' fa fallire la firma *prima* che
- * l'estensione la veda, facendo sembrare guasta l'estensione.
+ * A template composed in a reactive interface almost always lives inside a
+ * wrapper of that kind — Vue wraps in a proxy any object put in a `ref` — and
+ * handing it over as it is makes signing fail *before* the extension sees it,
+ * which makes the extension look broken.
  *
- * La ricostruzione e' esplicita invece di affidarsi a una funzione del
- * framework: dice esattamente cosa riceve chi firma, e non lega il dominio a
- * Vue. I tag si ricopiano uno per uno perche' sono array annidati, e
- * appiattire solo il livello esterno lascerebbe proxy piu' in profondita'.
+ * The rebuild is explicit instead of relying on a framework function: it says
+ * exactly what the signer receives, and it does not tie the domain to Vue.
+ * The tags are copied one by one because they are nested arrays, and
+ * flattening only the outer level would leave proxies deeper down.
  */
 export function plainEventTemplate(template: EventTemplate): EventTemplate {
   return {
@@ -217,22 +221,23 @@ export function plainEventTemplate(template: EventTemplate): EventTemplate {
 }
 
 /**
- * Firma un template con una chiave privata in memoria.
+ * Signs a template with a private key held in memory.
  *
- * Calcola id e firma e restituisce l'evento completo. Usata solo dalla
- * modalita' con chiave locale: con NIP-07 o NIP-46 la firma avviene altrove e
- * la chiave non passa mai di qui.
+ * It computes the id and the signature and returns the complete event. Used
+ * only by the local-key mode: with NIP-07 or NIP-46 signing happens elsewhere
+ * and the key never passes through here.
  */
 export function signWithSecretKey(template: EventTemplate, secret: SecretKey): NostrEvent {
   return finalizeEvent(template, secret)
 }
 
 /**
- * Sovrascrive con zeri i byte di una chiave privata.
+ * Overwrites a private key's bytes with zeros.
  *
- * Non e' una garanzia: JavaScript puo' averne lasciato copie durante le
- * riallocazioni del garbage collector, e non c'e' modo di raggiungerle. Riduce
- * pero' la finestra in cui la chiave resta leggibile in memoria, e costa nulla.
+ * It is not a guarantee: JavaScript may have left copies around during
+ * garbage-collector reallocations, and there is no way to reach them. It does
+ * shorten the window in which the key stays readable in memory, and it costs
+ * nothing.
  */
 export function wipeSecretKey(secret: SecretKey): void {
   secret.fill(0)

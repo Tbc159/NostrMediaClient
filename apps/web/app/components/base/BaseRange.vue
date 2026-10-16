@@ -1,14 +1,14 @@
 <script setup lang="ts">
 /**
- * Cursore per un valore numerico su un intervallo noto.
+ * A slider for a numeric value over a known interval.
  *
- * Serve dove un campo di testo farebbe scegliere alla cieca: il cursore mostra
- * **dove sta il valore rispetto agli estremi**, che per una soglia in decibel
- * e' l'informazione che manca a chi non ha in testa la scala.
+ * It is for where a text field would have you choose blind: the slider shows
+ * **where the value sits between the ends**, which for a threshold in decibels
+ * is the information whoever does not have the scale in their head is missing.
  *
- * Il valore corrente resta scritto accanto, e non solo nella posizione della
- * maniglia: chi legge con uno screen reader, o chi deve riferire un numero
- * preciso, non puo' dedurlo dal disegno.
+ * The current value stays written beside it, and not in the handle's position
+ * alone: whoever reads with a screen reader, or has to report a precise
+ * number, cannot deduce it from the drawing.
  */
 withDefaults(
   defineProps<{
@@ -16,9 +16,9 @@ withDefaults(
     min: number
     max: number
     step?: number
-    /** Unita' mostrata dopo il valore, per esempio `dB` o `s`. */
+    /** The unit shown after the value, for example `dB` or `s`. */
     unita?: string
-    /** Etichette agli estremi, per dire cosa significano i due capi. */
+    /** Labels at the ends, to say what the two extremes mean. */
     estremoMin?: string
     estremoMax?: string
     describedBy?: string

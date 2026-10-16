@@ -30,7 +30,7 @@ export * from './podcast.js'
 export * from './picture.js'
 export * from './video.js'
 
-/** Tutte le definizioni note. Aggiungere un kind = aggiungerlo qui. */
+/** Every known definition. Adding a kind = adding it here. */
 export const kindDefinitions = [
   metadataDefinition,
   noteDefinition,
@@ -52,16 +52,16 @@ export const kindDefinitions = [
 ] as const
 
 /**
- * Registra i kind supportati.
+ * Registers the supported kinds.
  *
- * Esplicita e non automatica: un import con effetti collaterali renderebbe
- * l'ordine di inizializzazione dipendente dall'ordine degli import, che e'
- * fragile e difficile da testare.
+ * Explicit and not automatic: an import with side effects would make the order
+ * of initialisation depend on the order of the imports, which is fragile and
+ * hard to test.
  *
- * Idempotente. Richiamarla salta le definizioni gia' presenti, purche' siano
- * *le stesse*: l'hot reload del dev server la esegue piu' volte, e fallire li'
- * sarebbe rumore. Un kind occupato da una definizione diversa resta pero' un
- * errore, perche' quello e' un conflitto vero.
+ * Idempotent. Calling it again skips the definitions already present, provided
+ * they are *the same ones*: the dev server's hot reload runs it several times,
+ * and failing there would be noise. A kind taken by a different definition
+ * remains an error, though, because that is a real conflict.
  */
 export function registerBuiltinKinds(): void {
   for (const def of kindDefinitions) {

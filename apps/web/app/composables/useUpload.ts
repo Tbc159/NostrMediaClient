@@ -9,49 +9,51 @@ import {
 } from '@nmc/nostr-core'
 
 /**
- * Selezione dei file, caricamento su Blossom, metadati.
+ * Choosing the files, uploading them to Blossom, the metadata.
  *
- * Il flusso ha **tre momenti distinti**, e tenerli separati e' il punto:
+ * The flow has **three distinct moments**, and keeping them separate is the
+ * point:
  *
- *   1. **selezione** — il file resta nel browser, se ne vede l'anteprima e se
- *      ne leggono le misure. Non esce nulla;
- *   2. **caricamento** — solo su conferma esplicita il file va su Blossom;
- *   3. **pubblicazione** — un evento Nostr che *punta* al file, e che puo'
- *      anche non arrivare mai.
+ *   1. **choosing** — the file stays in the browser, its preview is shown and
+ *      its measurements are read. Nothing leaves;
+ *   2. **uploading** — only on an explicit confirmation does the file go to
+ *      Blossom;
+ *   3. **publishing** — a Nostr event that *points* at the file, and that may
+ *      never arrive at all.
  *
- * Caricare al momento della scelta sembrava piu' rapido e non lo era: mandava
- * su un server remoto un file che l'utente non aveva ancora guardato, e da
- * Blossom non si torna indietro davvero — il blob e' identificato dal suo hash
- * e chiunque lo conosca puo' riscaricarlo.
+ * Uploading at the moment of choosing looked quicker and was not: it sent to a
+ * remote server a file the user had not yet looked at, and there is no real
+ * coming back from Blossom — the blob is identified by its hash and anyone who
+ * knows it can download it again.
  *
- * Invariante che resta, dal piano: **se il caricamento fallisce non si pubblica
- * alcun evento**. Un `imeta` che punta al vuoto e' peggio di un post mancato —
- * resta pubblicato per sempre con un'immagine rotta, e il kind 20 e' regolare,
- * quindi non correggibile.
+ * An invariant that stands, from the plan: **if the upload fails no event is
+ * published**. An `imeta` pointing at nothing is worse than a missed post — it
+ * stays published for ever with a broken image, and kind 20 is regular, hence
+ * not correctable.
  */
 
 export type StatoFile = 'in-attesa' | 'in-corso' | 'caricato' | 'errore'
 
-/** Un file scelto dall'utente, prima o dopo il caricamento. */
+/** A file the user chose, before or after the upload. */
 export interface MediaSelezionato {
-  /** Chiave stabile per l'elenco: il nome non basta, si possono scegliere due file uguali. */
+  /** A stable key for the list: the name is not enough, two identical files can be chosen. */
   id: string
-  /** Il file locale. Assente per i media adottati da un evento gia' pubblicato. */
+  /** The local file. Absent for the media adopted from an already published event. */
   file: File | null
   nome: string
   mime: string
   dimensioneByte: number
-  /** URL dell'anteprima: un blob locale prima del caricamento, l'URL remoto dopo. */
+  /** The preview's URL: a local blob before the upload, the remote URL after. */
   anteprima: string
   /** Dimensioni in pixel, misurate localmente. */
   dim?: string
-  /** Durata in secondi, per audio e video. */
+  /** The duration in seconds, for audio and video. */
   duration?: number
-  /** Descrizione per chi non vede il file. Modificabile prima e dopo. */
+  /** A description for whoever cannot see the file. Editable before and after. */
   alt: string
   stato: StatoFile
   errore?: string
-  /** Valorizzati dopo il caricamento. */
+  /** Set after the upload. */
   descrittore?: BlobDescriptor
   copie: string[]
 }
@@ -63,12 +65,12 @@ export type FaseUpload =
   | { fase: 'replica'; nome: string; server: string }
 
 /**
- * Misura un'immagine o un video **prima** del caricamento.
+ * Measures an image or a video **before** the upload.
  *
- * Le dimensioni servono a chi legge per riservare lo spazio giusto ed evitare
- * che il testo salti quando l'immagine arriva. Vanno lette qui, dal file
- * originale: dopo il caricamento servirebbe riscaricarlo, e un server che
- * ricomprime potrebbe restituirne di diverse.
+ * The dimensions are what let the reader reserve the right space and keep the
+ * text from jumping when the image arrives. They have to be read here, from
+ * the original file: after the upload it would have to be downloaded again,
+ * and a server that recompresses could return different ones.
  */
 async function misura(file: File): Promise<{ dim?: string; duration?: number }> {
   if (file.type.startsWith('image/')) {
@@ -78,8 +80,8 @@ async function misura(file: File): Promise<{ dim?: string; duration?: number }> 
       bitmap.close()
       return risultato
     } catch {
-      // Formato che il browser non decodifica (AVIF vecchi, TIFF): si carica
-      // comunque, semplicemente senza dichiarare le dimensioni.
+      // A format the browser does not decode (old AVIFs, TIFF): it is
+      // uploaded all the same, simply without declaring the dimensions.
       return {}
     }
   }
@@ -103,9 +105,9 @@ async function misura(file: File): Promise<{ dim?: string; duration?: number }> 
     })
   }
 
-  // Anche l'audio ha una durata, e per un episodio di podcast e' un dato che
-  // le app mostrano (itunes:duration): senza, la riga dell'episodio resta
-  // senza minuti. Si misura come per i video, dai soli metadati.
+  // Audio has a duration too, and for a podcast episode it is a datum the
+  // apps show (itunes:duration): without it the episode's row is left without
+  // minutes. It is measured as for videos, from the metadata alone.
   if (file.type.startsWith('audio/')) {
     return new Promise((risolvi) => {
       const audio = document.createElement('audio')
@@ -139,12 +141,12 @@ export function useUpload() {
   const daCaricare = computed(() => media.value.filter((m) => m.stato !== 'caricato'))
   const caricati = computed(() => media.value.filter((m) => m.stato === 'caricato'))
   const nessunoSelezionato = computed(() => media.value.length === 0)
-  /** Vero quando tutto quello che era stato scelto e' finito su Blossom. */
+  /** True when everything that was chosen has made it onto Blossom. */
   const tuttoCaricato = computed(
     () => media.value.length > 0 && media.value.every((m) => m.stato === 'caricato'),
   )
 
-  /** Revoca solo le anteprime create localmente: quelle remote non hanno nulla da liberare. */
+  /** Revokes the locally created previews alone: the remote ones have nothing to free. */
   function liberaAnteprima(url: string): void {
     if (url.startsWith('blob:')) URL.revokeObjectURL(url)
   }
@@ -162,18 +164,18 @@ export function useUpload() {
     media.value = media.value.filter((m) => m.id !== id)
   }
 
-  /** Aggiorna la descrizione accessibile di un file. */
+  /** Updates a file's accessible description. */
   function descrivi(id: string, alt: string): void {
     const trovato = media.value.find((m) => m.id === id)
     if (trovato) trovato.alt = alt
   }
 
   /**
-   * Prende in carico i file scelti **senza caricarli**.
+   * Takes on the chosen files **without uploading them**.
    *
-   * Qui si misura e si costruisce l'anteprima: tutto in locale, niente esce dal
-   * browser. E' il momento in cui l'utente puo' ancora cambiare idea a costo
-   * zero.
+   * Here they are measured and the preview is built: all locally, nothing
+   * leaves the browser. It is the moment at which the user can still change
+   * their mind at no cost.
    */
   async function seleziona(files: FileList | File[]): Promise<void> {
     errore.value = null
@@ -201,11 +203,11 @@ export function useUpload() {
   }
 
   /**
-   * Carica su Blossom i file ancora in attesa.
+   * Uploads the files still waiting to Blossom.
    *
-   * La replica sugli altri server non blocca: se fallisce, il file resta sul
-   * primario. Trattarla come un errore butterebbe un caricamento riuscito
-   * perche' un server *secondario* non risponde.
+   * Mirroring to the other servers does not block: when it fails, the file
+   * stays on the primary. Treating it as an error would throw away a
+   * successful upload because a *secondary* server does not answer.
    */
   async function caricaSelezionati(): Promise<boolean> {
     errore.value = null
@@ -230,8 +232,8 @@ export function useUpload() {
       delete m.errore
       try {
         fase.value = { fase: 'invio', nome: m.nome, server: primario }
-        // Il nome serve a scegliere l'estensione nell'URL: un «.mp3» resta
-        // «.mp3», invece del «.mpga» con cui il server risponderebbe.
+        // The name is what chooses the extension in the URL: an «.mp3» stays
+        // an «.mp3», instead of the «.mpga» the server would answer with.
         const descrittore = await uploadBlob(primario, m.file, {
           firma: (template) => identita.firma(template),
           pubkey: identita.pubkey ?? '',
@@ -251,8 +253,8 @@ export function useUpload() {
             })
             copie.push(altro)
           } catch {
-            // Il primario ha il file: una replica mancata e' meno ridondanza,
-            // non un caricamento fallito.
+            // The primary has the file: a missed mirror is less redundancy,
+            // not a failed upload.
           }
         }
 
@@ -275,7 +277,7 @@ export function useUpload() {
     return tutti
   }
 
-  /** Metadati NIP-92 di un file caricato, pronti a diventare un tag `imeta`. */
+  /** An uploaded file's NIP-92 metadata, ready to become an `imeta` tag. */
   function imetaDi(m: MediaSelezionato): ImetaInput | null {
     if (!m.descrittore) return null
     return {
@@ -286,8 +288,8 @@ export function useUpload() {
       ...(m.dim ? { dim: m.dim } : {}),
       ...(m.duration !== undefined ? { duration: m.duration } : {}),
       ...(m.alt.trim() ? { alt: m.alt.trim() } : {}),
-      // Le copie oltre la prima diventano fallback: se il primario sparisce
-      // l'evento gia' pubblicato continua a puntare a qualcosa di vivo.
+      // The copies beyond the first become fallbacks: if the primary
+      // disappears the published event goes on pointing at something alive.
       ...(m.copie.length > 1
         ? {
             fallback: m.copie
@@ -298,17 +300,17 @@ export function useUpload() {
     }
   }
 
-  /** Gli `imeta` di tutti i file caricati, nell'ordine in cui sono stati scelti. */
+  /** The `imeta`s of every uploaded file, in the order they were chosen. */
   const imeta = computed<ImetaInput[]>(() =>
     caricati.value.map(imetaDi).filter((x): x is ImetaInput => x !== null),
   )
 
   /**
-   * Adotta file gia' presenti su Blossom, senza ricaricarli.
+   * Adopts files already on Blossom, without re-uploading them.
    *
-   * Serve a ricomporre un evento partendo da uno pubblicato: i file sono gia'
-   * la', identificati dal loro hash, e l'`imeta` dell'evento vecchio contiene
-   * tutto quello che serve.
+   * It is what recomposes an event starting from a published one: the files
+   * are there already, identified by their hash, and the old event's `imeta`
+   * contains everything needed.
    */
   function adotta(
     esistenti: { nome: string; imeta: ImetaInput; descrittore: BlobDescriptor; copie: string[] }[],

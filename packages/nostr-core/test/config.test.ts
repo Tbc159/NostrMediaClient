@@ -8,7 +8,7 @@ const minimo = {
 }
 
 describe('resolveClientConfig', () => {
-  it('spezza le liste separate da virgola tollerando gli spazi', () => {
+  it('splits the comma-separated lists, tolerating spaces', () => {
     const config = resolveClientConfig({
       ...minimo,
       NUXT_PUBLIC_DEFAULT_READ_RELAYS: 'wss://a.example , wss://b.example,  wss://c.example',
@@ -16,7 +16,7 @@ describe('resolveClientConfig', () => {
     expect(config.readRelays).toEqual(['wss://a.example', 'wss://b.example', 'wss://c.example'])
   })
 
-  it('scarta le voci vuote invece di produrre stringhe vuote', () => {
+  it('discards the empty entries instead of producing empty strings', () => {
     const config = resolveClientConfig({
       ...minimo,
       NUXT_PUBLIC_INDEXER_RELAYS: 'wss://a.example,,  ,wss://b.example',
@@ -24,22 +24,22 @@ describe('resolveClientConfig', () => {
     expect(config.indexerRelays).toEqual(['wss://a.example', 'wss://b.example'])
   })
 
-  it('esige almeno un relay di lettura e uno di scrittura', () => {
+  it('requires at least one read relay and one write relay', () => {
     expect(() => resolveClientConfig({})).toThrow(/relay di lettura/)
     expect(() =>
       resolveClientConfig({ NUXT_PUBLIC_DEFAULT_READ_RELAYS: 'wss://a.example' }),
     ).toThrow(/relay di scrittura/)
   })
 
-  it('rifiuta un URL di relay con schema sbagliato', () => {
-    // Fallire all'avvio e' meglio che scoprire a runtime che il client sta
-    // parlando con un endpoint che non e' un relay.
+  it('refuses a relay URL with the wrong scheme', () => {
+    // Failing at start-up is better than finding out at runtime that the
+    // client is talking to an endpoint that is not a relay.
     expect(() =>
       resolveClientConfig({ ...minimo, NUXT_PUBLIC_DEFAULT_READ_RELAYS: 'https://a.example' }),
     ).toThrow(/wss:\/\//)
   })
 
-  it('rifiuta un server Blossom con schema sbagliato', () => {
+  it('refuses a Blossom server with the wrong scheme', () => {
     expect(() =>
       resolveClientConfig({
         ...minimo,
@@ -48,28 +48,28 @@ describe('resolveClientConfig', () => {
     ).toThrow(/https:\/\//)
   })
 
-  it('applica i default per siteUrl e njumpUrl', () => {
+  it('applies the defaults for siteUrl and njumpUrl', () => {
     const config = resolveClientConfig(minimo)
     expect(config.siteUrl).toBe('http://localhost:3000')
     expect(config.njumpUrl).toBe('https://njump.me')
   })
 })
 
-describe('relay per le bozze', () => {
-  it('vale null quando la variabile e assente o vuota', () => {
+describe('the relay for drafts', () => {
+  it('is null when the variable is absent or empty', () => {
     expect(resolveClientConfig(minimo).draftRelay).toBeNull()
     expect(resolveClientConfig({ ...minimo, NUXT_PUBLIC_DRAFT_RELAY: '' }).draftRelay).toBeNull()
     expect(resolveClientConfig({ ...minimo, NUXT_PUBLIC_DRAFT_RELAY: '   ' }).draftRelay).toBeNull()
   })
 
-  it('senza relay per le bozze la funzione resta disabilitata, senza ripiegare su uno pubblico', () => {
-    // Una bozza (kind 30024) finita su un relay pubblico e' a tutti gli
-    // effetti una pubblicazione non voluta. Vedi ADR 0003.
+  it('leaves the feature disabled without a draft relay, with no fallback to a public one', () => {
+    // A draft (kind 30024) that ends up on a public relay is to all intents
+    // and purposes an unwanted publication. See ADR 0003.
     const config = resolveClientConfig(minimo)
     expect(draftsEnabled(config)).toBe(false)
   })
 
-  it('abilita le bozze quando il relay privato e configurato', () => {
+  it('enables the drafts when the private relay is configured', () => {
     const config = resolveClientConfig({
       ...minimo,
       NUXT_PUBLIC_DRAFT_RELAY: 'wss://relay.privato.example',
@@ -79,10 +79,10 @@ describe('relay per le bozze', () => {
   })
 })
 
-describe('normalizzazione degli URL', () => {
-  it('toglie gli slash finali dai server Blossom', () => {
-    // Un URL copiaincollato con lo slash finale produrrebbe poi "//upload"
-    // nelle richieste Blossom, che alcuni server rifiutano.
+describe('the normalisation of the URLs', () => {
+  it('strips the trailing slashes from the Blossom servers', () => {
+    // A URL copy-pasted with a trailing slash would then produce "//upload"
+    // in the Blossom requests, which some servers refuse.
     const config = resolveClientConfig({
       ...minimo,
       NUXT_PUBLIC_DEFAULT_BLOSSOM_SERVERS: 'https://blossom.example/,https://altro.example///',
@@ -90,7 +90,7 @@ describe('normalizzazione degli URL', () => {
     expect(config.blossomServers).toEqual(['https://blossom.example', 'https://altro.example'])
   })
 
-  it('toglie gli slash finali dagli URL dei relay', () => {
+  it("strips the trailing slashes from the relays' URLs", () => {
     const config = resolveClientConfig({
       ...minimo,
       NUXT_PUBLIC_DEFAULT_READ_RELAYS: 'wss://relay.example/',

@@ -16,7 +16,7 @@ async function copia(): Promise<void> {
     copiato.value = true
     setTimeout(() => (copiato.value = false), 1500)
   } catch {
-    // Clipboard negata dal browser: il JSON resta comunque selezionabile.
+    // Clipboard denied by the browser: the JSON stays selectable all the same.
   }
 }
 </script>

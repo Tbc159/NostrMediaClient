@@ -1,34 +1,34 @@
 import type { EventTemplate } from './types.js'
 
 /**
- * Il tag `client`: chi ha scritto l'evento.
+ * The `client` tag: who wrote the event.
  *
- * NIP-89 prevede `["client", "<nome>"]` su un evento pubblicato, e i client
- * lo scrivono davvero — un evento calendario ricevuto da Plektos porta
- * `["client", "Plektos"]`. Serve a chi legge per capire con cosa e' stato
- * composto, e a chi sviluppa per sapere da dove arriva un evento malformato.
+ * NIP-89 provides for `["client", "<name>"]` on a published event, and
+ * clients really do write it — a calendar event received from Plektos carries
+ * `["client", "Plektos"]`. It helps readers understand what composed it, and
+ * developers know where a malformed event came from.
  *
- * **Sovrascrive** quello che trova. Non e' una gentilezza verso l'altro
- * client: se riapriamo un evento di Plektos e lo ripubblichiamo, quell'evento
- * lo ha scritto questo programma, e lasciare il nome di un altro sarebbe
- * falso. Cambiare solo il tag `client` non riscrive la storia — l'evento
- * originale resta sui relay con il suo id, questo e' un evento nuovo.
+ * It **overwrites** whatever it finds. That is not discourtesy towards the
+ * other client: if we reopen a Plektos event and publish it again, that event
+ * was written by this program, and leaving someone else's name would be
+ * false. Changing the `client` tag does not rewrite history — the original
+ * event stays on the relays with its own id, this is a new event.
  *
- * Si usa la forma semplice, senza la coordinata `31990:…` dell'evento
- * handler: non ne pubblichiamo uno, e dichiarare una coordinata inesistente
- * sarebbe peggio che tacere.
+ * We use the simple form, without the handler event's `31990:…` coordinate:
+ * we do not publish one, and declaring a coordinate that does not exist would
+ * be worse than saying nothing.
  */
 
-/** Il nome con cui questo client si dichiara. Cablato: non e' configurabile. */
+/** The name this client declares itself with. Hard-wired: not configurable. */
 export const NOME_CLIENT = 'NostrMediaClient'
 
-/** Nome del tag, per chi deve riconoscerlo senza scriverlo a mano. */
+/** The tag name, for whoever has to recognise it without typing it by hand. */
 export const TAG_CLIENT = 'client'
 
 /**
- * Lo stesso template con un solo tag `client`, il nostro.
+ * The same template with exactly one `client` tag, ours.
  *
- * Idempotente e senza effetti sull'originale: ne restituisce una copia.
+ * Idempotent and with no effect on the original: it returns a copy.
  */
 export function conTagClient(template: EventTemplate): EventTemplate {
   return {

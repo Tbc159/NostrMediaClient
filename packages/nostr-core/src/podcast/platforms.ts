@@ -1,14 +1,14 @@
-import type { CategoriaPodcast } from './categorie.js'
+import type { CategoriaPodcast } from './categories.js'
 
 /**
- * Le piattaforme di podcast, come dati, e la loro checklist.
+ * The podcast platforms, as data, and their checklist.
  *
- * Chiedono quasi tutte le stesse cinque cose — copertina quadrata,
- * categoria, lingua, explicit, email nel feed — ma non tutte le pretendono, e
- * ognuna verifica la proprieta' a modo suo. Metterle in una tabella permette
- * al client di dire, per ciascuna, *cosa manca* invece di un generico «il
- * feed non e' valido». Le fonti dei requisiti sono nella guida
- * `docs/PODCAST.md`.
+ * They nearly all ask for the same five things — a square cover, a category,
+ * a language, explicit, an email in the feed — but not all of them demand
+ * these, and each verifies ownership in its own way. Putting them in a table
+ * lets the client say, for each one, *what is missing* instead of a generic
+ * «the feed is not valid». The sources for the requirements are in the
+ * `docs/PODCAST.md` guide.
  */
 
 export type RequisitoPiattaforma =
@@ -17,14 +17,14 @@ export type RequisitoPiattaforma =
 export interface Piattaforma {
   id: 'podcastindex' | 'apple' | 'spotify' | 'amazon' | 'youtube'
   nome: string
-  /** Dove si sottopone il feed. */
+  /** Where the feed gets submitted. */
   sottoponiSu: string
-  /** Domini che identificano il link dello show su quella piattaforma. */
+  /** The domains that identify the show's link on that platform. */
   dominiShow: readonly string[]
-  /** Da chi prende il feed: direttamente, o da una directory. */
+  /** Where it takes the feed from: directly, or from a directory. */
   legge: 'feed' | 'podcastindex'
   requisiti: readonly RequisitoPiattaforma[]
-  /** Come verifica che il podcast sia tuo. */
+  /** How it verifies that the podcast is yours. */
   verificaProprieta: string
   nota?: string
 }
@@ -89,7 +89,7 @@ export const PIATTAFORME: readonly Piattaforma[] = [
   },
 ]
 
-/** Quello che la checklist guarda: i dati della scheda 10154 piu' le misure della copertina. */
+/** What the checklist looks at: the 10154 card's data plus the cover's measurements. */
 export interface SchedaPerPiattaforme {
   description?: string
   image?: string
@@ -97,7 +97,7 @@ export interface SchedaPerPiattaforme {
   language?: string
   email?: string
   websites?: readonly string[]
-  /** MIME degli audio degli episodi noti; vuoto se non ce ne sono. */
+  /** The MIMEs of the known episodes' audio; empty when there are none. */
   mimeEpisodi?: readonly string[]
 }
 
@@ -109,7 +109,7 @@ export interface MisureCopertina {
 export const COPERTINA_MIN = 1400
 export const COPERTINA_MAX = 3000
 
-/** Vero se la copertina va bene per tutte le piattaforme: quadrata, fra 1400 e 3000. */
+/** True when the cover suits every platform: square, between 1400 and 3000. */
 export function copertinaConforme(m: MisureCopertina | null): boolean {
   if (!m) return false
   return m.larghezza === m.altezza && m.larghezza >= COPERTINA_MIN && m.larghezza <= COPERTINA_MAX
@@ -118,14 +118,14 @@ export function copertinaConforme(m: MisureCopertina | null): boolean {
 export interface VoceChecklist {
   requisito: RequisitoPiattaforma
   ok: boolean
-  /** Cosa manca, in parole; vuoto se ok. */
+  /** What is missing, in words; empty when ok. The UI shows it, so it stays Italian. */
   testo: string
 }
 
 export interface EsitoPiattaforma {
   pronta: boolean
   voci: VoceChecklist[]
-  /** Il link dello show su quella piattaforma, se la scheda lo dichiara fra i siti. */
+  /** The show's link on that platform, when the card declares it among the websites. */
   urlShow: string | null
 }
 
@@ -139,7 +139,7 @@ function dominioDi(url: string): string | null {
   }
 }
 
-/** Il primo sito della scheda che sta su uno dei domini della piattaforma. */
+/** The first website on the card that sits on one of the platform's domains. */
 export function urlShowSu(
   piattaforma: Piattaforma,
   websites: readonly string[] = [],
@@ -152,10 +152,10 @@ export function urlShowSu(
 }
 
 /**
- * La checklist di una piattaforma sui dati reali.
+ * One platform's checklist against the real data.
  *
- * Non decide se sottoporre: dice cosa la piattaforma rifiuterebbe. Un ✗ qui
- * e' un dato da aggiungere nel profilo, non un errore.
+ * It does not decide whether to submit: it says what the platform would
+ * refuse. A ✗ here is a piece of data to add to the profile, not an error.
  */
 export function verificaPiattaforma(
   piattaforma: Piattaforma,

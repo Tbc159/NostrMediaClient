@@ -1,23 +1,24 @@
 import { createServer, type Server } from 'node:http'
 
 /**
- * media-manager finto, in-process: implementa il contratto, non lo simula.
+ * A fake in-process media-manager: it implements the contract, it does not
+ * simulate it.
  *
- * Un finto solo per tutto il servizio, perche' il servizio e' uno: `media`,
- * `content` e `audio` sono suoi domini, con la stessa radice e la stessa
- * chiave.
+ * A single fake for the whole service, because the service is one: `media`,
+ * `content` and `audio` are domains of its own, with the same root and the
+ * same key.
  *
- * Le regole riprodotte sono quelle che il client sbaglierebbe in silenzio:
+ * The rules reproduced are the ones the client would get silently wrong:
  *
- *  - **il `filename` non e' il `title`**. Lo genera il servizio, ed e'
- *    l'unico riferimento che risolve: passare il titolo prende un 400 con
- *    `field`/`value`/`searched_by`, come dal vero. E' il difetto che il
- *    client aveva davvero, e un finto che risolvesse per titolo lo avrebbe
- *    confermato invece di scoprirlo;
- *  - **i byte sono protetti**: senza chiave 401, a meno del token firmato,
- *    che e' l'unico modo per farli vedere a un tag del browser;
- *  - **le lavorazioni sono job**: 202 e `job_id`, poi `queued` → `running` →
- *    `succeeded`, e nessuna operazione distrugge la sorgente.
+ *  - **the `filename` is not the `title`**. The service generates it, and it
+ *    is the only reference that resolves: passing the title gets a 400 with
+ *    `field`/`value`/`searched_by`, as in the real thing. It is the defect the
+ *    client really had, and a fake that resolved by title would have confirmed
+ *    it instead of uncovering it;
+ *  - **the bytes are protected**: 401 without a key, barring the signed token,
+ *    which is the only way to let a browser tag see them;
+ *  - **the processing jobs are jobs**: 202 and a `job_id`, then `queued` →
+ *    `running` → `succeeded`, and no operation destroys the source.
  */
 
 export interface MediaFinto {
@@ -35,22 +36,22 @@ export interface MediaFinto {
 
 export interface MediaManagerFinto {
   url: string
-  /** Media in archivio, nell'ordine di arrivo. */
+  /** The media in the archive, in order of arrival. */
   media: MediaFinto[]
-  /** Richieste di generazione ricevute, per verificare cosa e' stato mandato. */
+  /** The generation requests received, to check what was sent. */
   richieste: unknown[]
-  /** Corpi ricevuti dal dominio audio: percorso e corpo. */
+  /** The bodies the audio domain received: path and body. */
   richiesteAudio: { percorso: string; corpo: Record<string, unknown> }[]
-  /** Quanti giri di stato prima che un lavoro risulti finito. */
+  /** How many rounds of status before a job comes out finished. */
   giriPrimaDelFine: number
-  /** Se vero, il prossimo lavoro fallisce. */
+  /** When true, the next job fails. */
   faiFallire: boolean
   chiudi(): Promise<void>
 }
 
 const CHIAVE = 'chiave-di-prova'
 
-/** Il nome file che genererebbe il servizio: slug del titolo, non il titolo. */
+/** The filename the service would generate: a slug of the title, not the title. */
 function generaFilename(titolo: string, mediaType: string): string {
   const base =
     titolo
@@ -69,8 +70,8 @@ function generaFilename(titolo: string, mediaType: string): string {
       'image/webp': 'webp',
       'video/mp4': 'mp4',
     }[mediaType] ?? 'bin'
-  // Il prefisso e' cio' che rende il filename diverso dal titolo: chi
-  // riferisse per titolo passerebbe qui senza accorgersene.
+  // The prefix is what makes the filename differ from the title: whoever
+  // referred by title would slip past here without noticing.
   return `arc-${base}.${est}`
 }
 
@@ -108,7 +109,7 @@ export async function avviaMediaManagerFinto(
     return item
   }
 
-  /** Risoluzione come il servizio: id o filename, mai il titolo. */
+  /** Resolution as the service does it: an id or a filename, never the title. */
   const risolvi = (rif: unknown): MediaFinto | null => {
     if (typeof rif === 'number') return media.find((m) => m.id === rif) ?? null
     if (typeof rif !== 'string') return null
@@ -154,8 +155,8 @@ export async function avviaMediaManagerFinto(
 
     if (percorso.endsWith('/health')) return rispondi(200, { status: 'ok' })
 
-    // I byte: chiave, oppure il token firmato che il browser puo' portare da
-    // solo in un tag src.
+    // The bytes: a key, or the signed token the browser can carry by itself
+    // in a src tag.
     const byte = /^\/v0\/media\/(\d+)\/content$/.exec(percorso)
     if (byte) {
       const item = media.find((m) => m.id === Number(byte[1]))
@@ -176,7 +177,7 @@ export async function avviaMediaManagerFinto(
       return rispondi(401, { title: 'Unauthorized', detail: 'No authorization token provided' })
     }
 
-    // ── dominio media ───────────────────────────────────────────────────────
+    // ── the media domain ────────────────────────────────────────────────────
     if (percorso === '/v0/media' && req.method === 'GET') {
       const tipo = url.searchParams.get('type')
       const titolo = url.searchParams.get('title')
@@ -223,7 +224,7 @@ export async function avviaMediaManagerFinto(
       })
     }
 
-    // ── dominio content ─────────────────────────────────────────────────────
+    // ── the content domain ──────────────────────────────────────────────────
     if (percorso === '/v0/content/image' && req.method === 'POST') {
       return conCorpoJson((corpo) => {
         richieste.push(corpo)
@@ -260,7 +261,7 @@ export async function avviaMediaManagerFinto(
       })
     }
 
-    // ── dominio audio ───────────────────────────────────────────────────────
+    // ── the audio domain ────────────────────────────────────────────────────
     const opAudio = /^\/v0\/audio\/(normalize|silence|convert|analyze)$/.exec(percorso)
     if (opAudio && req.method === 'POST') {
       return conCorpoJson((corpo) => {
@@ -275,8 +276,8 @@ export async function avviaMediaManagerFinto(
           op,
           giri: 0,
           fallito: Boolean(stato.faiFallire),
-          // La sorgente resta in archivio: rifare con parametri diversi non
-          // richiede ricaricare nulla.
+          // The source stays in the archive: redoing it with different
+          // parameters requires re-uploading nothing.
           prodotto: creaMedia(
             String(corpo.title ?? `${sorgente.title} (${op})`),
             formato,

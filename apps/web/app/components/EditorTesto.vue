@@ -4,25 +4,25 @@ import StarterKit from '@tiptap/starter-kit'
 import { EditorContent, useEditor } from '@tiptap/vue-3'
 
 /**
- * L'editor del corpo di un articolo: si scrive vedendo il risultato.
+ * The editor for an article's body: you write while seeing the result.
  *
- * Il contenuto pubblicato resta **Markdown** — lo vuole NIP-23 e lo vogliono i
- * lettori che non passano da qui — ma per scriverlo non serve conoscerne i
- * simboli. Il pulsante «Markdown» mostra la sorgente vera e la lascia
- * modificare: vedere cosa si sta pubblicando non deve essere un privilegio.
+ * The published content stays **Markdown** — NIP-23 wants it and so do the
+ * readers that do not come through here — but writing it requires no knowledge
+ * of its symbols. The «Markdown» button shows the real source and lets it be
+ * edited: seeing what you are publishing must not be a privilege.
  *
- * **Perche' Tiptap e non un `contenteditable` nostro.** La prima versione
- * usava `document.execCommand`: titoli ed elenchi uscivano a caso, perche'
- * quell'API e' deprecata, si comporta in modo diverso a ogni browser e non ha
- * un modello del documento — sposta tag e spera. Tiptap sta su ProseMirror,
- * che ha uno schema vero: un titolo e' un nodo `heading`, un elenco e' un
- * nodo `bulletList`, e la selezione non puo' produrre stati impossibili. In
- * piu' i pulsanti sanno dire se sono attivi, e da tastiera funzionano le
- * scorciatoie che tutti conoscono.
+ * **Why Tiptap and not a `contenteditable` of our own.** The first version
+ * used `document.execCommand`: headings and lists came out at random, because
+ * that API is deprecated, behaves differently in every browser and has no
+ * model of the document — it moves tags and hopes. Tiptap sits on ProseMirror,
+ * which has a real schema: a heading is a `heading` node, a list is a
+ * `bulletList` node, and the selection cannot produce impossible states. On
+ * top of that the buttons can say whether they are active, and from the
+ * keyboard the shortcuts everybody knows work.
  *
- * Nessuna tabella: `StarterKit` non ne ha, e non serve aggiungerle — un
- * articolo su Nostr e' testo, e il giro verso il Markdown non le
- * ricostruirebbe comunque.
+ * No tables: `StarterKit` has none, and there is no need to add them — an
+ * article on Nostr is text, and the round trip to Markdown would not rebuild
+ * them anyway.
  */
 
 const testo = defineModel<string>({ default: '' })
@@ -33,15 +33,16 @@ const modo = ref<'formattato' | 'markdown'>('formattato')
 const problemi = computed(() => costruttiNonRicostruibili(testo.value))
 
 /*
- * `useEditor` costruisce l'editor in `onMounted` e lo distrugge da solo: in SSR
- * non nasce affatto, che e' giusto — ProseMirror vuole un DOM, e renderizzarlo
- * sul server darebbe una pagina che non combacia con quella idratata.
+ * `useEditor` builds the editor in `onMounted` and destroys it by itself: in
+ * SSR it is not born at all, which is right — ProseMirror wants a DOM, and
+ * rendering it on the server would give a page that does not match the
+ * hydrated one.
  */
 const editor = useEditor({
   extensions: [
     StarterKit.configure({
-      // Un articolo ha sezioni, non un titolo dentro il titolo: il titolo
-      // dell'articolo e' un campo a parte, quindi qui si parte dall'H2.
+      // An article has sections, not a heading inside the heading: the
+      // article's title is a field of its own, so here we start from the H2.
       heading: { levels: [2, 3, 4] },
       link: false,
     }),
@@ -55,20 +56,20 @@ const editor = useEditor({
     },
   },
   onUpdate: ({ editor: e }) => {
-    // La sorgente pubblicata resta il Markdown: si riscrive a ogni modifica,
-    // cosi' non esiste uno stato che sopravviva solo dentro l'editor.
+    // The published source stays the Markdown: it is rewritten on every
+    // change, so no state survives inside the editor alone.
     testo.value = markdownDaHtml(e.getHTML())
   },
 })
 
 /*
- * Il Markdown cambiato da fuori (una bozza ripresa, un articolo riaperto) deve
- * comparire nell'editor; quello che arriva **da** l'editor no, o il cursore
- * salterebbe all'inizio a ogni carattere.
+ * Markdown changed from outside (a draft picked up again, an article reopened)
+ * has to appear in the editor; what comes **from** the editor must not, or the
+ * cursor would jump to the start on every character.
  *
- * Qui vive anche la salvaguardia, e non al montaggio: un articolo riaperto
- * arriva dai relay *dopo*, e un controllo fatto una volta sola vedrebbe sempre
- * un testo vuoto. Era il difetto che la prova nel browser ha scoperto.
+ * The safeguard lives here too, and not on mount: a reopened article arrives
+ * from the relays *later*, and a check made once only would always see an
+ * empty text. It was the defect the test in the browser uncovered.
  */
 watch(testo, (nuovo) => {
   const e = editor.value
@@ -90,20 +91,20 @@ function cambiaModo(): void {
     return
   }
   modo.value = 'formattato'
-  // Rientrando, l'editor mostra cio' che si e' scritto a mano — e riprende il
-  // fuoco con il cursore in fondo: chi torna dalla sorgente vuole continuare a
-  // scrivere, non cercare dove ha lasciato.
+  // On the way back, the editor shows what was written by hand — and takes the
+  // focus again with the cursor at the end: whoever returns from the source
+  // wants to go on writing, not to look for where they left off.
   const e = editor.value
   if (!e) return
   e.chain().setContent(renderMarkdown(testo.value), { emitUpdate: false }).focus('end').run()
 }
 
 /**
- * Il link: si chiede l'indirizzo e si applica alla selezione.
+ * The link: the address is asked for and applied to the selection.
  *
- * Senza selezione non c'e' testo da rendere cliccabile, e si inserisce
- * l'indirizzo come testo del link — che e' quello che si aspetta chi incolla
- * un URL in un messaggio.
+ * Without a selection there is no text to make clickable, and the address is
+ * inserted as the link's text — which is what whoever pastes a URL into a
+ * message expects.
  */
 function link(): void {
   const e = editor.value
@@ -123,16 +124,16 @@ function link(): void {
 }
 
 /**
- * La barra: solo cio' che serve a scrivere un articolo, con i nomi che si
- * riconoscono. `attivo` accende il pulsante quando il cursore e' dentro quel
- * formato — senza, non si capisce se il grassetto e' acceso o spento.
+ * The toolbar: only what is needed to write an article, with names that are
+ * recognisable. `attivo` lights the button up when the cursor is inside that
+ * format — without it, there is no telling whether bold is on or off.
  */
 /*
- * `@mousedown.prevent` sui pulsanti della barra: senza, il clic toglie il fuoco
- * all'editor e il cursore si sposta, quindi il comando si applica al punto
- * sbagliato — o a niente. E' il pattern canonico di una barra ProseMirror, e
- * la ragione per cui un editor fatto a mano sbaglia proprio su titoli ed
- * elenchi, che agiscono sul blocco e non sulla parola.
+ * `@mousedown.prevent` on the toolbar's buttons: without it the click takes
+ * the focus away from the editor and the cursor moves, so the command applies
+ * to the wrong place — or to nothing. It is the canonical pattern of a
+ * ProseMirror toolbar, and the reason a hand-made editor gets headings and
+ * lists wrong in particular, those acting on the block and not on the word.
  */
 interface Strumento {
   nome: string
@@ -212,9 +213,8 @@ const strumenti = computed<Strumento[]>(() => {
 })
 
 /*
- * Ctrl+K non e' fra le scorciatoie di Tiptap perche' il link ha bisogno di
- * chiedere l'indirizzo, e un'estensione non puo' aprire una finestra al posto
- * dell'applicazione.
+ * Ctrl+K is not among Tiptap's shortcuts because the link needs to ask for the
+ * address, and an extension cannot open a dialog on the application's behalf.
  */
 function tasti(evento: KeyboardEvent): void {
   if ((evento.ctrlKey || evento.metaKey) && evento.key.toLowerCase() === 'k') {
@@ -268,10 +268,11 @@ function tasti(evento: KeyboardEvent): void {
     </BaseAlert>
 
     <!--
-      L'HTML iniziale passa da renderMarkdown, quindi da DOMPurify: quello che
-      entra nell'editor e' gia' ripulito. Da qui in avanti il documento lo
-      governa lo schema di ProseMirror, che accetta solo i nodi dichiarati
-      sopra — e' il secondo motivo per cui l'HTML altrui non puo' passare.
+      The initial HTML goes through renderMarkdown, hence through DOMPurify:
+      what enters the editor is cleaned up already. From here on the document
+      is governed by ProseMirror's schema, which accepts only the nodes
+      declared above — it is the second reason other people's HTML cannot get
+      through.
     -->
     <div
       v-if="modo === 'formattato'"

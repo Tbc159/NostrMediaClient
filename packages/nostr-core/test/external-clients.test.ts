@@ -31,10 +31,10 @@ function evento(p: Partial<NostrEvent>): NostrEvent {
   } as NostrEvent
 }
 
-describe('identificatore per i client esterni', () => {
-  it('usa naddr per gli eventi modificabili, non nevent', () => {
-    // Un nevent punta a *quella* versione: appena l'evento viene modificato il
-    // link mostrerebbe la versione superata, o niente.
+describe('the identifier for the external clients', () => {
+  it('uses naddr for the editable events, not nevent', () => {
+    // An nevent points at *that* version: as soon as the event is edited the
+    // link would show the superseded version, or nothing at all.
     const pointer = nip19PointerFor(evento({ kind: 30023, tags: [['d', 'articolo-x']] }), RELAYS)
     const decodificato = decode(pointer)
 
@@ -46,27 +46,27 @@ describe('identificatore per i client esterni', () => {
     })
   })
 
-  it('usa nprofile per il kind 0, che nei client e' + ' una pagina profilo', () => {
+  it('uses nprofile for kind 0, which in clients is a profile page', () => {
     const decodificato = decode(nip19PointerFor(evento({ kind: 0 }), RELAYS))
     expect(decodificato.type).toBe('nprofile')
     expect(decodificato.data).toMatchObject({ pubkey: PUBKEY })
   })
 
-  it('usa nevent per gli eventi regolari', () => {
+  it('uses nevent for the regular events', () => {
     const decodificato = decode(nip19PointerFor(evento({ kind: 1 }), RELAYS))
     expect(decodificato.type).toBe('nevent')
     expect(decodificato.data).toMatchObject({ id: 'ff'.repeat(32), kind: 1 })
   })
 
-  it('porta i relay come suggerimenti', () => {
-    // Senza, il client esterno cerca l'evento solo sui propri relay e spesso
-    // non lo trova: e' la differenza fra un link che funziona e uno che apre
-    // una pagina vuota.
+  it('carries the relays as hints', () => {
+    // Without them the external client looks for the event on its own relays
+    // alone and often does not find it: it is the difference between a link
+    // that works and one that opens an empty page.
     const decodificato = decode(nip19PointerFor(evento({ kind: 1 }), RELAYS))
     expect((decodificato.data as { relays?: string[] }).relays).toEqual(RELAYS)
   })
 
-  it('non ne mette piu' + ' di tre, e senza doppioni', () => {
+  it('puts no more than three of them, and no duplicates', () => {
     const molti = ['wss://a', 'wss://a', 'wss://b', 'wss://c', 'wss://d', 'wss://e']
     const decodificato = decode(nip19PointerFor(evento({ kind: 1 }), molti))
     expect((decodificato.data as { relays?: string[] }).relays).toEqual([
@@ -76,49 +76,49 @@ describe('identificatore per i client esterni', () => {
     ])
   })
 
-  it('funziona anche senza relay', () => {
+  it('works without relays too', () => {
     expect(() => nip19PointerFor(evento({ kind: 1 }))).not.toThrow()
   })
 })
 
-describe('composizione del link', () => {
-  it('sostituisce il segnaposto', () => {
+describe('composing the link', () => {
+  it('replaces the placeholder', () => {
     expect(componiLinkEsterno('https://esempio.tld/{pointer}', 'nevent1abc')).toBe(
       'https://esempio.tld/nevent1abc',
     )
   })
 
-  it('rifiuta un modello senza segnaposto', () => {
-    // Senza, ogni evento aprirebbe la stessa pagina: un guasto silenzioso.
+  it('refuses a template without a placeholder', () => {
+    // Without one every event would open the same page: a silent failure.
     expect(() => componiLinkEsterno('https://esempio.tld/', 'nevent1abc')).toThrow(/\{pointer\}/)
   })
 
-  it('conserva un modello passato come stringa, per l' + "'anteprima nelle impostazioni", () => {
+  it('keeps a template passed as a string, for the preview in the settings', () => {
     const link = linkEventoEsterno('https://esempio.tld/x/{pointer}', evento({ kind: 1 }), RELAYS)
     expect(link).toMatch(/^https:\/\/esempio\.tld\/x\/nevent1/)
   })
 
-  it('compone lo schema nostr: di NIP-21', () => {
+  it("composes NIP-21's nostr: scheme", () => {
     const link = linkEventoEsterno('nostr:{pointer}', evento({ kind: 1 }))
     expect(link).toMatch(/^nostr:nevent1/)
   })
 })
 
-describe('percorsi che dipendono dalla forma del puntatore', () => {
+describe("the paths that depend on the pointer's form", () => {
   const preset = (id: string): ClientEsterno =>
     clientEsterniPredefiniti.find((c) => c.id === id) as ClientEsterno
 
-  it('sceglie la forma giusta per ogni classe di evento', () => {
+  it('chooses the right form for every class of event', () => {
     expect(tipoPuntatorePer(evento({ kind: 0 }))).toBe('nprofile')
     expect(tipoPuntatorePer(evento({ kind: 30023, tags: [['d', 'x']] }))).toBe('naddr')
     expect(tipoPuntatorePer(evento({ kind: 1 }))).toBe('nevent')
     expect(tipoPuntatorePer(evento({ kind: 54 }))).toBe('nevent')
   })
 
-  it('noStrudel usa /l/, che smista da solo le tre forme', () => {
-    // Il percorso /n/ e' la vista di una *nota*: con un naddr risponde
-    // «Unknown type naddr», e con un nprofile «Unknown type nprofile».
-    // Verificato caricando entrambi i percorsi in un browser.
+  it('has noStrudel use /l/, which sorts the three forms out by itself', () => {
+    // The /n/ path is a *note's* view: with an naddr it answers «Unknown type
+    // naddr», and with an nprofile «Unknown type nprofile». Verified by loading
+    // both paths in a browser.
     for (const e of [
       evento({ kind: 1 }),
       evento({ kind: 0 }),
@@ -130,8 +130,8 @@ describe('percorsi che dipendono dalla forma del puntatore', () => {
     }
   })
 
-  it('Primal manda i profili su /p/ e tutto il resto su /e/', () => {
-    // /e/ con un nprofile restituisce «404 Page not found».
+  it('has Primal send the profiles to /p/ and everything else to /e/', () => {
+    // /e/ with an nprofile returns «404 Page not found».
     expect(linkEventoEsterno(preset('primal'), evento({ kind: 0 }), RELAYS)).toMatch(
       /^https:\/\/primal\.net\/p\/nprofile1/,
     )
@@ -143,7 +143,7 @@ describe('percorsi che dipendono dalla forma del puntatore', () => {
     ).toMatch(/^https:\/\/primal\.net\/e\/naddr1/)
   })
 
-  it('un client senza forme a parte usa lo stesso modello per tutto', () => {
+  it('has a client with no separate forms use the same template for everything', () => {
     const generico: ClientEsterno = {
       id: 'generico',
       nome: 'Generico',
@@ -155,19 +155,19 @@ describe('percorsi che dipendono dalla forma del puntatore', () => {
   })
 })
 
-describe('kind che il client scelto non sa mostrare', () => {
+describe('the kinds the chosen client cannot display', () => {
   const preset = (id: string): ClientEsterno =>
     clientEsterniPredefiniti.find((c) => c.id === id) as ClientEsterno
 
-  it('lascia il client scelto quando il kind lo sa mostrare', () => {
+  it('leaves the chosen client in place when it can display the kind', () => {
     const r = clientPerEvento(preset('nostrudel'), evento({ kind: 1 }))
     expect(r.client.id).toBe('nostrudel')
     expect(r.sostituito).toBeNull()
   })
 
-  it('ripiega su Coracle per gli eventi da calendario', () => {
-    // noStrudel li apre sotto «Unknown event kind», senza data ne' luogo:
-    // proprio le informazioni per cui l'evento esiste.
+  it('falls back on Coracle for the calendar events', () => {
+    // noStrudel opens them under «Unknown event kind», with no date and no
+    // place: exactly the information the event exists for.
     for (const kind of [31922, 31923]) {
       const r = clientPerEvento(preset('nostrudel'), evento({ kind, tags: [['d', 'x']] }))
       expect(r.client.id).toBe('coracle')
@@ -175,25 +175,25 @@ describe('kind che il client scelto non sa mostrare', () => {
     }
   })
 
-  it('ripiega su Coracle anche per i video', () => {
+  it('falls back on Coracle for the videos too', () => {
     for (const kind of [21, 22]) {
       expect(clientPerEvento(preset('nostrudel'), evento({ kind })).client.id).toBe('coracle')
     }
   })
 
-  it('scavalca un ripiego che a sua volta non mostra il kind', () => {
-    // Coracle rende una pagina vuota per gli RSVP: si arriva a njump, che
-    // almeno una pagina la produce.
+  it('skips a fallback that cannot display the kind either', () => {
+    // Coracle renders an empty page for the RSVPs: we end up at njump, which
+    // at least produces a page.
     const r = clientPerEvento(preset('nostrudel'), evento({ kind: 31925, tags: [['d', 'x']] }))
     expect(r.client.id).toBe('njump')
   })
 
-  it('non ripiega su se stesso', () => {
+  it('does not fall back on itself', () => {
     const r = clientPerEvento(preset('coracle'), evento({ kind: 1063 }))
     expect(r.client.id).toBe('njump')
   })
 
-  it('tiene il client scelto se nessun ripiego fa meglio', () => {
+  it('keeps the chosen client when no fallback does better', () => {
     const strano: ClientEsterno = {
       id: 'strano',
       nome: 'Strano',
@@ -201,46 +201,46 @@ describe('kind che il client scelto non sa mostrare', () => {
       kindsNonSupportati: [1],
       piattaforme: ['desktop'],
     }
-    // Con un elenco che non contiene ripieghi, meglio un pulsante che mostra
-    // il grezzo di nessun pulsante.
+    // With a list that holds no fallbacks, a button that shows the raw text
+    // beats no button at all.
     const r = clientPerEvento(strano, evento({ kind: 1 }), [strano])
     expect(r.client.id).toBe('strano')
     expect(r.sostituito).toBeNull()
   })
 })
 
-describe('validazione di un modello scritto a mano', () => {
-  it('rifiuta gli schemi eseguibili', () => {
-    // Il modello finisce in un href: uno schema eseguibile diventerebbe
-    // codice cliccabile dentro la pagina.
+describe('validating a hand-written template', () => {
+  it('refuses the executable schemes', () => {
+    // The template ends up in an href: an executable scheme would become
+    // clickable code inside the page.
     expect(validaTemplate('javascript:alert(1)/{pointer}')).toMatch(/non ammesso/)
     expect(validaTemplate('data:text/html,{pointer}')).toMatch(/non ammesso/)
   })
 
-  it('accetta https e gli schemi delle app', () => {
+  it("accepts https and the apps' schemes", () => {
     expect(validaTemplate('https://esempio.tld/{pointer}')).toBeNull()
     expect(validaTemplate('nostr:{pointer}')).toBeNull()
   })
 
-  it('segnala il segnaposto mancante e il modello vuoto', () => {
+  it('reports the missing placeholder and the empty template', () => {
     expect(validaTemplate('https://esempio.tld/')).toMatch(/segnaposto/)
     expect(validaTemplate('   ')).toMatch(/vuoto/)
   })
 
-  it('rifiuta un modello senza schema', () => {
+  it('refuses a template without a scheme', () => {
     expect(validaTemplate('esempio.tld/{pointer}')).toMatch(/schema/)
   })
 })
 
-describe('scelta del client', () => {
-  it('ricade sul predefinito della piattaforma se la scelta non esiste piu' + "'", () => {
-    // Un preset puo' sparire fra una versione e l'altra: l'utente non deve
-    // ritrovarsi con un pulsante che non apre nulla.
+describe('choosing the client', () => {
+  it("falls back on the platform's default when the choice no longer exists", () => {
+    // A preset can disappear between one version and the next: the user must
+    // not end up with a button that opens nothing.
     expect(risolviClient('client-inventato', 'desktop').id).toBe(CLIENT_PREDEFINITO.desktop)
     expect(risolviClient(undefined, 'app').id).toBe(CLIENT_PREDEFINITO.app)
   })
 
-  it('trova i client aggiunti a mano', () => {
+  it('finds the clients added by hand', () => {
     const mio = {
       id: 'mio',
       nome: 'Il mio',
@@ -250,50 +250,50 @@ describe('scelta del client', () => {
     expect(risolviClient('mio', 'desktop', [mio]).nome).toBe('Il mio')
   })
 
-  it('i predefiniti dichiarati esistono davvero fra i preset', () => {
+  it('has the declared defaults really exist among the presets', () => {
     for (const id of Object.values(CLIENT_PREDEFINITO)) {
       expect(clientEsterniPredefiniti.some((c) => c.id === id)).toBe(true)
     }
   })
 
-  it('ogni preset ha un modello valido', () => {
+  it('gives every preset a valid template', () => {
     for (const c of clientEsterniPredefiniti) {
       expect(validaTemplate(c.template), `${c.nome}: ${c.template}`).toBeNull()
     }
   })
 })
 
-describe('lettore di podcast', () => {
+describe('the podcast player', () => {
   const preset = (id: string): ClientEsterno =>
     clientEsterniPredefiniti.find((c) => c.id === id) as ClientEsterno
 
-  it('per un episodio ripiega su Transmit, non su un client sociale', () => {
-    // Coracle mostra il kind 54 come evento grezzo; un lettore di podcast lo
-    // *suona*. Il ripiego dipende dal kind, non e' un elenco fisso.
+  it('falls back on Transmit for an episode, not on a social client', () => {
+    // Coracle shows kind 54 as a raw event; a podcast player *plays* it. The
+    // fallback depends on the kind, it is not a fixed list.
     const r = clientPerEvento(preset('nostrudel'), evento({ kind: 54 }))
     expect(r.client.id).toBe('transmit')
     expect(r.sostituito?.id).toBe('nostrudel')
   })
 
-  it('apre la pagina dello show, che e' + "' la chiave dell'autore", () => {
-    // Transmit non ha una pagina per evento: il segnaposto e' {npub}.
+  it("opens the show's page, which is the author's key", () => {
+    // Transmit does not have a page per event: the placeholder is {npub}.
     const link = linkEventoEsterno(preset('transmit'), evento({ kind: 54 }), RELAYS)
     expect(link).toMatch(/^https:\/\/www\.transmit\.fm\/shows\/npub1/)
     expect(decode(link.split('/shows/')[1] as string).data).toBe(PUBKEY)
   })
 
-  it('vale anche per la scheda dello show (10154)', () => {
+  it("holds for the show's card (10154) too", () => {
     expect(clientPerEvento(preset('nostrudel'), evento({ kind: 10154 })).client.id).toBe('transmit')
   })
 
-  it('non viene mai proposto per una nota: e' + "' un lettore, non un client", () => {
-    // Un client scelto che sa mostrare la nota resta; Transmit non entra nei
-    // ripieghi delle note e non e' predefinito su nessuna piattaforma.
+  it('is never offered for a note: it is a player, not a client', () => {
+    // A chosen client that can display the note stays; Transmit is not among
+    // the notes' fallbacks and is not the default on any platform.
     expect(clientPerEvento(preset('transmit'), evento({ kind: 1 })).client.id).not.toBe('transmit')
     expect(preset('transmit').piattaforme).toEqual([])
   })
 
-  it('un modello con {npub} e' + "' valido, uno senza segnaposti no", () => {
+  it('makes a template with {npub} valid, and one without placeholders invalid', () => {
     expect(validaTemplate('https://esempio.tld/autori/{npub}')).toBeNull()
     expect(validaTemplate('https://esempio.tld/')).toMatch(/segnaposto/)
   })

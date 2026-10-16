@@ -12,13 +12,14 @@ import {
 import { useMediaManager } from '~/stores/mediamanager'
 
 /**
- * Il feed RSS del podcast di questa chiave.
+ * The RSS feed of this key's podcast.
  *
- * Il client non lo genera — lo serve il dominio `feed` del media-manager,
- * pubblico e senza chiave — ma lo *governa*: mostra l'URL, lo verifica
- * davvero scaricandolo e leggendolo, e dice cosa un'app di podcast
- * rifiuterebbe. E' anche il posto dove si spiega dove sottoporlo: senza un
- * feed su Podcast Index, per Fountain e gli altri il podcast non esiste.
+ * The client does not generate it — the media-manager's `feed` domain serves
+ * it, public and keyless — but it *governs* it: it shows the URL, really
+ * checks it by downloading and reading it, and says what a podcast app would
+ * refuse. It is also the place where where to submit it is explained: without
+ * a feed on Podcast Index, for Fountain and the others the podcast does not
+ * exist.
  */
 
 const identita = useIdentity()
@@ -34,25 +35,26 @@ const url = computed(() => {
 })
 
 /*
- * Gli episodi che *questo client* vede sui relay di lettura: il termine di
- * paragone per il feed. Un episodio qui e non la' sta su un relay da cui il
- * servizio non legge — e il rimedio e' ridistribuirlo, non ripubblicarlo.
+ * The episodes *this client* sees on the read relays: the yardstick for the
+ * feed. An episode here and not there sits on a relay the service does not
+ * read from — and the remedy is redistributing it, not republishing it.
  */
 const pubblicati = useEventiPropri([54], { limite: 200 })
 
 /*
- * La scheda 10154 come sta sui relay: serve a distinguere «il dato manca»
- * da «il dato c'e' ma il servizio non lo legge ancora». Sono due cose
- * diverse, con due rimedi diversi — il profilo, oppure il Prompt H.
+ * The 10154 card as it stands on the relays: it is what tells «the datum is
+ * missing» from «the datum is there but the service does not read it yet».
+ * They are two different things, with two different remedies — the profile, or
+ * Prompt H.
  */
 const schedaEsistente = useEventoEsistente()
 const tagNellaScheda = ref<{ categoria: boolean; email: boolean } | null>(null)
 
 /*
- * Ridistribuire tutto cio' che il feed legge — la scheda e gli episodi — a
- * tutti i relay di scrittura. E' l'azione «a prescindere»: non serve un
- * episodio nuovo per accorgersi che la scheda modificata ieri sta su un
- * relay solo, e da «Eventi» il collegamento e' facile da non vedere.
+ * Redistributing everything the feed reads — the card and the episodes — to
+ * every write relay. It is the «just in case» action: you do not need a new
+ * episode to notice that the card edited yesterday sits on a single relay, and
+ * from «Events» the link is easy to miss.
  */
 const ridistribuzione = useRidistribuzione()
 const titoloEvento = (e: { tags: string[][]; id: string }): string =>
@@ -83,7 +85,7 @@ async function leggiScheda(): Promise<void> {
   }
 }
 
-/** I dati che stanno nella scheda ma non nel feed: il servizio non li legge ancora. */
+/** The data that are in the card but not in the feed: the service does not read them yet. */
 const nonLettiDalServizio = computed(() => {
   const r = riassunto.value
   const t = tagNellaScheda.value
@@ -107,12 +109,12 @@ const riassunto = ref<RiassuntoFeed | null>(null)
 const errore = ref<string | null>(null)
 const copiato = ref(false)
 /**
- * Per quanto il servizio tiene una copia del feed (`max-age`), in secondi.
+ * How long the service keeps a copy of the feed (`max-age`), in seconds.
  *
- * Conta per leggere l'esito: un episodio appena pubblicato, o un relay
- * lento al momento in cui il servizio ha costruito il feed, restano fuori
- * per tutta la durata della copia. Non e' un guasto e non si rimedia
- * ripubblicando: si aspetta.
+ * It matters when reading the outcome: an episode just published, or a relay
+ * that was slow at the moment the service built the feed, stay out for the
+ * whole life of the copy. It is not a fault and republishing does not remedy
+ * it: you wait.
  */
 const copiaServizioS = ref<number | null>(null)
 
@@ -122,26 +124,26 @@ async function verifica(): Promise<void> {
   errore.value = null
   riassunto.value = null
   try {
-    // Prima gli episodi e la scheda dai relay, cosi' il confronto e' pronto insieme al feed.
+    // The episodes and the card from the relays first, so the comparison is ready together with the feed.
     await Promise.all([
       pubblicati.eventi.value.length ? Promise.resolve() : pubblicati.carica(),
       leggiScheda(),
     ])
-    // `no-store`: il browser terrebbe la copia per `max-age` e «Verifica» dopo
-    // una pubblicazione mostrerebbe il feed di prima. La copia del servizio
-    // invece resta, e si dice.
+    // `no-store`: the browser would keep the copy for `max-age` and «Check»
+    // after a publication would show the earlier feed. The service's copy
+    // stays, though, and that is said.
     const risposta = await chiama(url.value, {
       headers: { accept: 'application/rss+xml' },
       cache: 'no-store',
     })
     if (risposta.status === 404) {
-      // Il servizio distingue «nessuna scheda» da «endpoint assente»: il
-      // corpo lo dice, e vale la pena ripeterlo.
+      // The service tells «no card» from «endpoint absent»: the body says so,
+      // and it is worth repeating.
       let dettaglio = ''
       try {
         dettaglio = ((await risposta.json()) as { detail?: string }).detail ?? ''
       } catch {
-        // corpo non JSON: probabilmente il dominio feed non e' deployato
+        // a non-JSON body: the feed domain is probably not deployed
       }
       errore.value =
         dettaglio ||
@@ -169,17 +171,18 @@ async function copia(): Promise<void> {
     copiato.value = true
     setTimeout(() => (copiato.value = false), 2000)
   } catch {
-    // Appunti negati: l'URL e' comunque selezionabile nel campo.
+    // Clipboard denied: the URL is selectable in the field all the same.
   }
 }
 
 /**
- * L'OPML: il feed impacchettato come abbonamento.
+ * The OPML: the feed packaged as a subscription.
  *
- * Il titolo e' **sempre** quello letto dal feed: se non e' stato verificato
- * si verifica prima. Un titolo generico qui non e' innocuo — Fountain cerca
- * ogni voce dell'OPML nel proprio catalogo *per titolo*, e un OPML con
- * «Podcast» ha fatto iscrivere a 127 show che si chiamano cosi'. E' successo.
+ * The title is **always** the one read from the feed: when it has not been
+ * checked, it is checked first. A generic title here is not harmless —
+ * Fountain looks every entry of the OPML up in its own catalogue *by title*,
+ * and an OPML with «Podcast» had people subscribe to 127 shows by that name.
+ * It happened.
  */
 const erroreOpml = ref<string | null>(null)
 
@@ -299,7 +302,7 @@ const dataLeggibile = (d: Date | null): string =>
             {{ nonLettiDalServizio.length === 1 ? 'sta' : 'stanno' }} nella scheda del podcast ma
             non nel feed: il servizio non legge ancora quei tag. Non è un dato da aggiungere — è il
             servizio da aggiornare (Prompt H in
-            <code>doc/api-da-sviluppare.md</code>
+            <code>doc/api-to-build.md</code>
             ).
           </BaseAlert>
 

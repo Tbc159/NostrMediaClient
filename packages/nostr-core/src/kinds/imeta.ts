@@ -4,49 +4,49 @@ import type { Tag } from './tags.js'
 import type { NostrEvent } from './types.js'
 
 /**
- * Tag `imeta` — metadati di un allegato (NIP-92).
+ * The `imeta` tag — an attachment's metadata (NIP-92).
  *
- * E' un tag *variadico*: dopo il nome vengono coppie `chiave valore` separate
- * da uno spazio, tutte dentro un unico elemento dell'array. Cioe':
+ * It is a *variadic* tag: after the name come `key value` pairs separated by
+ * a space, all inside a single element of the array. That is:
  *
- *   ['imeta', 'url https://…/foto.jpg', 'm image/jpeg', 'dim 800x600']
+ *   ['imeta', 'url https://…/photo.jpg', 'm image/jpeg', 'dim 800x600']
  *
- * e non un tag per campo. E' la forma piu' sbagliata di tutto NIP-92, perche'
- * il formato ricorda quello dei tag normali ma non lo e': scriverlo come
- * `['imeta', 'url', 'https://…']` produce un tag che nessun altro client
- * riesce a leggere.
+ * and not one tag per field. It is the easiest thing in all of NIP-92 to get
+ * wrong, because the format resembles that of ordinary tags and is not:
+ * writing it as `['imeta', 'url', 'https://…']` produces a tag no other
+ * client can read.
  *
- * I campi disponibili sono quelli di NIP-94. `url` e' obbligatorio e la
- * specifica chiede almeno un altro campo: un `imeta` con la sola url non
- * aggiunge nulla a quello che gia' si legge nel content.
+ * The available fields are NIP-94's. `url` is mandatory and the specification
+ * asks for at least one other field: an `imeta` with only the url adds
+ * nothing to what can already be read in the content.
  */
 
 export const imetaSchema = z.object({
-  /** URL da cui scaricare il file. Obbligatorio. */
+  /** The URL to download the file from. Mandatory. */
   url: z.string(),
-  /** Tipo MIME, minuscolo (`m` in NIP-94). */
+  /** MIME type, lower case (`m` in NIP-94). */
   mime: z.string().optional(),
-  /** SHA-256 esadecimale del file servito. */
+  /** Hexadecimal SHA-256 of the file as served. */
   sha256: z.string().optional(),
-  /** SHA-256 del file **originale**, prima delle trasformazioni del server. */
+  /** SHA-256 of the **original** file, before the server's transformations. */
   sha256Originale: z.string().optional(),
-  /** Dimensione in byte. */
+  /** Size in bytes. */
   size: z.number().int().nonnegative().optional(),
-  /** Dimensioni in pixel, `larghezzaxaltezza`. */
+  /** Pixel dimensions, `widthxheight`. */
   dim: z.string().optional(),
-  /** Blurhash da mostrare durante il caricamento. */
+  /** A blurhash to show while loading. */
   blurhash: z.string().optional(),
-  /** Descrizione per chi non vede l'immagine. */
+  /** A description for whoever cannot see the image. */
   alt: z.string().optional(),
-  /** Miniatura con lo stesso rapporto d'aspetto. */
+  /** A thumbnail with the same aspect ratio. */
   thumb: z.string().optional(),
-  /** Immagini di anteprima, alla stessa risoluzione (NIP-71). */
+  /** Preview images, at the same resolution (NIP-71). */
   image: z.array(z.string()),
-  /** Durata in secondi, per audio e video (NIP-71). */
+  /** Duration in seconds, for audio and video (NIP-71). */
   duration: z.number().optional(),
-  /** Bitrate medio in bit/s (NIP-71). */
+  /** Average bitrate in bit/s (NIP-71). */
   bitrate: z.number().int().optional(),
-  /** Copie alternative, se `url` non risponde. */
+  /** Alternative copies, in case `url` does not answer. */
   fallback: z.array(z.string()),
 })
 
@@ -68,12 +68,12 @@ export interface ImetaInput {
   fallback?: string[]
 }
 
-/** Larghezza e altezza in pixel, nel formato `<w>x<h>` voluto da NIP-94. */
+/** Width and height in pixels, in the `<w>x<h>` form NIP-94 wants. */
 export function dimensioni(larghezza: number, altezza: number): string {
   return `${Math.round(larghezza)}x${Math.round(altezza)}`
 }
 
-/** Costruisce il tag `imeta` a partire dai metadati di un allegato. */
+/** Builds the `imeta` tag from an attachment's metadata. */
 export function buildImetaTag(input: ImetaInput): Tag {
   if (!input.url) throw new Error('Un tag imeta senza url non e’ valido (NIP-92).')
 
@@ -93,8 +93,8 @@ export function buildImetaTag(input: ImetaInput): Tag {
   for (const i of input.image ?? []) aggiungi('image', i)
   aggiungi('duration', input.duration)
   aggiungi('bitrate', input.bitrate)
-  // `alt` puo' contenere spazi: e' l'ultimo campo posizionale problematico,
-  // ma la specifica lo ammette e i lettori spezzano solo sul primo spazio.
+  // `alt` can contain spaces: it is the one awkward positional field, but the
+  // specification allows it and readers split on the first space only.
   aggiungi('alt', input.alt)
   for (const f of input.fallback ?? []) aggiungi('fallback', f)
 
@@ -108,11 +108,11 @@ export function buildImetaTag(input: ImetaInput): Tag {
 }
 
 /**
- * Interpreta un tag `imeta`.
+ * Interprets an `imeta` tag.
  *
- * Ogni voce si spezza sul **primo** spazio soltanto: i valori possono
- * contenerne (l'`alt` quasi sempre), e usare `split(' ')` troncherebbe la
- * descrizione alla prima parola.
+ * Every entry is split on the **first** space only: values can contain them
+ * (the `alt` almost always does), and using `split(' ')` would truncate the
+ * description at the first word.
  */
 export function parseImetaTag(tag: readonly string[]): Imeta | null {
   const campi = new Map<string, string[]>()
@@ -168,7 +168,7 @@ export function parseImetaTag(tag: readonly string[]): Imeta | null {
   return imetaSchema.parse(risultato)
 }
 
-/** Tutti gli allegati dichiarati da un evento. */
+/** Every attachment an event declares. */
 export function imetaOf(event: NostrEvent): Imeta[] {
   return event.tags
     .filter((t) => t[0] === 'imeta')

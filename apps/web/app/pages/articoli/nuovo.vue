@@ -16,16 +16,16 @@ const immagine = ref('')
 const hashtag = ref('')
 const contenuto = ref('')
 const identificatore = ref('')
-/** Data della prima pubblicazione, se si sta modificando un articolo esistente. */
+/** The date of the first publication, when an existing article is being edited. */
 const primaPubblicazione = ref<number | null>(null)
-/** Vero quando l'identificatore e' stato scritto a mano e non va piu' seguito il titolo. */
+/** True when the identifier was written by hand and the title is no longer to be followed. */
 const identificatoreManuale = ref(false)
 
 /*
- * L'identificatore segue il titolo finche' l'utente non lo tocca. Cambiarlo
- * dopo la prima pubblicazione **non** modifica l'articolo: ne crea uno nuovo,
- * perche' su un evento addressable e' il tag `d` a dire quale versione si sta
- * sostituendo.
+ * The identifier follows the title until the user touches it. Changing it
+ * after the first publication does **not** edit the article: it creates a new
+ * one, because on an addressable event it is the `d` tag that says which
+ * version is being replaced.
  */
 watch(titolo, (nuovo) => {
   if (!identificatoreManuale.value) identificatore.value = slugFromTitle(nuovo)
@@ -34,8 +34,8 @@ watch(titolo, (nuovo) => {
 const statistiche = computed(() => statisticheTesto(contenuto.value))
 
 const listaHashtag = computed(() =>
-  // Solo la virgola: dividere anche sugli spazi spezzerebbe in tre un
-  // hashtag come «Food & drink» letto da un evento di un altro client.
+  // The comma alone: splitting on spaces too would break a hashtag like
+  // «Food & drink», read from another client's event, into three.
   hashtag.value
     .split(',')
     .map((s) => s.trim())
@@ -48,7 +48,7 @@ const puoComporre = computed(
 
 const modifica = computed(() => primaPubblicazione.value !== null)
 
-/** I tag dell'articolo che questo form non scrive, conservati alla lettera. */
+/** The article's tags that this form does not write, kept to the letter. */
 const nomiDelForm = ['d', 'title', 'summary', 'image', 'published_at', 't', 'client']
 const conservati = useTagConservati(nomiDelForm)
 const tagExtra = conservati.tags
@@ -95,12 +95,12 @@ function salvaBozza(): void {
 }
 
 /**
- * Salva la bozza cifrata sul relay privato (NIP-37).
+ * Saves the encrypted draft to the private relay (NIP-37).
  *
- * A differenza della bozza locale, questa segue su un altro dispositivo. Il
- * contenuto viene cifrato verso se stessi, quindi sul relay resta illeggibile:
- * e' la differenza sostanziale con il vecchio kind 30024, che ci finiva in
- * chiaro.
+ * Unlike the local draft, this one follows you to another device. The content
+ * is encrypted to yourself, so it stays unreadable on the relay: it is the
+ * substantial difference from the old kind 30024, which ended up there in the
+ * clear.
  */
 const salvataggioRemoto = ref(false)
 async function salvaBozzaRemota(): Promise<void> {
@@ -112,8 +112,8 @@ async function salvaBozzaRemota(): Promise<void> {
   try {
     const definizione = getKindDefinition(30023)
     if (!definizione) return
-    // Si costruisce il template dell'articolo ma non lo si firma: quello che
-    // si sta salvando e' lavoro in corso, non un evento definitivo.
+    // The article's template is built but not signed: what is being saved is
+    // work in progress, not a definitive event.
     const template = definizione.build(
       {
         content: contenuto.value,
@@ -134,7 +134,7 @@ async function salvaBozzaRemota(): Promise<void> {
   }
 }
 
-/** Riapre una bozza cifrata, decifrandola e rimettendone i campi nel form. */
+/** Reopens an encrypted draft, decrypting it and putting its fields back in the form. */
 function apriBozzaRemota(identificatore_: string): void {
   const b = bozzeRemote.bozze.value.find((x) => x.identificatore === identificatore_)
   if (!b) return
@@ -144,8 +144,8 @@ function apriBozzaRemota(identificatore_: string): void {
   const definizione = getKindDefinition(template.kind)
   if (!definizione) return
   try {
-    // Il template non e' firmato: si costruisce un evento fittizio per poterlo
-    // far interpretare dalla definizione, che lavora su eventi completi.
+    // The template is not signed: a fictitious event is built so it can be
+    // interpreted by the definition, which works on complete events.
     const dati = definizione.parse({
       ...template,
       id: '',
@@ -181,20 +181,20 @@ function apriBozza(identifier: string): void {
 }
 
 /**
- * Riapre un articolo gia' pubblicato, leggendolo dai relay.
+ * Reopens an already published article, reading it from the relays.
  *
- * La bozza locale ha la precedenza: se esiste, e' piu' recente di quanto sia
- * uscito, ed e' proprio il lavoro non ancora pubblicato che non va perso.
- * Senza bozza si scarica la versione pubblicata — prima questo caso non era
- * coperto e "Modifica" su un articolo pubblicato non faceva nulla.
+ * The local draft takes precedence: when one exists, it is more recent than
+ * what went out, and it is precisely the unpublished work that must not be
+ * lost. Without a draft the published version is downloaded — this case used
+ * not to be covered and "Edit" on a published article did nothing.
  */
 async function riapri(d: string): Promise<void> {
   if (bozzeLocali.bozze.value.some((b) => b.identifier === d)) {
     apriBozza(d)
     return
   }
-  // Le bozze cifrate arrivano da un caricamento asincrono: si aspetta che sia
-  // finito, altrimenti una bozza che sta arrivando risulterebbe inesistente.
+  // The encrypted drafts come from an asynchronous load: we wait for it to
+  // finish, otherwise a draft that is arriving would come out non-existent.
   await bozzeRemote.pronte
   if (bozzeRemote.bozze.value.some((b) => b.identificatore === d)) {
     apriBozzaRemota(d)
@@ -215,11 +215,11 @@ async function riapri(d: string): Promise<void> {
     hashtag.value = dati.hashtags.join(', ')
     contenuto.value = dati.content
     identificatore.value = dati.identifier
-    // Da qui in avanti l'identificatore non deve piu' seguire il titolo:
-    // cambiarlo creerebbe un articolo nuovo invece di sostituire questo.
+    // From here on the identifier must no longer follow the title: changing it
+    // would create a new article instead of replacing this one.
     identificatoreManuale.value = true
-    // La prima pubblicazione si conserva: e' cio' che distingue una correzione
-    // da una ripubblicazione, e senza, l'articolo risalirebbe i feed altrui.
+    // The first publication is kept: it is what tells a correction from a
+    // republication, and without it the article would climb other people's feeds.
     primaPubblicazione.value = dati.publishedAt ?? trovato.created_at
     conservati.fotografa(definizione, trovato, {
       content: dati.content,
@@ -236,7 +236,7 @@ async function riapri(d: string): Promise<void> {
   }
 }
 
-// Arrivando da "modifica" nell'elenco, i campi si precompilano dalla query.
+// Arriving from "edit" in the list, the fields are prefilled from the query.
 onMounted(() => {
   const d = rotta.query.d
   if (typeof d === 'string' && d) void riapri(d)
@@ -393,12 +393,13 @@ onMounted(() => {
         </div>
 
         <!--
-          L'editor scrive formattato e produce Markdown: i simboli non si
-          devono conoscere, ma la sorgente resta visibile e modificabile dal
-          pulsante «Markdown». L'HTML che compare nell'area passa da
-          renderMarkdown, quindi da DOMPurify: la sanificazione serve anche
-          qui, dove NIP-23 vieta l'HTML, perche' quel divieto vincola chi
-          scrive e non chi rilegge un testo che puo' venire da un'altra fonte.
+          The editor writes formatted and produces Markdown: the symbols need
+          not be known, but the source stays visible and editable from the
+          «Markdown» button. The HTML that appears in the area goes through
+          renderMarkdown, hence through DOMPurify: the sanitising is needed
+          here too, where NIP-23 forbids HTML, because that prohibition binds
+          the writer and not whoever reads back a text that may come from
+          another source.
         -->
         <EditorTesto v-model="contenuto" :righe="18" />
 
@@ -472,9 +473,9 @@ onMounted(() => {
 
 <style scoped>
 /*
- * Stili minimi per il testo renderizzato. Non usiamo un plugin tipografico:
- * qui servono cinque regole, e una dipendenza in piu' andrebbe poi tenuta
- * allineata al resto del tema.
+ * Minimal styles for the rendered text. We do not use a typographic plugin:
+ * five rules are needed here, and one more dependency would then have to be
+ * kept aligned with the rest of the theme.
  */
 .prose-nmc :deep(h1),
 .prose-nmc :deep(h2),

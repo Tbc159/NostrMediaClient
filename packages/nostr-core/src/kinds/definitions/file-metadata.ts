@@ -4,27 +4,27 @@ import { defineKind } from '../registry.js'
 import { optionalTag, tagValue, tagValues } from '../tags.js'
 
 /**
- * Kind 1063 — metadati di un file (NIP-94).
+ * Kind 1063 — a file's metadata (NIP-94).
  *
- * Descrive un file caricato da qualche parte, indipendentemente dal post che
- * lo mostra. Serve a due cose che un `imeta` dentro un altro evento non fa:
- * rendere il file interrogabile per hash (`#x`), e conservarne la scheda anche
- * quando il post che lo conteneva viene cancellato.
+ * It describes a file uploaded somewhere, independently of the post that shows
+ * it. It serves two purposes an `imeta` inside another event does not: making
+ * the file queryable by hash (`#x`), and keeping its card even when the post
+ * that contained it is deleted.
  *
- * Nota sui due hash: `x` e' l'hash del file **servito**, `ox` quello
- * dell'**originale** prima delle trasformazioni del server. Se il server
- * ricomprime l'immagine i due divergono, e confonderli significa non
- * ritrovare piu' il file caricato.
+ * A note on the two hashes: `x` is the hash of the file **as served**, `ox`
+ * that of the **original** before the server's transformations. If the server
+ * recompresses the image the two diverge, and confusing them means never
+ * finding the uploaded file again.
  */
 
 export const fileMetadataSchema = z.object({
-  /** Descrizione del file: sta nel content. */
+  /** The file's description: it sits in the content. */
   content: z.string(),
   url: z.string(),
   mime: z.string().optional(),
-  /** SHA-256 del file servito. */
+  /** The SHA-256 of the file as served. */
   sha256: z.string().optional(),
-  /** SHA-256 dell'originale, prima delle trasformazioni del server. */
+  /** The SHA-256 of the original, before the server's transformations. */
   sha256Originale: z.string().optional(),
   size: z.number().int().nonnegative().optional(),
   dim: z.string().optional(),

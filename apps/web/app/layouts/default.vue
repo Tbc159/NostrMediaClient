@@ -4,7 +4,7 @@ import { useProfiloProprio } from '~/stores/profiloProprio'
 const identita = useIdentity()
 const profilo = useProfiloProprio()
 
-// Lo stato dell'identita' vive in localStorage: va riletto solo nel browser.
+// The identity's state lives in localStorage: it must be read in the browser alone.
 onMounted(() => identita.ripristina())
 
 const voci = [
@@ -25,7 +25,7 @@ const attiva = (to: string) => (to === '/' ? rotta.path === '/' : rotta.path.sta
 
 <template>
   <div class="min-h-dvh">
-    <!-- Salto diretto al contenuto: la prima cosa che incontra chi naviga da tastiera -->
+    <!-- A direct skip to the content: the first thing whoever navigates by keyboard meets -->
     <a
       href="#contenuto"
       class="superficie sr-only rounded-md border px-3 py-2 text-sm focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-50"
@@ -59,9 +59,9 @@ const attiva = (to: string) => (to === '/' ? rotta.path === '/' : rotta.path.sta
                 {{ identita.puoFirmare ? 'può pubblicare' : 'sola lettura' }}
               </BaseBadge>
               <!--
-                Il nome del profilo, quando c'e'; l'npub resta nel title, e
-                come testo quando il profilo non ha un nome — un'identita'
-                senza kind 0 e' comunque un'identita'.
+                The profile's name, when there is one; the npub stays in the
+                title, and as the text when the profile has no name — an
+                identity without a kind 0 is an identity all the same.
               -->
               <NuxtLink
                 to="/profilo"

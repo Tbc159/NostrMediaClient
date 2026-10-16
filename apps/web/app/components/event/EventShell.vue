@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { toNpub, type NostrEvent } from '@nmc/nostr-core'
 
-/** Intestazione e cornice comuni a tutte le schede evento. */
+/** The heading and frame common to every event card. */
 const props = withDefaults(
   defineProps<{
     evento: NostrEvent
     etichetta?: string
-    /** Se offrire l'azione di modifica. Falso dove l'evento e' gia' in un form. */
+    /** Whether to offer the edit action. False where the event is in a form already. */
     azioni?: boolean
   }>(),
   { azioni: true, etichetta: undefined },
@@ -18,7 +18,7 @@ const npub = computed(() => {
   try {
     return toNpub(props.evento.pubkey)
   } catch {
-    // Pubkey malformata: mostriamo l'esadecimale invece di nascondere l'evento.
+    // A malformed pubkey: we show the hexadecimal instead of hiding the event.
     return props.evento.pubkey
   }
 })
@@ -29,28 +29,28 @@ const relativo = computed(() => tempoRelativo(quando.value))
 const azione = computed(() => azionePerEvento(props.evento))
 
 /*
- * L'azione compare solo sui propri eventi: ripubblicare con la coordinata di
- * un altro non lo modifica — ogni coordinata comprende la pubkey dell'autore,
- * quindi si otterrebbe un evento nuovo a proprio nome, che non e' quello che
- * chi clicca "modifica" si aspetta.
+ * The action appears on your own events alone: republishing with somebody
+ * else's coordinate does not edit it — every coordinate includes the author's
+ * pubkey, so you would get a new event in your own name, which is not what
+ * whoever clicks "edit" expects.
  */
 const propria = computed(() => identita.pubkey === props.evento.pubkey)
 const mostraAzione = computed(() => props.azioni && propria.value)
 
 /*
- * Il pie' di pagina c'e' sempre: «Apri in…» vale per qualunque evento, anche
- * altrui, mentre le azioni di modifica restano riservate ai propri.
+ * The footer is always there: «Open in…» holds for any event at all, other
+ * people's included, while the editing actions stay reserved for your own.
  */
 
 const spiegazione = ref(false)
 
 /*
- * Il JSON con cui l'evento e' pubblicato, dentro la scheda, richiudibile.
+ * The JSON the event is published as, inside the card, collapsible.
  *
- * E' l'unica rappresentazione *vera* di cio' che sta sui relay — tag, firma,
- * id — e chi pubblica ha il diritto di vederla senza cambiare pagina ne'
- * client. Chiuso di default: aperto, mostra il testo in un'area a sola
- * lettura che si seleziona con un clic e si incolla altrove.
+ * It is the only *true* representation of what sits on the relays — tags,
+ * signature, id — and whoever publishes has the right to see it without
+ * changing page or client. Closed by default: open, it shows the text in a
+ * read-only area that is selected with one click and pasted elsewhere.
  */
 const mostraJson = ref(false)
 const json = computed(() => JSON.stringify(props.evento, null, 2))
@@ -63,7 +63,7 @@ async function copiaJson(): Promise<void> {
     copiato.value = true
     setTimeout(() => (copiato.value = false), 1500)
   } catch {
-    // Appunti negati: resta «seleziona tutto».
+    // Clipboard denied: «select all» remains.
   }
 }
 
@@ -73,18 +73,18 @@ function selezionaJson(): void {
 }
 
 /*
- * Ridistribuire: lo stesso evento, gia' firmato, mandato ai relay di
- * scrittura di adesso. Non si rifirma — l'id resta quello — quindi non nasce
- * un duplicato: un relay che l'ha gia' risponde «gia' presente». Serve quando
- * un evento e' finito su un relay solo e chi deve leggerlo guarda altrove: un
- * lettore di podcast che legge da un relay dove la scheda non c'e' mai stata.
+ * Redistributing: the same event, already signed, sent to the write relays of
+ * now. It is not re-signed — the id stays as it was — so no duplicate is born:
+ * a relay that has it already answers «there already». It is needed when an
+ * event has ended up on a single relay and whoever has to read it is looking
+ * elsewhere: a podcast player reading from a relay the card has never been on.
  */
 const invio = usePublish()
 const ridistribuito = ref<string | null>(null)
 
 async function ridistribuisci(): Promise<void> {
   ridistribuito.value = null
-  // Sempre «tutti»: il senso e' proprio metterlo ovunque, non sul primo che accetta.
+  // Always «all»: the point is precisely to put it everywhere, not on the first that accepts.
   await invio.pubblica(props.evento, undefined, { strategia: 'tutti' })
   const r = invio.esito.value
   if (!r) return
@@ -97,8 +97,8 @@ async function ridistribuisci(): Promise<void> {
       : '') +
     '.'
 }
-// Il tipo 'modifica' non porta un avviso: il template non puo' restringere
-// l'unione da solo, quindi la si appiattisce qui.
+// The 'modifica' type carries no warning: the template cannot narrow the
+// union by itself, so it is flattened here.
 const avviso = computed(() => ('avviso' in azione.value ? azione.value.avviso : ''))
 </script>
 
@@ -119,14 +119,14 @@ const avviso = computed(() => ('avviso' in azione.value ? azione.value.avviso : 
         <slot name="azioni" />
 
         <!--
-          Sempre presente, anche sugli eventi altrui: guardare come appare una
-          pubblicazione in un altro client e' utile a prescindere da chi l'ha
-          scritta.
+          Always present, on other people's events too: looking at how a
+          publication appears in another client is useful regardless of who
+          wrote it.
         -->
         <!--
-          Il nome comprende il prefisso della cartella: Nuxt ricava il nome del
-          componente dal percorso, e `<ApriEsterno>` verrebbe reso come un
-          elemento sconosciuto, senza errori e senza funzionare.
+          The name includes the folder's prefix: Nuxt derives the component's
+          name from the path, and `<ApriEsterno>` would be rendered as an
+          unknown element, with no errors and without working.
         -->
         <EventApriEsterno :evento="evento" />
 
@@ -196,9 +196,9 @@ const avviso = computed(() => ('avviso' in azione.value ? azione.value.avviso : 
             </div>
           </div>
           <!--
-            Una textarea in sola lettura, non un <pre>: si seleziona tutto con
-            un clic e su telefono scorre senza rompere la scheda. La firma
-            copre ogni byte, quindi non si modifica.
+            A read-only textarea, not a <pre>: it is all selected with one
+            click and on a phone it scrolls without breaking the card. The
+            signature covers every byte, so it is not editable.
           -->
           <textarea
             ref="areaJson"

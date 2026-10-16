@@ -1,21 +1,21 @@
 import type { EventClass } from './types.js'
 
 /**
- * Deriva la classe di un evento dal numero di kind, secondo le regole di NIP-01.
+ * Derives an event's class from its kind number, following the NIP-01 rules.
  *
- * Le fasce non sono contigue: i kind bassi seguono regole a parte, ereditate
- * da prima che le fasce venissero formalizzate. In particolare 0 e 3 sono
- * replaceable pur stando sotto 1000, mentre 1 e 2 sono regolari.
+ * The ranges are not contiguous: the low kinds follow rules of their own,
+ * inherited from before the ranges were formalised. In particular 0 and 3 are
+ * replaceable even though they are below 1000, while 1 and 2 are regular.
  *
- * Usata dal registry per verificare la classe dichiarata in ogni
- * `KindDefinition`: una discrepanza e' un errore di programmazione.
+ * Used by the registry to check the class declared in every `KindDefinition`:
+ * a mismatch is a programming error.
  */
 export function classifyKind(kind: number): EventClass {
   if (!Number.isInteger(kind) || kind < 0) {
-    throw new RangeError(`Kind non valido: ${kind}. Deve essere un intero non negativo.`)
+    throw new RangeError(`Invalid kind: ${kind}. It must be a non-negative integer.`)
   }
 
-  // Eccezioni sotto 1000, elencate esplicitamente da NIP-01.
+  // The exceptions below 1000, listed explicitly by NIP-01.
   if (kind === 0 || kind === 3) return 'replaceable'
   if (kind === 1 || kind === 2) return 'regular'
   if (kind >= 4 && kind < 45) return 'regular'
@@ -25,13 +25,13 @@ export function classifyKind(kind: number): EventClass {
   if (kind >= 20000 && kind < 30000) return 'ephemeral'
   if (kind >= 30000 && kind < 40000) return 'addressable'
 
-  // Fasce non assegnate: 45..999 e >= 40000. NIP-01 non le copre, quindi il
-  // comportamento del relay non e' garantito. Le trattiamo come regolari, che
-  // e' l'ipotesi conservativa (nessuna sostituzione implicita).
+  // Unassigned ranges: 45..999 and >= 40000. NIP-01 does not cover them, so
+  // relay behaviour is not guaranteed. We treat them as regular, which is the
+  // conservative assumption (no implicit replacement).
   return 'regular'
 }
 
-/** Se il kind e' sostituibile, e quindi se la "modifica" ha senso. */
+/** Whether the kind is replaceable, and therefore whether "editing" makes sense. */
 export function isReplaceableClass(cls: EventClass): boolean {
   return cls === 'replaceable' || cls === 'addressable'
 }

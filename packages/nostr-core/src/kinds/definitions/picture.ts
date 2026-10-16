@@ -5,29 +5,29 @@ import { defineKind } from '../registry.js'
 import { optionalTag, repeatedTags, tagValue, tagValues } from '../tags.js'
 
 /**
- * Kind 20 — post con immagini in primo piano (NIP-68).
+ * Kind 20 — a post with the images to the fore (NIP-68).
  *
- * La differenza con una nota che contiene un link a un'immagine non e'
- * estetica: qui le immagini sono **il** contenuto, dichiarate in tag `imeta` e
- * non nel testo. Un client che filtra per kind 20 sa in anticipo di ricevere
- * eventi con almeno un'immagine, e puo' impaginare una galleria senza doverli
- * prima scaricare e ispezionare uno per uno.
+ * The difference from a note containing a link to an image is not aesthetic:
+ * here the images are **the** content, declared in `imeta` tags and not in the
+ * text. A client filtering for kind 20 knows in advance that it will receive
+ * events with at least one image, and can lay out a gallery without having to
+ * download and inspect them one by one first.
  *
- * Conseguenza: **un kind 20 senza allegati non ha senso** e viene rifiutato in
- * costruzione. Se non c'e' un'immagine, quello che si vuole scrivere e' una
- * nota (kind 1).
+ * The consequence: **a kind 20 without attachments makes no sense** and is
+ * refused at build time. If there is no image, what you want to write is a
+ * note (kind 1).
  */
 
 export const pictureSchema = z.object({
-  /** Descrizione del post: sta nel content. */
+  /** The post's description: it sits in the content. */
   content: z.string(),
-  /** Titolo breve (tag `title`). */
+  /** A short title (the `title` tag). */
   title: z.string().optional(),
-  /** Immagini del post, in ordine. */
+  /** The post's images, in order. */
   images: z.array(imetaSchema),
   hashtags: z.array(z.string()),
   mentions: z.array(z.string()),
-  /** Motivo dell'avviso di contenuto sensibile, se presente. */
+  /** The reason for the sensitive-content warning, when there is one. */
   contentWarning: z.string().optional(),
 })
 
@@ -47,7 +47,7 @@ export const pictureDefinition = defineKind<PictureParsed, PictureInput>({
   name: 'post-immagini',
   nip: 'NIP-68',
   class: 'regular',
-  editable: false, // regolare: immutabile, come il kind 1
+  editable: false, // regular: immutable, like kind 1
   deletable: true,
   schema: pictureSchema,
   feed: { eligible: true, requiresMedia: true },
@@ -76,9 +76,9 @@ export const pictureDefinition = defineKind<PictureParsed, PictureInput>({
 
     const imeta = input.images.map(buildImetaTag)
 
-    // NIP-68 chiede di ripetere fuori dall'imeta il tipo MIME e gli hash:
-    // servono ai relay per filtrare, e un filtro non sa leggere dentro un tag
-    // variadico.
+    // NIP-68 asks for the MIME type and the hashes to be repeated outside the
+    // imeta: the relays need them to filter, and a filter cannot read inside a
+    // variadic tag.
     const mime = [...new Set(input.images.map((i) => i.mime).filter(Boolean))] as string[]
     const hash = input.images.map((i) => i.sha256).filter(Boolean) as string[]
 

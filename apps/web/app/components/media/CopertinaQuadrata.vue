@@ -2,14 +2,14 @@
 import { copertinaConforme, uploadBlob, type MisureCopertina } from '@nmc/nostr-core'
 
 /**
- * Campo «copertina»: un URL, con caricamento e ritaglio incorporati.
+ * The «cover» field: a URL, with uploading and cropping built in.
  *
- * E' lo stesso campo per la scheda del podcast e per l'immagine di un
- * episodio, perche' la regola e' la stessa — quadrata, 1400–3000 px — e il
- * modo di sbagliarla pure. Misura sempre l'immagine corrente (anche da un
- * URL altrui: `naturalWidth` non richiede CORS) e dice se va bene, prima di
- * pubblicare. «Carica» e «Ritaglia» passano dal ritaglio; l'esportato va su
- * Blossom e l'URL finisce nel campo.
+ * It is the same field for the podcast's card and for an episode's image,
+ * because the rule is the same — square, 1400–3000 px — and so is the way of
+ * getting it wrong. It always measures the current image (from somebody else's
+ * URL too: `naturalWidth` does not require CORS) and says whether it is all
+ * right, before publishing. «Upload» and «Crop» go through the cropper; what
+ * is exported goes to Blossom and the URL ends up in the field.
  */
 
 const props = withDefaults(
@@ -23,7 +23,7 @@ const props = withDefaults(
 )
 const emit = defineEmits<{
   (e: 'update:modelValue', v: string): void
-  /** Le misure dell'immagine corrente, appena note; `null` se non misurabile. */
+  /** The current image's measurements, as soon as they are known; `null` when it cannot be measured. */
   (e: 'misure', m: MisureCopertina | null): void
 }>()
 

@@ -1,8 +1,9 @@
 <script setup lang="ts">
 /**
- * La scheda Podcast: il caricatore nella veste da episodio, con sopra le
- * bozze lasciate a meta'. Stanno qui e non in «Carica su Blossom» perche' sono
- * bozze di episodio, e il posto per ritrovarle e' dove si pubblica.
+ * The Podcast tab: the uploader in its episode guise, with the drafts left
+ * half-finished above it. They are here and not in «Upload to Blossom»
+ * because they are episode drafts, and the place to find them again is where
+ * they get published.
  */
 useHead({ title: 'Podcast · NostrMediaClient' })
 
@@ -12,7 +13,7 @@ const rotta = useRoute()
 const quando = (secondi: number): string =>
   new Date(secondi * 1000).toLocaleString('it-IT', { dateStyle: 'short', timeStyle: 'short' })
 
-// Con una bozza aperta l'elenco sarebbe rumore sopra il form che la mostra.
+// With a draft open the list would be noise above the form that shows it.
 const elencoVisibile = computed(() => bozze.bozze.value.length > 0 && !rotta.query.bozza)
 </script>
 

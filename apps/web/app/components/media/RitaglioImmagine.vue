@@ -3,31 +3,31 @@ import { COPERTINA_MAX, COPERTINA_MIN, scaricaImmagine } from '@nmc/nostr-core'
 import { useMediaManager } from '~/stores/mediamanager'
 
 /**
- * Ritaglio quadrato con anteprima, per le copertine.
+ * A square crop with a preview, for the covers.
  *
- * Apple, Amazon, Spotify e YouTube vogliono un quadrato fra 1400 e 3000 px:
- * una foto qualunque non lo e', e chiedere all'utente di ritagliarla altrove
- * e' il modo per far pubblicare copertine sbagliate. Qui si sceglie il
- * riquadro — zoom e trascinamento — e si esporta gia' alla misura giusta.
+ * Apple, Amazon, Spotify and YouTube want a square between 1400 and 3000 px:
+ * any old photo is not one, and asking the user to crop it elsewhere is the
+ * way to have wrong covers published. Here the frame is chosen — zoom and drag
+ * — and exported at the right size already.
  *
- * Nessuna dipendenza: e' un `<canvas>` e poche righe di geometria. Il lato
- * di uscita e' il lato minore dell'originale, stretto fra 1400 e 3000: sotto
- * i 1400 si ingrandisce e lo si dice, perche' rifiutare sarebbe peggio (la
- * piattaforma la accetta, ma sfocata; senza copertina non accetta nulla).
+ * No dependencies: it is a `<canvas>` and a few lines of geometry. The output
+ * side is the original's shorter side, clamped between 1400 and 3000: below
+ * 1400 it is enlarged and that is said, because refusing would be worse (the
+ * platform accepts it, blurred; without a cover it accepts nothing).
  *
- * Da un URL l'immagine si scarica prima di tutto: direttamente se il server
- * lo consente, altrimenti tramite il media-manager, che la legge dal suo
- * lato. Solo se non arriva in nessuno dei due modi si rinuncia, e lo si
- * dice: a quel punto resta il file dal disco.
+ * From a URL the image is downloaded first of all: directly when the server
+ * allows it, otherwise through the media-manager, which reads it from its own
+ * side. Only when it arrives by neither route do we give up, and say so: at
+ * that point the file from disk remains.
  */
 
 const props = defineProps<{
-  /** Un file scelto dal disco, oppure l'URL di un'immagine gia' pubblicata. */
+  /** A file chosen from disk, or the URL of an already published image. */
   sorgente: File | string
 }>()
 
 const emit = defineEmits<{
-  /** Il quadrato esportato, pronto da caricare, con il lato in pixel. */
+  /** The exported square, ready to upload, with its side in pixels. */
   (e: 'ritagliata', blob: Blob, lato: number): void
   (e: 'annulla'): void
 }>()
@@ -42,10 +42,10 @@ const larghezza = ref(0)
 const altezza = ref(0)
 const errore = ref<string | null>(null)
 const caricamento = ref(true)
-/** Da dove e' arrivata l'immagine, quando viene da un URL: si dice solo se e' passata dal servizio. */
+/** Where the image came from, when it comes from a URL: it is said only when it went through the service. */
 const provenienza = ref<'diretta' | 'servizio' | null>(null)
 
-/** Zoom relativo al riquadro che contiene tutto: 1 = il lato minore riempie il quadrato. */
+/** The zoom relative to the frame that holds everything: 1 = the shorter side fills the square. */
 const zoom = ref(1)
 /** Spostamento del centro, in pixel dell'anteprima. */
 const dx = ref(0)
@@ -67,7 +67,7 @@ const giaQuadrata = computed(
     larghezza.value <= COPERTINA_MAX,
 )
 
-/** Scala base: la piu' piccola che fa entrare il lato minore nel quadrato dell'anteprima. */
+/** The base scale: the smallest that fits the shorter side into the preview's square. */
 const scalaBase = computed(() =>
   larghezza.value ? ANTEPRIMA / Math.min(larghezza.value, altezza.value) : 1,
 )
@@ -78,9 +78,9 @@ async function carica(): Promise<void> {
   provenienza.value = null
   try {
     if (typeof props.sorgente === 'string') {
-      // Una tela disegnata da un'immagine senza CORS resta «sporca» e non si
-      // esporta: i byte vanno letti davvero, direttamente o tramite il
-      // servizio. Se non si puo', si dice e resta il file dal disco.
+      // A canvas drawn from an image without CORS stays «tainted» and cannot
+      // be exported: the bytes have to be really read, directly or through the
+      // service. When that is not possible we say so and the file from disk remains.
       const scaricata = await scaricaImmagine(props.sorgente, {
         mediaManager: servizio.client,
       })
@@ -102,19 +102,19 @@ async function carica(): Promise<void> {
   } finally {
     caricamento.value = false
   }
-  // La tela compare solo a caricamento finito: si disegna dopo, non prima.
+  // The canvas appears only once loading has finished: it is drawn after, not before.
   await nextTick()
   disegna()
 }
 
-/** Il riquadro sorgente (in pixel dell'originale) corrispondente al quadrato dell'anteprima. */
+/** The source frame (in the original's pixels) corresponding to the preview's square. */
 function riquadro(): { x: number; y: number; lato: number } {
   const scala = scalaBase.value * zoom.value
   const lato = ANTEPRIMA / scala
-  // Il centro parte dal centro dell'immagine e si sposta con il trascinamento.
+  // The centre starts from the image's centre and moves with the dragging.
   let x = larghezza.value / 2 - lato / 2 - dx.value / scala
   let y = altezza.value / 2 - lato / 2 - dy.value / scala
-  // Il quadrato non esce mai dall'immagine.
+  // The square never leaves the image.
   x = Math.min(Math.max(0, x), larghezza.value - lato)
   y = Math.min(Math.max(0, y), altezza.value - lato)
   return { x, y, lato }
@@ -183,8 +183,8 @@ async function conferma(): Promise<void> {
     <template v-else>
       <div class="flex flex-col gap-3 sm:flex-row">
         <!--
-          Il quadrato e' fisso e l'immagine si muove sotto: e' piu' facile
-          capire cosa resta dentro che spostare una cornice su una foto.
+          The square is fixed and the image moves underneath: it is easier to
+          see what stays inside than to move a frame over a photo.
         -->
         <canvas
           ref="tela"

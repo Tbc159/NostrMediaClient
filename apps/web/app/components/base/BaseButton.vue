@@ -1,8 +1,8 @@
 <script setup lang="ts">
 /**
- * Pulsante. Rende `<button>` o `<NuxtLink>` a seconda che riceva `to`,
- * cosi' i link restano link: navigabili col tasto destro, apribili in una
- * scheda nuova, e annunciati correttamente dagli screen reader.
+ * A button. It renders a `<button>` or a `<NuxtLink>` depending on whether it
+ * receives `to`, so links stay links: navigable with the right mouse button,
+ * openable in a new tab, and announced correctly by screen readers.
  */
 withDefaults(
   defineProps<{
@@ -26,10 +26,10 @@ const varianti = {
 const misure = { sm: 'px-2.5 py-1 text-xs gap-1.5', md: 'px-3.5 py-2 text-sm gap-2' }
 
 /*
- * Il componente va risolto qui, non passato come stringa a `:is`.
- * Con `:is="'NuxtLink'"` Vue non lo risolve e genera un elemento <nuxtlink>
- * letterale: un tag sconosciuto al browser, senza href e senza navigazione.
- * Il risultato e' un pulsante che sembra funzionare e invece e' inerte.
+ * The component has to be resolved here, not passed to `:is` as a string.
+ * With `:is="'NuxtLink'"` Vue does not resolve it and generates a literal
+ * <nuxtlink> element: a tag unknown to the browser, with no href and no
+ * navigation. The result is a button that looks like it works and is inert.
  */
 const NuxtLinkComponent = resolveComponent('NuxtLink')
 </script>

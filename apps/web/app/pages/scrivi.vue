@@ -12,14 +12,14 @@ const rispostaA = ref('')
 const citazione = ref('')
 const mostraAvanzate = ref(false)
 
-/** Limite convenzionale: nessun NIP lo impone, ma i relay hanno tetti sui messaggi. */
+/** A conventional limit: no NIP imposes one, but relays have ceilings on messages. */
 const LIMITE_CONSIGLIATO = 2000
 const lunghezza = computed(() => contenuto.value.length)
 const oltreLimite = computed(() => lunghezza.value > LIMITE_CONSIGLIATO)
 
-// La convenzione minuscola si applica qui, a cio' che l'utente scrive: il
-// kind scrive i tag `t` come li riceve, perche' puo' riceverli da un evento
-// di un altro client dove riscriverli sarebbe un danno.
+// The lower-case convention applies here, to what the user writes: the kind
+// writes the `t` tags as it receives them, because it can receive them from
+// another client's event where rewriting them would do damage.
 const hashtagList = computed(() =>
   hashtag.value
     .split(/[,\s]+/)

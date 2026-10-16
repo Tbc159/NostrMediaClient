@@ -2,23 +2,24 @@
 import { listBlobs, uploadBlob, type BlobDescriptor } from '@nmc/nostr-core'
 
 /**
- * Campo «immagine»: un indirizzo, ma senza dover andare a prenderlo altrove.
+ * The «image» field: an address, but without having to go and fetch it
+ * elsewhere.
  *
- * L'indirizzo da solo bastava a pubblicare, non a lavorare: chi non ha il
- * link pronto doveva aprire la sezione media, caricare il file, copiare
- * l'URL e tornare qui. Tre passaggi per una cosa che sta in uno. Qui il file
- * si carica da dove serve, e quelle gia' su Blossom si scelgono da un
- * elenco — perche' «una foto che ho gia' caricato» e' il caso piu' comune,
- * non quello raro.
+ * The address alone was enough to publish, not to work: whoever did not have
+ * the link ready had to open the media section, upload the file, copy the URL
+ * and come back here. Three steps for something that fits in one. Here the
+ * file is uploaded from where it is needed, and the ones already on Blossom
+ * are chosen from a list — because «a photo I have uploaded already» is the
+ * commonest case, not the rare one.
  *
- * Nessun vincolo di forma: al contrario della copertina di un podcast, che le
- * piattaforme pretendono quadrata, per un articolo NIP-23 non dice nulla e
- * imporre un ritaglio sarebbe una regola inventata da noi.
+ * No constraint on the shape: unlike a podcast's cover, which the platforms
+ * demand be square, for an article NIP-23 says nothing and imposing a crop
+ * would be a rule invented by us.
  *
- * L'elenco arriva da Blossom (BUD-12), non dai propri eventi: comprende anche
- * i file caricati e non ancora pubblicati, che sono proprio quelli che si sta
- * cercando. Alcuni server chiedono un'autorizzazione firmata per elencare, e
- * `listBlobs` la chiede solo quando il server la pretende.
+ * The list comes from Blossom (BUD-12), not from your own events: it includes
+ * the files uploaded and not yet published, which are precisely the ones being
+ * looked for. Some servers ask for a signed authorization to list, and
+ * `listBlobs` asks for one only when the server demands it.
  */
 
 withDefaults(
@@ -59,8 +60,8 @@ async function carica(evento: Event): Promise<void> {
       nome: file.name,
     })
     url.value = descrittore.url
-    // Appena caricata, deve comparire anche nell'elenco: si rilegge alla
-    // prossima apertura, ma intanto la si aggiunge in testa.
+    // Just uploaded, it has to appear in the list too: it is re-read on the
+    // next opening, but in the meantime it is added at the top.
     if (elenco.value) elenco.value = [descrittore, ...elenco.value]
   } catch (e) {
     errore.value = `Immagine non caricata: ${e instanceof Error ? e.message : String(e)}`
@@ -69,11 +70,11 @@ async function carica(evento: Event): Promise<void> {
   }
 }
 
-// ── Elenco di quelle gia' su Blossom ──────────────────────────────────────
+// ── The list of the ones already on Blossom ───────────────────────────────
 const galleriaAperta = ref(false)
 const elenco = ref<BlobDescriptor[] | null>(null)
 const elencoInCorso = ref(false)
-/** Un messaggio per server che non ha risposto: meglio dirlo che mostrare meno file senza spiegare. */
+/** One message per server that did not answer: better to say so than to show fewer files unexplained. */
 const problemiElenco = ref<string[]>([])
 
 async function leggiElenco(): Promise<void> {
@@ -96,8 +97,8 @@ async function leggiElenco(): Promise<void> {
         }
       }),
     )
-    // Solo immagini, le piu' recenti prima, senza doppioni fra server (lo
-    // stesso file replicato su due server ha lo stesso hash).
+    // Images only, the most recent first, no duplicates between servers (the
+    // same file mirrored on two servers has the same hash).
     const viste = new Set<string>()
     elenco.value = risultati
       .flat()
@@ -165,7 +166,7 @@ const pesoLeggibile = (byte: number | undefined): string =>
 
     <BaseAlert v-if="errore" tono="pericolo">{{ errore }}</BaseAlert>
 
-    <!-- ── L'elenco di quelle gia' caricate ── -->
+    <!-- ── The list of the ones already uploaded ── -->
     <div v-if="galleriaAperta" class="superficie flex flex-col gap-3 rounded-md border p-3">
       <div class="flex flex-wrap items-center gap-2">
         <p class="text-sm font-medium">Le tue immagini su Blossom</p>

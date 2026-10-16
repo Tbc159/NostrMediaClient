@@ -9,17 +9,18 @@ import {
 } from '@nmc/nostr-core'
 
 /**
- * Le piattaforme di podcast, una per una: cosa manca perche' accettino il feed.
+ * The podcast platforms, one by one: what is missing for them to accept the
+ * feed.
  *
- * Chiedono quasi tutte le stesse cose, ma non tutte le pretendono, e ognuna
- * verifica la proprieta' a modo suo. Invece di un «feed non valido» generico,
- * qui ogni piattaforma ha la sua checklist calcolata sui dati veri — la
- * scheda 10154 di questa chiave, la copertina misurata, i formati degli
- * episodi — e il link dove sottoporre il feed. I dati si correggono nel
- * profilo; questa pagina dice solo *quali*.
+ * They nearly all ask for the same things, but not all of them demand these,
+ * and each verifies ownership in its own way. Instead of a generic «invalid
+ * feed», here every platform has its checklist computed against the real data
+ * — this key's 10154 card, the measured cover, the episodes' formats — and the
+ * link to submit the feed at. The data are corrected in the profile; this page
+ * says only *which*.
  *
- * Legge la scheda dai relay, non dal feed: cosi' dice la verita' anche
- * quando il servizio del feed non ha ancora imparato a leggere i tag nuovi.
+ * It reads the card from the relays, not from the feed: that way it tells the
+ * truth even when the feed's service has not yet learnt to read the new tags.
  */
 
 const identita = useIdentity()
@@ -57,7 +58,7 @@ async function carica(): Promise<void> {
   }
 }
 
-/** Le misure di un'immagine dal suo URL: `naturalWidth` non richiede CORS. */
+/** An image's measurements from its URL: `naturalWidth` does not require CORS. */
 function misura(url: string): Promise<MisureCopertina | null> {
   return new Promise((risolvi) => {
     const img = new Image()
@@ -67,7 +68,7 @@ function misura(url: string): Promise<MisureCopertina | null> {
   })
 }
 
-/** I MIME degli audio degli episodi pubblicati: primo tag `audio` di ciascun kind 54. */
+/** The MIMEs of the published episodes' audio: the first `audio` tag of each kind 54. */
 const mimeEpisodi = computed(() =>
   episodi.eventi.value
     .map((e) => e.tags.find((t) => t[0] === 'audio')?.[2])
@@ -94,7 +95,7 @@ const esiti = computed(() =>
 onMounted(carica)
 watch(() => identita.pubkey, carica)
 
-/** Etichetta breve di un requisito soddisfatto. */
+/** A short label for a satisfied requirement. */
 const NOMI_REQUISITI: Record<string, string> = {
   'copertina-quadrata': 'copertina quadrata 1400–3000',
   categoria: 'categoria',

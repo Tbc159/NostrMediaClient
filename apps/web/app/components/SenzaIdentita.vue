@@ -1,5 +1,5 @@
 <script setup lang="ts">
-/** Ripiego mostrato dove servirebbe un'identita' per avere qualcosa da leggere. */
+/** The fallback shown where an identity would be needed to have anything to read. */
 defineProps<{ cosa: string }>()
 </script>
 

@@ -6,27 +6,27 @@ import { repeatedTags, tagValues, tagsNamed } from '../tags.js'
 import type { NostrEvent } from '../types.js'
 
 /**
- * Kind 1 — nota di testo breve (NIP-10).
+ * Kind 1 — a short text note (NIP-10).
  *
- * E' un evento *regolare*, quindi immutabile: non esiste modifica. L'unica via
- * per correggere una nota e' chiederne la cancellazione (kind 5) e
- * ripubblicarla, ottenendo pero' un id nuovo e perdendo reazioni e risposte.
- * La UI deve dirlo, non simulare una modifica che il protocollo non offre.
+ * It is a *regular* event, hence immutable: there is no such thing as editing.
+ * The only way to correct a note is to ask for it to be deleted (kind 5) and
+ * republish it, getting a new id and losing the reactions and the replies. The
+ * UI has to say so, not simulate an edit the protocol does not offer.
  */
 
 export const noteParsedSchema = z.object({
   content: z.string(),
-  /** Id dell'evento radice del thread, se la nota e' una risposta. */
+  /** The id of the thread's root event, when the note is a reply. */
   rootId: z.string().optional(),
-  /** Id dell'evento a cui si risponde direttamente. */
+  /** The id of the event being replied to directly. */
   replyToId: z.string().optional(),
-  /** Pubkey menzionate (tag `p`). */
+  /** The pubkeys mentioned (the `p` tag). */
   mentions: z.array(z.string()),
-  /** Eventi citati (tag `q`, NIP-18). */
+  /** The events quoted (the `q` tag, NIP-18). */
   quotes: z.array(z.string()),
-  /** Hashtag (tag `t`), gia' normalizzati. */
+  /** The hashtags (the `t` tag), already normalised. */
   hashtags: z.array(z.string()),
-  /** Allegati dichiarati con `imeta` (NIP-92). */
+  /** The attachments declared with `imeta` (NIP-92). */
   attachments: z.array(imetaSchema),
 })
 
@@ -35,23 +35,23 @@ export type NoteParsed = z.infer<typeof noteParsedSchema>
 export interface NoteInput {
   content: string
   /**
-   * Nota a cui si sta rispondendo. Serve l'evento intero, non solo l'id:
-   * NIP-10 vuole che la risposta riporti la radice del thread, che si ricava
-   * dai tag della nota a cui si risponde.
+   * The note being replied to. The whole event is needed, not just the id:
+   * NIP-10 wants the reply to carry the thread's root, which is derived from
+   * the tags of the note being replied to.
    */
   replyTo?: NoteReplyTarget
-  /** Evento citato (tag `q`). */
+  /** The event quoted (the `q` tag). */
   quoteId?: string
-  /** Hashtag, con o senza cancelletto: vengono normalizzati. */
+  /** The hashtags, with or without a hash sign: they get normalised. */
   hashtags?: string[]
-  /** Pubkey da menzionare oltre a quelle ereditate dal thread. */
+  /** The pubkeys to mention besides the ones inherited from the thread. */
   mentions?: string[]
   /**
-   * Allegati (NIP-92).
+   * The attachments (NIP-92).
    *
-   * Una nota con un allegato e' l'unico modo di pubblicare un file che
-   * *qualunque* client sociale mostra: i kind media dedicati (20, 21, 22) sono
-   * piu' precisi ma vengono letti solo da chi li filtra.
+   * A note with an attachment is the only way to publish a file that *any*
+   * social client shows: the dedicated media kinds (20, 21, 22) are more
+   * precise but are read only by whoever filters for them.
    */
   attachments?: ImetaInput[]
 }
@@ -59,27 +59,27 @@ export interface NoteInput {
 export interface NoteReplyTarget {
   id: string
   pubkey: string
-  /** Radice del thread a cui appartiene, se gia' nota. */
+  /** The root of the thread it belongs to, when already known. */
   rootId?: string
-  /** Pubkey gia' coinvolte nel thread, da riportare nella risposta. */
+  /** The pubkeys already involved in the thread, to carry into the reply. */
   participants?: string[]
 }
 
 /**
- * Estrae radice e destinatario da un evento secondo NIP-10.
+ * Extracts the root and the addressee from an event according to NIP-10.
  *
- * Il NIP prevede tag `e` marcati (`root` / `reply`), ma esiste una montagna di
- * eventi vecchi con tag non marcati, dove la convenzione era: primo `e` =
- * radice, ultimo `e` = risposta diretta. Gestiamo entrambe le forme, altrimenti
- * i thread storici risultano spezzati.
+ * The NIP provides for marked `e` tags (`root` / `reply`), but there is a
+ * mountain of old events with unmarked tags, where the convention was: the
+ * first `e` = the root, the last `e` = the direct reply. We handle both forms,
+ * otherwise the historical threads come out broken.
  */
 function extractThread(event: NostrEvent): { rootId?: string; replyToId?: string } {
   const eTags = tagsNamed(event, 'e')
   if (eTags.length === 0) return {}
 
-  // Con exactOptionalPropertyTypes una proprieta' presente ma undefined non
-  // equivale a una proprieta' assente: le chiavi si aggiungono solo se hanno
-  // davvero un valore.
+  // With exactOptionalPropertyTypes a property that is present but undefined
+  // is not the same as an absent property: the keys are added only when they
+  // really have a value.
   const componi = (
     rootId?: string,
     replyToId?: string,
@@ -93,7 +93,7 @@ function extractThread(event: NostrEvent): { rootId?: string; replyToId?: string
   const root = marcato('root')
   const reply = marcato('reply')
   if (root !== undefined || reply !== undefined) {
-    // Una risposta diretta alla radice porta solo il marcatore "root".
+    // A direct reply to the root carries the "root" marker only.
     return componi(root, reply ?? root)
   }
 
@@ -108,7 +108,7 @@ export const noteDefinition = defineKind<NoteParsed, NoteInput>({
   name: 'nota',
   nip: 'NIP-10',
   class: 'regular',
-  editable: false, // immutabile per costruzione: vedi il commento in testa
+  editable: false, // immutable by construction: see the comment at the top
   deletable: true,
   schema: noteParsedSchema,
   feed: { eligible: true },
@@ -134,16 +134,16 @@ export const noteDefinition = defineKind<NoteParsed, NoteInput>({
       const { id, pubkey, rootId, participants = [] } = input.replyTo
 
       if (rootId && rootId !== id) {
-        // Risposta dentro un thread: si marcano sia la radice sia il padre.
+        // A reply inside a thread: both the root and the parent are marked.
         tags.push(['e', rootId, '', 'root'])
         tags.push(['e', id, '', 'reply'])
       } else {
-        // Risposta diretta alla radice: un solo tag, marcato "root".
+        // A direct reply to the root: a single tag, marked "root".
         tags.push(['e', id, '', 'root'])
       }
 
-      // NIP-10: la risposta riporta gli autori del thread, cosi' ricevono la
-      // notifica. Deduplicato da repeatedTags.
+      // NIP-10: the reply carries the thread's authors, so they get the
+      // notification. Deduplicated by repeatedTags.
       tags.push(...repeatedTags('p', [pubkey, ...participants, ...(input.mentions ?? [])]))
     } else if (input.mentions?.length) {
       tags.push(...repeatedTags('p', input.mentions))
@@ -153,9 +153,9 @@ export const noteDefinition = defineKind<NoteParsed, NoteInput>({
 
     /*
      * NIP-92: «Each imeta tag SHOULD match a URL in the event content».
-     * Un allegato dichiarato solo nel tag non verrebbe mostrato da nessuno: i
-     * client cercano l'URL nel testo e lo sostituiscono con l'anteprima. Le
-     * url mancanti si aggiungono in coda invece di lasciare la nota muta.
+     * An attachment declared in the tag alone would be shown by nobody:
+     * clients look for the URL in the text and replace it with the preview.
+     * The missing urls are appended rather than leaving the note mute.
      */
     let contenuto = input.content
     for (const allegato of input.attachments ?? []) {

@@ -14,8 +14,8 @@ onMounted(() => {
   banco.prepara(config.value.valore?.writeRelays[0] ?? '')
 })
 
-// Il banco vive nella scheda: uscendo dalla pagina si spegne, e chi sta
-// aspettando una firma riceve un rifiuto invece di restare appeso.
+// The desk lives in the tab: leaving the page switches it off, and whoever is
+// waiting for a signature gets a refusal instead of being left hanging.
 onBeforeUnmount(() => banco.ferma())
 
 const copiato = ref(false)
@@ -26,7 +26,7 @@ async function copiaIndirizzo(): Promise<void> {
     copiato.value = true
     setTimeout(() => (copiato.value = false), 2000)
   } catch {
-    // Appunti negati dal browser: l'indirizzo resta selezionabile a mano.
+    // Clipboard denied by the browser: the address stays selectable by hand.
   }
 }
 
@@ -63,7 +63,7 @@ const ora = (t: number): string => new Date(t).toLocaleTimeString('it-IT')
     </header>
 
     <ClientOnly>
-      <!-- ─────────── Lato di chi possiede la chiave ─────────── -->
+      <!-- ─────────── The key holder's side ─────────── -->
       <BaseCard
         title="Firmo io per altri"
         subtitle="Tieni aperto un banco di firma: gli altri chiedono, tu approvi."
@@ -219,7 +219,7 @@ const ora = (t: number): string => new Date(t).toLocaleTimeString('it-IT')
         </div>
       </BaseCard>
 
-      <!-- ─────────── Lato di chi chiede ─────────── -->
+      <!-- ─────────── The requester's side ─────────── -->
       <BaseCard
         title="Chiedo la firma a un’altra identità"
         subtitle="Comporrai l’evento tu; a firmarlo, e quindi a risultarne l’autore, sarà l’altra chiave."
@@ -239,9 +239,10 @@ const ora = (t: number): string => new Date(t).toLocaleTimeString('it-IT')
                 collegata
               </BaseBadge>
               <!--
-                Chi chiede la firma a un podcast di solito ne e' autore: NIP-F4
-                vuole che lo dica lui, dalla sua chiave (kind 10064). Un rimando
-                con la chiave gia' nel campo, invece di lasciarlo scoprire.
+                Whoever asks a podcast for a signature is usually an author of
+                it: NIP-F4 wants them to say so themselves, from their own key
+                (kind 10064). A pointer with the key in the field already,
+                instead of leaving them to discover it.
               -->
               <NuxtLink
                 :to="`/profilo?autore-di=${deleghe.npubDi(d.pubkey)}`"

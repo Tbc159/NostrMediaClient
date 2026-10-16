@@ -4,37 +4,38 @@ import { defineKind } from '../registry.js'
 import { optionalTag, tagValue } from '../tags.js'
 
 /**
- * Kind 31234 — bozza cifrata (NIP-37).
+ * Kind 31234 — an encrypted draft (NIP-37).
  *
- * Contiene un evento **non firmato** di un altro kind, serializzato e cifrato
- * NIP-44 verso la propria stessa chiave. Sostituisce il kind 30024, che NIP-23
- * dichiara deprecato: quello finiva sul relay *in chiaro*, e chiamarlo bozza
- * era fuorviante.
+ * It contains an **unsigned** event of another kind, serialised and encrypted
+ * with NIP-44 to your own key. It replaces kind 30024, which NIP-23 declares
+ * deprecated: that one ended up on the relay *in the clear*, and calling it a
+ * draft was misleading.
  *
- * Nota di progetto: questa definizione **non cifra e non decifra**. Il
- * `content` per lei e' una stringa opaca, e ci sono due motivi:
+ * A design note: this definition **neither encrypts nor decrypts**. To it the
+ * `content` is an opaque string, and there are two reasons:
  *
- *   1. `build()` e' sincrona per contratto, mentre con NIP-07 la cifratura
- *      avviene dentro l'estensione e restituisce una `Promise`;
- *   2. il registry descrive *formati*, non possiede chiavi. Farci passare
- *      materiale crittografico lo legherebbe alla modalita' di accesso attiva.
+ *   1. `build()` is synchronous by contract, whereas with NIP-07 the
+ *      encryption happens inside the extension and returns a `Promise`;
+ *   2. the registry describes *formats*, it does not hold keys. Passing
+ *      cryptographic material through it would tie it to the active login
+ *      method.
  *
- * La cifratura sta in `wrapDraft`/`unwrapDraft`, che ricevono un cifrario.
+ * The encryption sits in `wrapDraft`/`unwrapDraft`, which take a cipher.
  *
- * **Un `content` vuoto significa bozza cancellata**, non bozza vuota: lo dice
- * la specifica, ed e' l'unico modo di cancellarne una senza sperare che il
- * relay onori una richiesta kind 5.
+ * **An empty `content` means a deleted draft**, not an empty one: the
+ * specification says so, and it is the only way to delete one without hoping
+ * the relay honours a kind 5 request.
  */
 
 export const draftWrapSchema = z.object({
   identifier: z.string(),
-  /** Kind dell'evento contenuto, dal tag `k`. */
+  /** The contained event's kind, from the `k` tag. */
   draftKind: z.number().int().nonnegative(),
-  /** Contenuto cifrato. Vuoto se la bozza e' stata cancellata. */
+  /** The encrypted content. Empty when the draft has been deleted. */
   ciphertext: z.string(),
-  /** Scadenza NIP-40, secondi unix. */
+  /** The NIP-40 expiry, in unix seconds. */
   expiration: z.number().int().positive().optional(),
-  /** Vero quando il content e' vuoto, cioe' quando la bozza e' stata cancellata. */
+  /** True when the content is empty, that is when the draft has been deleted. */
   cancellata: z.boolean(),
 })
 
@@ -43,7 +44,7 @@ export type DraftWrapParsed = z.infer<typeof draftWrapSchema>
 export interface DraftWrapInput {
   identifier: string
   draftKind: number
-  /** Gia' cifrato. Stringa vuota per cancellare la bozza. */
+  /** Already encrypted. An empty string deletes the draft. */
   ciphertext: string
   expiration?: number
 }
@@ -95,7 +96,7 @@ export const draftWrapDefinition = defineKind<DraftWrapParsed, DraftWrapInput>({
       )
     }
     if (input.draftKind === 31234) {
-      // Una bozza di bozza non ha senso e produrrebbe un annidamento infinito.
+      // A draft of a draft makes no sense and would nest for ever.
       throw new Error('Il tag `k` deve indicare il kind dell’evento in bozza, non 31234.')
     }
 
@@ -116,14 +117,14 @@ export const draftWrapDefinition = defineKind<DraftWrapParsed, DraftWrapInput>({
 })
 
 /**
- * Kind 10013 — relay per i contenuti privati (NIP-37).
+ * Kind 10013 — the relays for private content (NIP-37).
  *
- * L'elenco dei relay sta **cifrato nel content**, non nei tag: i tag di un
- * evento sono pubblici, e sapere su quali relay una persona tiene le proprie
- * bozze e' gia' un'informazione.
+ * The list of relays sits **encrypted in the content**, not in the tags: an
+ * event's tags are public, and knowing which relays a person keeps their
+ * drafts on is already a piece of information.
  *
- * Come per il 31234, qui il content resta opaco: la cifratura passa da
- * `wrapPrivateRelays`.
+ * As with the 31234, the content stays opaque here: the encryption goes
+ * through `wrapPrivateRelays`.
  */
 export const privateRelaysSchema = z.object({
   ciphertext: z.string(),
@@ -132,7 +133,7 @@ export const privateRelaysSchema = z.object({
 export type PrivateRelaysParsed = z.infer<typeof privateRelaysSchema>
 
 export interface PrivateRelaysInput {
-  /** Gia' cifrato. */
+  /** Already encrypted. */
   ciphertext: string
 }
 

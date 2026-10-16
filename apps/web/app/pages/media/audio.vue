@@ -15,21 +15,21 @@ useHead({ title: 'Audio · NostrMediaClient' })
 const servizio = useMediaManager()
 const consegna = useConsegna()
 
-// La configurazione del servizio sta nelle impostazioni, con gli altri
-// endpoint: qui si controlla soltanto che risponda, per poterlo dire prima che
-// l'utente scelga un file e scopra il guasto a meta' strada.
+// The service's configuration lives in the settings, with the other
+// endpoints: here it is only checked that it answers, so it can be said before
+// the user chooses a file and finds the fault half way.
 onMounted(() => servizio.verifica())
 
 /*
- * Pre-elaborazione: quello che succede *prima* di pubblicare.
+ * Pre-processing: what happens *before* publishing.
  *
- * Questa pagina non carica su Blossom e non pubblica eventi: alla fine offre
- * due uscite alla pari — scaricare il file, oppure passarlo a «Carica su
- * Blossom» gia' nel modo podcast. Il passo dopo esiste, ma e' un'altra pagina
- * con le sue decisioni; qui si decide solo com'e' l'audio.
+ * This page does not upload to Blossom and does not publish events: at the end
+ * it offers two equal exits — download the file, or hand it to «Upload to
+ * Blossom» in podcast mode already. The next step exists, but it is another
+ * page with its own decisions; here only what the audio is like is decided.
  */
 
-// ─── 1. Il file ────────────────────────────────────────────────────────────
+// ─── 1. The file ───────────────────────────────────────────────────────────
 const file = ref<File | null>(null)
 const urlOriginale = ref<string | null>(null)
 const durataOriginale = ref<number | null>(null)
@@ -67,11 +67,11 @@ function annotaDurata(evento: Event): void {
 const vuoiSilenzi = ref(true)
 const vuoiLivellare = ref(true)
 /**
- * Soglia in decibel, come numero: l'unita' la mette il servizio.
+ * The threshold in decibels, as a number: the service adds the unit.
  *
- * Prima andava composta qui (`-40dB`) perche' il servizio la pretendeva nella
- * stringa, e ometterla significava passare un'ampiezza lineare — cioe' non
- * tagliare nulla, senza che nulla lo dicesse.
+ * It used to have to be composed here (`-40dB`) because the service demanded
+ * it in the string, and leaving it out meant passing a linear amplitude — that
+ * is, cutting nothing, with nothing to say so.
  */
 const sogliaDb = ref(-40)
 const durataMinimaS = ref(1)
@@ -79,8 +79,8 @@ const formatoUscita = ref<FormatoAudio>('audio/mpeg')
 
 watch(formato, (f) => {
   if (!f) return
-  // Un wav resta un wav se non si chiede altro; per il resto l'mp3 e' il
-  // formato con cui un episodio si pubblica.
+  // A wav stays a wav when nothing else is asked for; for the rest the mp3 is
+  // the format an episode is published in.
   formatoUscita.value = f === 'audio/wav' ? 'audio/wav' : 'audio/mpeg'
 })
 
@@ -96,7 +96,7 @@ let interruzione: AbortController | null = null
 // ─── 4. Risultato ──────────────────────────────────────────────────────────
 const urlRisultato = ref<string | null>(null)
 const nomeRisultato = ref<string | null>(null)
-/** I byte, non solo l'URL: servono per consegnarli alla pagina dopo. */
+/** The bytes, not just the URL: handing them to the next page needs them. */
 const byteRisultato = shallowRef<Blob | null>(null)
 const durataRisultato = ref<number | null>(null)
 
@@ -136,7 +136,7 @@ async function elabora(): Promise<void> {
     if (stato.stato !== 'completato') trascorsoS.value = (Date.now() - inizio) / 1000
   }
 
-  /** Aspetta un lavoro e restituisce l'unico file che ha prodotto. */
+  /** Waits for a job and returns the only file it produced. */
   const attendi = async (idLavoro: string): Promise<MediaProdotto> => {
     const prodotti = await attendiLavoro(s, idLavoro, {
       segnale: interruzione?.signal as AbortSignal,
@@ -149,19 +149,19 @@ async function elabora(): Promise<void> {
     fase.value = 'Invio il file al servizio…'
     const caricato = await s.carica(sorgente, sorgente.name, suo)
 
-    // Il riferimento e' il `filename` che risponde il servizio, non il titolo
-    // che gli abbiamo mandato: sono due campi diversi, e il secondo non
-    // risolve.
+    // The reference is the `filename` the service answers with, not the title
+    // we sent it: they are two different fields, and the second does not
+    // resolve.
     let riferimento: string | number = caricato.filename
     let prodotto: MediaProdotto | null = null
 
     /*
-     * Prima i silenzi, poi il livellamento.
+     * The silences first, then the levelling.
      *
-     * L'ordine non e' piu' imposto dal servizio — ogni operazione accetta
-     * qualunque riferimento — ma resta la scelta giusta: livellando per primo,
-     * l'amplificazione alza il rumore di fondo sopra la soglia e i silenzi non
-     * vengono piu' riconosciuti.
+     * The order is no longer imposed by the service — every operation accepts
+     * any reference — but it remains the right choice: levelling first, the
+     * amplification lifts the background noise above the threshold and the
+     * silences are no longer recognised.
      */
     if (vuoiSilenzi.value) {
       fase.value = 'Accorcio i silenzi…'
@@ -169,8 +169,8 @@ async function elabora(): Promise<void> {
         await s.avviaSilenzi(riferimento, {
           sogliaDb: sogliaDb.value,
           pausaMinimaS: durataMinimaS.value,
-          // Senza livellamento dopo, questo e' gia' il file finale: va
-          // consegnato nel formato scelto invece che nel wav intermedio.
+          // With no levelling afterwards, this is the final file already: it
+          // has to be handed over in the chosen format and not the intermediate wav.
           ...(vuoiLivellare.value ? {} : { formato: formatoUscita.value }),
         }),
       )
@@ -204,14 +204,14 @@ async function elabora(): Promise<void> {
 
 const nomeSenzaEstensione = (nome: string): string => nome.replace(/\.[^.]+$/, '')
 
-/** Sigla del formato scelto, per l'etichetta accanto al nome del file. */
+/** The short form of the chosen format, for the label beside the file's name. */
 const estensioneCorrente = computed(() => (formato.value ? estensioneDi(formato.value) : ''))
 
 /**
- * Passa il file elaborato a «Carica su Blossom», gia' nel modo podcast.
+ * Hands the processed file to «Upload to Blossom», in podcast mode already.
  *
- * Il `Blob` viaggia in memoria, non in una query string: la pagina dopo lo
- * ritira all'apertura come se l'utente l'avesse scelto dal disco.
+ * The `Blob` travels in memory, not in a query string: the next page collects
+ * it when it opens as though the user had chosen it from disk.
  */
 function pubblicaComePodcast(): void {
   if (!byteRisultato.value || !nomeRisultato.value) return
@@ -252,7 +252,7 @@ const pesoLeggibile = (b: number): string =>
     </header>
 
     <ClientOnly>
-      <!-- ─────────── Il servizio, solo se c'è qualcosa da dire ─────────── -->
+      <!-- ─────────── The service, only when there is something to say ─────────── -->
       <BaseAlert v-for="(o, i) in servizio.ostacoli" :key="i" tono="pericolo">
         {{ o }}
       </BaseAlert>
@@ -265,9 +265,10 @@ const pesoLeggibile = (b: number): string =>
       </BaseAlert>
 
       <!--
-        Due guasti diversi, due frasi diverse: se non risponde *nessun* dominio
-        la causa e' quasi sempre CORS o l'indirizzo, non l'audio — e dire
-        «manca l'audio» manderebbe a cercare il problema dove non e'.
+        Two different faults, two different sentences: when *no* domain answers
+        the cause is nearly always CORS or the address, not the audio — and
+        saying «the audio is missing» would send you looking for the problem
+        where it is not.
       -->
       <BaseAlert
         v-else-if="servizio.salute && !servizio.salute.media && !servizio.salute.audio"
@@ -288,7 +289,7 @@ const pesoLeggibile = (b: number): string =>
         <NuxtLink to="/impostazioni" class="underline">Controlla il servizio</NuxtLink>
       </BaseAlert>
 
-      <!-- ─────────── 1. Il file ─────────── -->
+      <!-- ─────────── 1. The file ─────────── -->
       <BaseCard title="1 · Scegli il file" subtitle="Ascoltalo prima di mandarlo da qualche parte.">
         <div class="flex flex-col gap-4">
           <div class="flex flex-wrap items-center gap-3">
@@ -333,10 +334,10 @@ const pesoLeggibile = (b: number): string =>
           </label>
 
           <!--
-            I cursori stanno qui, non nella sezione avanzata: sono la
-            regolazione che cambia il risultato, e il valore giusto dipende
-            dalla registrazione. Un campo di testo li farebbe scegliere alla
-            cieca, perche' la scala dei decibel non e' d'uso comune.
+            The sliders are here, not in the advanced section: they are the
+            adjustment that changes the result, and the right value depends on
+            the recording. A text field would have them chosen blind, because
+            the decibel scale is not in common use.
           -->
           <div v-if="vuoiSilenzi" class="ml-6 flex flex-col gap-4 border-l pl-4">
             <BaseField
@@ -472,14 +473,14 @@ const pesoLeggibile = (b: number): string =>
           </p>
 
           <!--
-            Due uscite alla pari: fermarsi qui portandosi via il file, oppure
-            proseguire. Nessuna delle due carica nulla senza un altro passo
-            esplicito nell'altra pagina.
+            Two equal exits: stop here taking the file away, or go on. Neither
+            of the two uploads anything without another explicit step in the
+            other page.
           -->
           <!--
-            Un wav come podcast e' un errore che si scopre solo nelle app, che
-            lo lasciano muto: si dice qui, dove basta cambiare il formato in
-            uscita e rielaborare.
+            A wav as a podcast is a mistake you find out about only in the
+            apps, which leave it mute: it is said here, where changing the
+            output format and reprocessing is all it takes.
           -->
           <BaseAlert v-if="formatoUscita === 'audio/wav'" tono="avviso">
             Il risultato è un

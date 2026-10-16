@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import type { NostrEvent, PictureParsed } from '@nmc/nostr-core'
 
-/** Kind 20 — le immagini sono il contenuto, non un allegato. */
+/** Kind 20 — the images are the content, not an attachment. */
 const props = defineProps<{ evento: NostrEvent; dati: PictureParsed }>()
 
-/** Un avviso di contenuto va rispettato finche' non e' l'utente a toglierlo. */
+/** A content warning is to be respected until the user is the one to lift it. */
 const scoperto = ref(false)
 const coperto = computed(() => props.dati.contentWarning !== undefined && !scoperto.value)
 

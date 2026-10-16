@@ -8,8 +8,8 @@ import {
 } from '../src/kinds/definitions/calendar-common.js'
 
 describe('zonedToUnix', () => {
-  it('interpreta lo stesso orario di calendario in modo diverso a seconda del fuso', () => {
-    // "le 09:00 del 1 settembre" e' un istante diverso a Tokyo e a Roma.
+  it('reads the same calendar time differently depending on the zone', () => {
+    // "09:00 on 1 September" is a different instant in Tokyo and in Rome.
     const tokyo = zonedToUnix('2026-09-01', '09:00', 'Asia/Tokyo')
     const roma = zonedToUnix('2026-09-01', '09:00', 'Europe/Rome')
     const utc = zonedToUnix('2026-09-01', '09:00', 'UTC')
@@ -19,10 +19,10 @@ describe('zonedToUnix', () => {
     expect(tokyo).toBeLessThan(roma)
   })
 
-  it('gestisce il passaggio all ora legale senza sbagliare di un ora', () => {
-    // In Italia l'ora legale 2026 finisce il 25 ottobre alle 03:00 locali.
-    // Il giorno prima si e' ancora a UTC+2, il giorno dopo a UTC+1: e' il caso
-    // in cui una stima a passaggio singolo sbaglia.
+  it('handles the switch to summer time without being an hour out', () => {
+    // In Italy summer time in 2026 ends on 25 October at 03:00 local. The day
+    // before you are still at UTC+2, the day after at UTC+1: it is the case a
+    // single-pass estimate gets wrong.
     const prima = zonedToUnix('2026-10-24', '12:00', 'Europe/Rome')
     const dopo = zonedToUnix('2026-10-26', '12:00', 'Europe/Rome')
 
@@ -30,34 +30,34 @@ describe('zonedToUnix', () => {
     expect(dopo).toBe(Date.UTC(2026, 9, 26, 11, 0) / 1000) // UTC+1
   })
 
-  it('gestisce anche il passaggio inverso, in primavera', () => {
-    // L'ora legale 2026 inizia il 29 marzo.
+  it('handles the reverse switch too, in spring', () => {
+    // Summer time in 2026 starts on 29 March.
     const prima = zonedToUnix('2026-03-28', '12:00', 'Europe/Rome')
     const dopo = zonedToUnix('2026-03-30', '12:00', 'Europe/Rome')
     expect(prima).toBe(Date.UTC(2026, 2, 28, 11, 0) / 1000) // UTC+1
     expect(dopo).toBe(Date.UTC(2026, 2, 30, 10, 0) / 1000) // UTC+2
   })
 
-  it('gestisce la mezzanotte, dove alcuni locale rendono l ora come 24', () => {
+  it('handles midnight, where some locales render the hour as 24', () => {
     const t = zonedToUnix('2026-09-01', '00:00', 'Europe/Rome')
     expect(unixToZoned(t, 'Europe/Rome')).toEqual({ date: '2026-09-01', time: '00:00' })
   })
 
-  it('gestisce i fusi con offset non intero', () => {
-    // Kathmandu e' UTC+5:45.
+  it('handles the zones with a non-integer offset', () => {
+    // Kathmandu is UTC+5:45.
     const utc = zonedToUnix('2026-09-01', '12:00', 'UTC')
     const ktm = zonedToUnix('2026-09-01', '12:00', 'Asia/Kathmandu')
     expect(utc - ktm).toBe(5 * 3600 + 45 * 60)
   })
 
-  it('rifiuta input malformati', () => {
+  it('refuses malformed input', () => {
     expect(() => zonedToUnix('non-una-data', '09:00', 'UTC')).toThrow()
     expect(() => zonedToUnix('2026-09-01', 'boh', 'UTC')).toThrow()
   })
 })
 
 describe('unixToZoned', () => {
-  it('e la funzione inversa di zonedToUnix', () => {
+  it('is the inverse of zonedToUnix', () => {
     for (const tz of ['Europe/Rome', 'Asia/Tokyo', 'America/New_York', 'Asia/Kathmandu']) {
       for (const [d, t] of [
         ['2026-01-15', '08:30'],
@@ -69,9 +69,9 @@ describe('unixToZoned', () => {
     }
   })
 
-  it('mostra lo stesso istante con orari diversi in fusi diversi', () => {
-    // La proprieta' che giustifica di conservare start_tzid accanto a start:
-    // un evento "alle 09:00 a Tokyo" non e' "alle 09:00" per chi sta a Roma.
+  it('shows the same instant at different times in different zones', () => {
+    // The property that justifies keeping start_tzid next to start: an event
+    // "at 09:00 in Tokyo" is not "at 09:00" for whoever is in Rome.
     const istante = zonedToUnix('2026-09-01', '09:00', 'Asia/Tokyo')
     expect(unixToZoned(istante, 'Asia/Tokyo').time).toBe('09:00')
     expect(unixToZoned(istante, 'Europe/Rome').time).toBe('02:00')
@@ -79,7 +79,7 @@ describe('unixToZoned', () => {
 })
 
 describe('isValidTimezone', () => {
-  it('riconosce i fusi IANA e scarta il resto', () => {
+  it('recognises the IANA zones and discards the rest', () => {
     expect(isValidTimezone('Europe/Rome')).toBe(true)
     expect(isValidTimezone('UTC')).toBe(true)
     expect(isValidTimezone('Marte/Olympus')).toBe(false)
@@ -88,7 +88,7 @@ describe('isValidTimezone', () => {
 })
 
 describe('formatInTimezone', () => {
-  it('formatta nel fuso richiesto, non in quello del sistema', () => {
+  it("formats in the requested zone, not the system's", () => {
     const istante = zonedToUnix('2026-09-01', '09:00', 'Asia/Tokyo')
     expect(formatInTimezone(istante, 'Asia/Tokyo')).toContain('09:00')
   })

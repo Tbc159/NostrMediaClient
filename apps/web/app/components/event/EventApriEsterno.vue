@@ -7,13 +7,13 @@ import {
 } from '@nmc/nostr-core'
 
 /**
- * Apre un evento nel client di lettura scelto dall'utente.
+ * Opens an event in the reading client the user chose.
  *
- * Questo client serve a gestire i propri contenuti; per vederli come li vede
- * il resto della rete serve un client di lettura, e quale sia dipende da dove
- * ci si trova. La scelta e' applicata in base a **come si sta interagendo**,
- * non a un'impostazione da ricordare: puntatore grossolano e assenza di hover
- * significano telefono, e li' si apre l'app.
+ * This client is for managing your own content; to see it as the rest of the
+ * network sees it you need a reading client, and which one depends on where
+ * you are. The choice is applied according to **how you are interacting**, not
+ * to a setting you have to remember: a coarse pointer and the absence of hover
+ * mean a phone, and there the app is what opens.
  */
 const props = defineProps<{ evento: NostrEvent }>()
 
@@ -24,12 +24,13 @@ const { piattaforma } = useDispositivo()
 const scelto = computed(() => configurazione.visualizzatorePer(piattaforma.value))
 
 /**
- * Il client scelto, oppure un ripiego se quello scelto non mostra questo kind.
+ * The chosen client, or a fallback when the chosen one does not display this
+ * kind.
  *
- * Nessun client di lettura li conosce tutti, e la conseguenza non e' un
- * dettaglio estetico: noStrudel apre un evento da calendario sotto la scritta
- * «Unknown event kind», senza data ne' luogo. Portarci l'utente sarebbe
- * peggio che non offrire il pulsante.
+ * No reading client knows them all, and the consequence is not an aesthetic
+ * detail: noStrudel opens a calendar event under the words «Unknown event
+ * kind», with no date and no place. Taking the user there would be worse than
+ * not offering the button.
  */
 const risolto = computed(() =>
   clientPerEvento(scelto.value, props.evento, [
@@ -40,11 +41,11 @@ const risolto = computed(() =>
 const client = computed(() => risolto.value.client)
 
 /**
- * Relay da suggerire dentro l'identificatore.
+ * The relays to suggest inside the identifier.
  *
- * Si passano quelli di **scrittura**: sono quelli su cui l'evento e'
- * effettivamente finito. Suggerire i relay di lettura manderebbe il client
- * esterno a cercarlo dove non e' mai stato pubblicato.
+ * The **write** ones are passed: they are the ones the event actually ended up
+ * on. Suggesting the read relays would send the external client looking for it
+ * where it was never published.
  */
 const suggerimenti = computed(() => config.value.valore?.writeRelays ?? [])
 
@@ -52,12 +53,12 @@ const link = computed(() => {
   try {
     return linkEventoEsterno(client.value, props.evento, suggerimenti.value)
   } catch {
-    // Modello rotto: meglio nascondere il pulsante che offrirne uno inerte.
+    // A broken template: better to hide the button than to offer an inert one.
     return null
   }
 })
 
-/** Lo schema nostr: non e' una pagina web: aprirlo in una scheda nuova non ha senso. */
+/** The nostr: scheme is not a web page: opening it in a new tab makes no sense. */
 const schemaApp = computed(() => link.value?.startsWith('nostr:') ?? false)
 </script>
 

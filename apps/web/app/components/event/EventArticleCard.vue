@@ -1,17 +1,17 @@
 <script setup lang="ts">
 import type { ArticleParsed, NostrEvent } from '@nmc/nostr-core'
 
-/** Kind 30023 — articolo long-form. In elenco si mostra l'anteprima, non il testo intero. */
+/** Kind 30023 — a long-form article. In a list the preview is shown, not the whole text. */
 const props = defineProps<{ evento: NostrEvent; dati: ArticleParsed }>()
 
 const bozza = computed(() => props.evento.kind === 30024)
 
 /**
- * Estratto quando manca il sommario.
+ * An extract for when the summary is missing.
  *
- * Si toglie la sintassi Markdown piu' rumorosa invece di renderizzarla: qui
- * serve un'idea del contenuto, e mostrare `## Titolo` grezzo sarebbe peggio di
- * mostrare `Titolo`.
+ * The noisiest Markdown syntax is stripped rather than rendered: what is
+ * needed here is an idea of the content, and showing a raw `## Heading` would
+ * be worse than showing `Heading`.
  */
 const estratto = computed(() => {
   if (props.dati.summary) return props.dati.summary
@@ -28,7 +28,7 @@ const pubblicato = computed(() =>
   props.dati.publishedAt ? new Date(props.dati.publishedAt * 1000) : null,
 )
 
-/** Vero se l'articolo e' stato modificato dopo la prima pubblicazione. */
+/** True when the article was edited after its first publication. */
 const modificato = computed(
   () =>
     props.dati.publishedAt !== undefined && props.evento.created_at > props.dati.publishedAt + 60,

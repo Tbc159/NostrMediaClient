@@ -5,14 +5,14 @@ import {
   creaClientMediaManager,
   type ClientMediaManager,
 } from '../src/mediamanager/index.js'
-// Traduzione degli stati e normalizzazione dell'indirizzo sono condivise fra i
-// due client di servizio: si provano dove vivono.
-import { normalizzaBaseUrl, spiegaStato } from '../src/servizi/http.js'
+// Translating the statuses and normalising the address are shared between the
+// two service clients: they are tested where they live.
+import { normalizzaBaseUrl, spiegaStato } from '../src/services/http.js'
 import {
   CHIAVE_DI_PROVA,
   avviaMediaManagerFinto,
   type MediaManagerFinto,
-} from './helpers/mediamanager-finto.js'
+} from './helpers/fake-mediamanager.js'
 
 let servizio: MediaManagerFinto
 let client: ClientMediaManager
@@ -26,22 +26,22 @@ afterAll(async () => {
   await servizio.chiudi()
 })
 
-describe('indirizzo del servizio', () => {
-  it('toglie lo slash finale e il /v0 scritto a mano', () => {
-    // L'utente incolla quello che ha sotto mano, e spesso e' l'URL completo
-    // di una chiamata: raddoppiare il /v0 darebbe 404 senza spiegazioni.
+describe("the service's address", () => {
+  it('strips the trailing slash and the hand-written /v0', () => {
+    // The user pastes whatever is to hand, and often that is a call's full
+    // URL: doubling the /v0 would give a 404 with no explanation.
     expect(normalizzaBaseUrl('http://esempio.tld/')).toBe('http://esempio.tld')
     expect(normalizzaBaseUrl('http://esempio.tld/v0')).toBe('http://esempio.tld')
     expect(normalizzaBaseUrl('  http://esempio.tld/v0/  ')).toBe('http://esempio.tld')
   })
 
-  it('rifiuta un indirizzo vuoto invece di comporre richieste verso il nulla', () => {
+  it('refuses an empty address instead of composing requests into the void', () => {
     expect(() => creaClientMediaManager({ baseUrl: '   ' })).toThrow(/mancante/)
   })
 })
 
-describe('lettura e scrittura dei media', () => {
-  it('carica un file e lo ritrova in elenco', async () => {
+describe('reading and writing the media', () => {
+  it('uploads a file and finds it again in the list', async () => {
     const blob = new Blob([new Uint8Array([1, 2, 3, 4])], { type: 'image/png' })
     const creato = await client.caricaMedia(blob, 'logo-prova.png', 'image/png')
     expect(creato.id).toBeGreaterThan(0)
@@ -50,14 +50,14 @@ describe('lettura e scrittura dei media', () => {
     expect(elenco.items.some((m) => m.title === 'logo-prova.png')).toBe(true)
   })
 
-  it('senza chiave il servizio rifiuta, e il messaggio dice cosa fare', async () => {
+  it('has the service refuse without a key, and the message says what to do', async () => {
     const anonimo = creaClientMediaManager({ baseUrl: servizio.url })
     await expect(anonimo.elencoMedia('image/png')).rejects.toThrow(/Chiave API/)
   })
 
-  it('elenca tutto l’archivio, senza dover dire di che tipo', async () => {
-    // Prima `type` era obbligatorio e l'archivio non si poteva sfogliare:
-    // senza filtro il servizio rispondeva 400.
+  it('lists the whole archive, without having to say of what type', async () => {
+    // `type` used to be mandatory and the archive could not be browsed:
+    // without a filter the service answered 400.
     await client.caricaMedia(
       new Blob([new Uint8Array([1])], { type: 'audio/wav' }),
       'grezzo.wav',
@@ -68,7 +68,7 @@ describe('lettura e scrittura dei media', () => {
     expect(new Set(tutto.items.map((m) => m.media_type)).size).toBeGreaterThan(0)
   })
 
-  it('la salute non richiede chiave: serve a capire se il servizio e' + " c'e'", async () => {
+  it('needs no key for the health check: it is there to see whether the service is up', async () => {
     const anonimo = creaClientMediaManager({ baseUrl: servizio.url })
     expect(await anonimo.salute('media')).toBe(true)
     expect(await anonimo.salute('content')).toBe(true)
@@ -76,8 +76,8 @@ describe('lettura e scrittura dei media', () => {
   })
 })
 
-describe('i byte dell’archivio', () => {
-  it('sono dietro la chiave: un <img src> o <audio src> diretto darebbe 401', async () => {
+describe("the archive's bytes", () => {
+  it('sit behind the key: a direct <img src> or <audio src> would give a 401', async () => {
     const creato = await client.caricaMedia(
       new Blob([new Uint8Array([9])], { type: 'audio/wav' }),
       'byte-protetti.wav',
@@ -87,7 +87,7 @@ describe('i byte dell’archivio', () => {
     expect(risposta.status).toBe(401)
   })
 
-  it('con la chiave si scaricano, per riascoltarli o salvarli', async () => {
+  it('downloads them with the key, to listen again or to save them', async () => {
     const creato = await client.caricaMedia(
       new Blob([new Uint8Array([9])], { type: 'audio/wav' }),
       'byte-scaricabili.wav',
@@ -98,11 +98,12 @@ describe('i byte dell’archivio', () => {
   })
 })
 
-describe('errori che il browser rende incomprensibili', () => {
-  it('spiega il fallimento di rete nominando CORS e contenuto misto', async () => {
-    // Dal browser una richiesta bloccata da CORS fallisce prima di avere una
-    // risposta, e l'errore nativo non dice perche': senza questa spiegazione
-    // si cerca il guasto nella rete o nel servizio, che stanno benissimo.
+describe('the errors the browser makes incomprehensible', () => {
+  it('explains the network failure, naming CORS and mixed content', async () => {
+    // From the browser a request blocked by CORS fails before there is any
+    // response, and the native error does not say why: without this
+    // explanation you look for the fault in the network or in the service,
+    // which are both perfectly fine.
     const irraggiungibile = creaClientMediaManager({
       baseUrl: 'http://127.0.0.1:1',
       apiKey: 'x',
@@ -111,13 +112,13 @@ describe('errori che il browser rende incomprensibili', () => {
     await expect(irraggiungibile.elencoMedia('image/png')).rejects.toThrow(/CORS|contenuto misto/)
   })
 
-  it('traduce gli stati che questo servizio usa davvero', () => {
+  it('translates the statuses this service actually uses', () => {
     expect(spiegaStato(401)).toMatch(/Chiave API/)
     expect(spiegaStato(409)).toMatch(/gia’ presente/)
     expect(spiegaStato(503)).toMatch(/non risponde/)
   })
 
-  it('porta lo stato HTTP nell' + "'errore, per chi deve distinguerlo", async () => {
+  it('carries the HTTP status in the error, for whoever has to tell them apart', async () => {
     const anonimo = creaClientMediaManager({ baseUrl: servizio.url })
     await expect(anonimo.elencoMedia('image/png')).rejects.toSatisfy(
       (e: unknown) => e instanceof ErroreMediaManager && e.stato === 401,
@@ -125,8 +126,8 @@ describe('errori che il browser rende incomprensibili', () => {
   })
 })
 
-describe('scaricare un URL dal lato del servizio', () => {
-  it('crea il media da un URL e la seconda volta riusa quello esistente (409)', async () => {
+describe('downloading a URL on the service side', () => {
+  it('creates the medium from a URL and reuses the existing one the second time (409)', async () => {
     const primo = await client.caricaMediaDaUrl(
       'https://immagini.esempio.tld/copertina.png',
       'copertina-da-url',
@@ -145,7 +146,7 @@ describe('scaricare un URL dal lato del servizio', () => {
     expect(secondo.id).toBe(primo.id)
   })
 
-  it('un URL non http viene rifiutato dal servizio, e l’errore lo dice', async () => {
+  it('has a non-http URL refused by the service, and the error says so', async () => {
     await expect(client.caricaMediaDaUrl('ftp://x/y.png', 'ftp-prova')).rejects.toThrow(
       /rifiutata|non consentito/,
     )

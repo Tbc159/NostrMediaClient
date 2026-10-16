@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
-import { CATEGORIE_APPLE, isCategoriaApple } from '../src/podcast/categorie.js'
+import { CATEGORIE_APPLE, isCategoriaApple } from '../src/podcast/categories.js'
 import {
   PIATTAFORME,
   copertinaConforme,
   urlShowSu,
   verificaPiattaforma,
   type Piattaforma,
-} from '../src/podcast/piattaforme.js'
+} from '../src/podcast/platforms.js'
 
 const per = (id: Piattaforma['id']): Piattaforma =>
   PIATTAFORME.find((p) => p.id === id) as Piattaforma
@@ -23,21 +23,21 @@ const COMPLETA = {
 }
 const QUADRATA = { larghezza: 1400, altezza: 1400 }
 
-describe('categorie Apple', () => {
-  it('sono le 19 ufficiali, con le sotto-categorie giuste', () => {
+describe('the Apple categories', () => {
+  it('are the 19 official ones, with the right sub-categories', () => {
     expect(Object.keys(CATEGORIE_APPLE)).toHaveLength(19)
     expect(isCategoriaApple({ principale: 'News', sotto: 'Daily News' })).toBe(true)
     expect(isCategoriaApple({ principale: 'True Crime' })).toBe(true)
   })
 
-  it('rifiuta una sotto-categoria di un’altra principale, e una principale inventata', () => {
+  it('refuse a sub-category of another main one, and an invented main one', () => {
     expect(isCategoriaApple({ principale: 'News', sotto: 'Improv' })).toBe(false)
     expect(isCategoriaApple({ principale: 'Podcast' })).toBe(false)
   })
 })
 
-describe('copertina', () => {
-  it('va bene solo quadrata fra 1400 e 3000', () => {
+describe('the cover', () => {
+  it('is only acceptable square, between 1400 and 3000', () => {
     expect(copertinaConforme(QUADRATA)).toBe(true)
     expect(copertinaConforme({ larghezza: 640, altezza: 426 })).toBe(false)
     expect(copertinaConforme({ larghezza: 1000, altezza: 1000 })).toBe(false)
@@ -46,14 +46,14 @@ describe('copertina', () => {
   })
 })
 
-describe('checklist per piattaforma', () => {
-  it('una scheda completa e’ pronta ovunque', () => {
+describe('the checklist per platform', () => {
+  it('finds a complete card ready everywhere', () => {
     for (const p of PIATTAFORME) {
       expect(verificaPiattaforma(p, COMPLETA, QUADRATA).pronta, p.nome).toBe(true)
     }
   })
 
-  it('Apple non chiede l’email, Spotify si’: lo stesso dato manca solo dove serve', () => {
+  it('knows Apple does not ask for the email and Spotify does: the same datum is missing only where it matters', () => {
     const senzaEmail = { ...COMPLETA, email: undefined }
     expect(verificaPiattaforma(per('apple'), senzaEmail, QUADRATA).pronta).toBe(true)
     const spotify = verificaPiattaforma(per('spotify'), senzaEmail, QUADRATA)
@@ -61,14 +61,14 @@ describe('checklist per piattaforma', () => {
     expect(spotify.voci.find((v) => v.requisito === 'email')?.testo).toMatch(/email/)
   })
 
-  it('la copertina 640×426 di oggi viene spiegata, non solo bocciata', () => {
+  it("explains today's 640×426 cover instead of merely failing it", () => {
     const esito = verificaPiattaforma(per('apple'), COMPLETA, { larghezza: 640, altezza: 426 })
     const voce = esito.voci.find((v) => v.requisito === 'copertina-quadrata')
     expect(voce?.ok).toBe(false)
     expect(voce?.testo).toMatch(/640×426.*non e’ quadrata/)
   })
 
-  it('un episodio wav fa scattare il requisito mp3/m4a', () => {
+  it('has a wav episode trip the mp3/m4a requirement', () => {
     const esito = verificaPiattaforma(
       per('apple'),
       { ...COMPLETA, mimeEpisodi: ['audio/mpeg', 'audio/wav'] },
@@ -77,13 +77,13 @@ describe('checklist per piattaforma', () => {
     expect(esito.voci.find((v) => v.requisito === 'episodio-mp3')?.testo).toMatch(/audio\/wav/)
   })
 
-  it('trova il link dello show fra i siti, per dominio', () => {
+  it("finds the show's link among the websites, by domain", () => {
     expect(urlShowSu(per('apple'), COMPLETA.websites)).toMatch(/podcasts\.apple\.com/)
     expect(urlShowSu(per('spotify'), COMPLETA.websites)).toBeNull()
     expect(verificaPiattaforma(per('apple'), COMPLETA, QUADRATA).urlShow).toMatch(/apple/)
   })
 
-  it('Podcast Index chiede solo un feed valido', () => {
+  it('asks Podcast Index for a valid feed alone', () => {
     const minima = { description: 'x' }
     expect(verificaPiattaforma(per('podcastindex'), minima, null).pronta).toBe(true)
   })

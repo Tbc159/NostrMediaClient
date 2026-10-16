@@ -1,8 +1,8 @@
 <script setup lang="ts">
 /**
- * L'audio sta nella sezione Media. Questo rimando vive nel browser, non in
- * una regola del server: su GitHub Pages un server non c'e', e un redirect
- * dichiarato in `routeRules` resterebbe lettera morta.
+ * The audio lives in the Media section. This redirect lives in the browser,
+ * not in a rule of the server's: on GitHub Pages there is no server, and a
+ * redirect declared in `routeRules` would stay a dead letter.
  */
 onMounted(() => {
   void navigateTo('/media/audio', { replace: true })

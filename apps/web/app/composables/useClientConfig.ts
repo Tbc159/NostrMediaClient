@@ -2,17 +2,17 @@ import { resolveClientConfig, type ClientConfig } from '@nmc/nostr-core'
 import { useConfigurazione } from '~/stores/configurazione'
 
 /**
- * Endpoint in vigore, reattivi.
+ * The endpoints in force, reactive.
  *
- * La sorgente e' lo store `configurazione`: default del `.env` con sopra le
- * scelte dell'utente. Restituisce un `computed` e non un oggetto fisso perche'
- * gli endpoint cambiano mentre l'applicazione gira — chi li ha letti una volta
- * al setup continuerebbe a pubblicare sui relay vecchi anche dopo che l'utente
- * li ha sostituiti dalle impostazioni.
+ * The source is the `configurazione` store: the `.env` defaults with the
+ * user's choices on top. It returns a `computed` and not a fixed object
+ * because the endpoints change while the application runs — whoever read them
+ * once at setup would go on publishing to the old relays even after the user
+ * had replaced them from the settings.
  *
- * @throws se la configurazione non e' valida. E' voluto: meglio fermarsi che
- *         parlare con un endpoint sbagliato. La pagina delle impostazioni usa
- *         `useClientConfigSafe`, perche' e' il posto da cui si rimedia.
+ * @throws when the configuration is not valid. That is deliberate: better to
+ *         stop than to talk to the wrong endpoint. The settings page uses
+ *         `useClientConfigSafe`, because it is the place you fix it from.
  */
 export function useClientConfig(): ComputedRef<ClientConfig> {
   const configurazione = useConfigurazione()
@@ -23,7 +23,7 @@ export function useClientConfig(): ComputedRef<ClientConfig> {
   })
 }
 
-/** Solo i valori dell'ambiente, senza le scelte dell'utente. Per il confronto in UI. */
+/** The environment's values alone, without the user's choices. For the comparison in the UI. */
 export function envClientConfig(): ClientConfig {
   const { public: pub } = useRuntimeConfig()
   return resolveClientConfig({
@@ -37,7 +37,7 @@ export function envClientConfig(): ClientConfig {
   })
 }
 
-/** Raggruppa i relay per URL, annotando i ruoli in cui ciascuno compare. */
+/** Groups the relays by URL, noting the roles each one appears in. */
 export function relayRoles(config: ClientConfig): Map<string, string[]> {
   const roles = new Map<string, string[]>()
   const add = (url: string | null, role: string): void => {
@@ -54,11 +54,12 @@ export function relayRoles(config: ClientConfig): Map<string, string[]> {
 }
 
 /**
- * Variante che non lancia: restituisce il valore oppure il messaggio d'errore.
+ * The variant that does not throw: it returns either the value or the error
+ * message.
  *
- * Serve alle pagine che devono restare visibili anche con una configurazione
- * rotta — le impostazioni per prime, che sono il posto da cui la si sistema.
- * Far esplodere proprio quella pagina lascerebbe l'utente senza via d'uscita.
+ * The pages that have to stay visible even with a broken configuration need it
+ * — the settings first of all, which are the place you fix it from. Blowing up
+ * that very page would leave the user with no way out.
  */
 export function useClientConfigSafe(): ComputedRef<{
   valore: ClientConfig | null

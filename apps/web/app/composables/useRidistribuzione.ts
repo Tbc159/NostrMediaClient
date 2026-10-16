@@ -3,23 +3,24 @@ import type { NostrEvent } from '@nmc/nostr-core'
 export interface EsitoRidistribuzione {
   id: string
   etichetta: string
-  /** Relay che ora hanno l'evento: accettato adesso o gia' presente. */
+  /** The relays that now have the event: accepted just now, or there already. */
   su: number
   totale: number
-  /** `host (motivo)` per ciascun relay che non l'ha preso. */
+  /** `host (reason)` for each relay that did not take it. */
   rifiutati: string[]
 }
 
 /**
- * Rimanda eventi gia' firmati a **tutti** i relay di scrittura.
+ * Sends already signed events again to **every** write relay.
  *
- * Non e' una nuova pubblicazione: l'evento e' lo stesso, con la stessa firma,
- * e i relay che ce l'hanno gia' rispondono «duplicato», che qui conta come
- * successo. Serve quando un evento e' finito su un relay solo — perche' gli
- * altri erano giu', o perche' la strategia di allora era «il primo che
- * accetta» — e chi legge da altrove, il servizio del feed per primo, non lo
- * trova. La scheda del podcast e gli episodi sono il caso tipico: modificati
- * da un browser con una configurazione, letti da un servizio con un'altra.
+ * It is not a new publication: the event is the same, with the same signature,
+ * and the relays that have it already answer «duplicate», which counts as a
+ * success here. It is needed when an event has ended up on a single relay —
+ * because the others were down, or because the strategy at the time was «the
+ * first that accepts» — and whoever reads from elsewhere, the feed's service
+ * first of all, does not find it. The podcast's card and the episodes are the
+ * typical case: edited from a browser with one configuration, read by a
+ * service with another.
  */
 export function useRidistribuzione() {
   const invio = usePublish()
@@ -34,8 +35,8 @@ export function useRidistribuzione() {
     errore.value = null
     esiti.value = []
     try {
-      // Uno alla volta: l'esito per relay e' per evento, e mescolarli lo
-      // renderebbe illeggibile. Sono pochi eventi, non una migrazione.
+      // One at a time: the outcome per relay is per event, and mixing them
+      // would make it unreadable. These are a few events, not a migration.
       for (const { evento, etichetta } of eventi) {
         await invio.pubblica(evento, undefined, { strategia: 'tutti' })
         const r = invio.esito.value
@@ -59,7 +60,7 @@ export function useRidistribuzione() {
     }
   }
 
-  /** Riassunto in una riga per un esito: «ora su 3 relay; rifiutato da …». */
+  /** A one-line summary of an outcome: «ora su 3 relay; rifiutato da …». */
   const riga = (e: EsitoRidistribuzione): string =>
     `ora su ${e.su} relay su ${e.totale}` +
     (e.rifiutati.length ? `; non su ${e.rifiutati.join(', ')}` : '')

@@ -1,11 +1,11 @@
 import type { RelayPool } from '@nmc/nostr-core'
 
 /**
- * Accesso al pool di relay.
+ * Access to the relay pool.
  *
- * Restituisce `null` in SSR invece di lanciare: le pagine pubbliche possono
- * essere renderizzate lato server senza toccare i relay, e chi legge dai relay
- * lo fa comunque dentro `onMounted`.
+ * It returns `null` in SSR instead of throwing: the public pages can be
+ * rendered on the server side without touching the relays, and whoever reads
+ * from the relays does so inside `onMounted` anyway.
  */
 export function useRelayPool(): RelayPool | null {
   if (!import.meta.client) return null

@@ -6,22 +6,22 @@ import { optionalTag, repeatedTags, tagValue, tagValues } from '../tags.js'
 import type { NostrEvent } from '../types.js'
 
 /**
- * Kind 21 e 22 — video (NIP-71).
+ * Kinds 21 and 22 — video (NIP-71).
  *
- * Due kind per la stessa cosa, distinti solo dal formato d'uso: 21 per i video
- * normali, tendenzialmente orizzontali e lunghi; 22 per gli short verticali.
- * La specifica e' esplicita nel dire che la distinzione e' *stilistica* e non
- * tecnica — niente impedisce a uno short di essere lungo — ma serve al client
- * a scegliere l'esperienza di visione, che e' diversa nei due casi.
+ * Two kinds for the same thing, told apart only by how they are used: 21 for
+ * ordinary videos, tending to be landscape and long; 22 for vertical shorts.
+ * The specification says explicitly that the distinction is *stylistic* and
+ * not technical — nothing stops a short being long — but the client needs it
+ * to choose the viewing experience, which differs in the two cases.
  *
- * Il `title` e' **obbligatorio** in entrambi, a differenza del kind 20.
+ * The `title` is **mandatory** in both, unlike in kind 20.
  */
 
 export const videoSchema = z.object({
-  /** Descrizione o sommario: sta nel content. */
+  /** The description or summary: it sits in the content. */
   content: z.string(),
   title: z.string(),
-  /** Varianti del video: risoluzioni diverse, tracce audio, formati. */
+  /** The video's variants: different resolutions, audio tracks, formats. */
   variants: z.array(imetaSchema),
   publishedAt: z.number().int().positive().optional(),
   hashtags: z.array(z.string()),

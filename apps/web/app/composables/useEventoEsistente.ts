@@ -1,19 +1,20 @@
 import { loadEventById, loadReplaceable, type NostrEvent } from '@nmc/nostr-core'
 
 /**
- * Recupera dai relay un evento gia' pubblicato, per riaprirlo in un form.
+ * Fetches an already published event from the relays, to reopen it in a form.
  *
- * Due modi di indirizzarlo, che non sono intercambiabili:
+ * Two ways of addressing it, which are not interchangeable:
  *
- *  - per **coordinata** (kind + autore + tag `d`) per gli eventi sostituibili.
- *    E' l'unico modo corretto: l'id cambia a ogni riscrittura, la coordinata
- *    no, ed e' la coordinata a dire al relay quale versione sostituire.
- *  - per **id** per gli eventi regolari, che non hanno coordinata e di cui si
- *    puo' solo ricomporre una copia.
+ *  - by **coordinate** (kind + author + `d` tag) for the replaceable events.
+ *    It is the only correct way: the id changes on every rewrite, the
+ *    coordinate does not, and it is the coordinate that tells the relay which
+ *    version to replace.
+ *  - by **id** for the regular events, which have no coordinate and of which
+ *    only a copy can be recomposed.
  *
- * Legge dai relay e non da una cache locale: una modifica fatta da un altro
- * client non sarebbe qui, e ripubblicare partendo da una versione vecchia la
- * cancellerebbe in silenzio.
+ * It reads from the relays and not from a local cache: an edit made by another
+ * client would not be here, and republishing from an old version would delete
+ * it silently.
  */
 export function useEventoEsistente() {
   const pool = useRelayPool()
@@ -24,15 +25,15 @@ export function useEventoEsistente() {
   const caricamento = ref(false)
   const errore = ref<string | null>(null)
 
-  /** Relay di lettura piu' quelli di scrittura: e' su questi ultimi che l'evento e' finito. */
+  /** The read relays plus the write ones: it is on the latter that the event ended up. */
   const sorgenti = computed(() => [...config.value.readRelays, ...config.value.writeRelays])
 
   /**
-   * L'ultima versione di un replaceable/addressable.
+   * The latest version of a replaceable/addressable.
    *
-   * Di norma quella dell'identita' attiva; `autore` la cerca su un'altra
-   * chiave — serve quando si prepara un evento che firmera' qualcun altro per
-   * delega, e la versione da modificare e' la sua, non la propria.
+   * As a rule the active identity's; `autore` looks for it on another key —
+   * which is needed when preparing an event somebody else will sign by
+   * delegation, and the version to edit is theirs, not your own.
    */
   async function perCoordinata(
     kind: number,

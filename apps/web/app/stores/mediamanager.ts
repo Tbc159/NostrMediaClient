@@ -8,30 +8,30 @@ import {
 import { defineStore } from 'pinia'
 
 /**
- * Collegamento al microservizio media-manager.
+ * The connection to the media-manager microservice.
  *
- * E' un servizio esterno al protocollo: non ha nulla di Nostr, elabora
- * contenuti e tiene un proprio archivio. Come per i relay e per Blossom, **qui
- * si configura soltanto, e la configurazione sta nelle impostazioni**: la
- * pagina Audio mostra solo cosa il servizio sa fare.
+ * It is a service outside the protocol: it has nothing of Nostr about it, it
+ * processes content and keeps an archive of its own. As with the relays and
+ * with Blossom, **here it is only configured, and the configuration lives in
+ * the settings**: the Audio page shows only what the service can do.
  *
- * **Un indirizzo solo.** Archivio ed elaborazione audio sono domini dello
- * stesso microservizio: prima l'audio stava altrove e aveva una
- * configurazione sua, ora non piu'.
+ * **One address only.** The archive and the audio processing are domains of
+ * the same microservice: the audio used to live elsewhere and had a
+ * configuration of its own, not any more.
  *
- * Indirizzo e chiave arrivano dall'ambiente (`.env`), gia' valorizzati su cio'
- * che funziona, e restano sostituibili dall'utente. La sostituzione vive nel
- * suo browser, non nel repository.
+ * The address and the key come from the environment (`.env`), already set to
+ * what works, and stay replaceable by the user. The replacement lives in their
+ * browser, not in the repository.
  *
- * **La chiave e' conservata in chiaro.** Non e' un'identita' e non firma
- * nulla: apre un servizio di elaborazione. Resta pero' una credenziale, e
- * l'interfaccia lo dice invece di lasciarlo intendere.
+ * **The key is kept in the clear.** It is not an identity and signs nothing:
+ * it opens a processing service. It remains a credential, though, and the
+ * interface says so instead of leaving it to be inferred.
  */
 
 const CHIAVE_STORAGE = 'nmc.mediamanager'
 
 interface Persistito {
-  /** Presenti solo se l'utente ha sostituito il default d'ambiente. */
+  /** Present only when the user has replaced the environment's default. */
   baseUrl?: string
   apiKey?: string
 }
@@ -48,7 +48,7 @@ export const useMediaManager = defineStore('mediamanager', () => {
   const baseUrl = computed(() => override.value.baseUrl ?? predefiniti.value.baseUrl)
   const apiKey = computed(() => override.value.apiKey ?? predefiniti.value.apiKey)
 
-  /** Salute per dominio: `null` finche' non si e' verificato. */
+  /** The health per domain: `null` until it has been checked. */
   const salute = ref<{ media: boolean; content: boolean; audio: boolean } | null>(null)
   const verificaInCorso = ref(false)
 
@@ -69,7 +69,7 @@ export const useMediaManager = defineStore('mediamanager', () => {
       if (dati.apiKey) letto.apiKey = dati.apiKey
       override.value = letto
     } catch {
-      // Storage non disponibile o dato corrotto: restano i default d'ambiente.
+      // Storage unavailable or data corrupted: the environment's defaults remain.
     }
   }
 
@@ -79,15 +79,15 @@ export const useMediaManager = defineStore('mediamanager', () => {
       if (!personalizzato.value) localStorage.removeItem(CHIAVE_STORAGE)
       else localStorage.setItem(CHIAVE_STORAGE, JSON.stringify(override.value))
     } catch {
-      // La configurazione vale per questa sessione soltanto.
+      // The configuration holds for this session alone.
     }
   }
 
   /**
-   * Sostituisce indirizzo e chiave. Un campo vuoto significa **torna al
-   * default d'ambiente**, non «nessun valore»: altrimenti svuotare la chiave
-   * per sbaglio lascerebbe il servizio muto senza modo di rimediare se non
-   * riscrivendola a memoria.
+   * Replaces the address and the key. An empty field means **go back to the
+   * environment's default**, not «no value»: otherwise emptying the key by
+   * mistake would leave the service mute with no way to remedy it short of
+   * writing the key out again from memory.
    */
   function applica(modifiche: DefaultMediaManager): void {
     const prossimo: Persistito = {}
@@ -106,7 +106,7 @@ export const useMediaManager = defineStore('mediamanager', () => {
     persisti()
   }
 
-  /** Il client, oppure `null` se manca l'indirizzo. Ricreato quando cambia la configurazione. */
+  /** The client, or `null` when the address is missing. Recreated when the configuration changes. */
   const client = computed<ClientMediaManager | null>(() => {
     if (!configurato.value) return null
     try {
@@ -120,10 +120,10 @@ export const useMediaManager = defineStore('mediamanager', () => {
   })
 
   /**
-   * Client del dominio audio, sullo stesso indirizzo e con la stessa chiave.
+   * The audio domain's client, on the same address and with the same key.
    *
-   * Sta in un oggetto separato perche' e' un dominio distinto del contratto,
-   * non perche' sia un'altra installazione da configurare.
+   * It sits in a separate object because it is a distinct domain of the
+   * contract, not because it is another installation to configure.
    */
   const audio = computed<ServizioAudio | null>(() => {
     if (!configurato.value) return null
@@ -157,13 +157,14 @@ export const useMediaManager = defineStore('mediamanager', () => {
   }
 
   /**
-   * Ostacoli che impediscono al browser di parlare col servizio, indipendenti
-   * dal servizio stesso.
+   * The obstacles that keep the browser from talking to the service,
+   * independently of the service itself.
    *
-   * Vale la pena calcolarli e mostrarli: sono due guasti che dal browser si
-   * manifestano come «non risponde», mandando a cercare il problema dove non
-   * e'. Il contenuto misto si riconosce con certezza; l'assenza di CORS no,
-   * quindi si nomina soltanto come causa probabile.
+   * They are worth computing and showing: they are two faults that from the
+   * browser present themselves as «it does not answer», sending you to look
+   * for the problem where it is not. Mixed content can be recognised for
+   * certain; the absence of CORS cannot, so it is named only as a probable
+   * cause.
    */
   const ostacoli = computed<string[]>(() => {
     const problemi: string[] = []

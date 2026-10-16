@@ -29,17 +29,17 @@ const AUDIO = {
   sha256: 'aa'.repeat(32),
 }
 
-describe('nota con allegato (kind 1 + NIP-92)', () => {
-  it("mette l'url nel content, non solo nel tag", () => {
-    // NIP-92: «Each imeta tag SHOULD match a URL in the event content». Un
-    // allegato dichiarato solo nel tag non lo mostrerebbe nessun client: i
-    // lettori cercano l'URL nel testo e lo sostituiscono con l'anteprima.
+describe('a note with an attachment (kind 1 + NIP-92)', () => {
+  it('puts the url in the content, not in the tag alone', () => {
+    // NIP-92: «Each imeta tag SHOULD match a URL in the event content». No
+    // client would show an attachment declared in the tag alone: readers look
+    // for the URL in the text and replace it with the preview.
     const t = noteDefinition.build({ content: 'ascolta qui', attachments: [AUDIO] }, CTX)
     expect(t.content).toContain(AUDIO.url)
     expect(t.tags.some((x) => x[0] === 'imeta')).toBe(true)
   })
 
-  it("non duplica l'url se e' gia' nel testo", () => {
+  it('does not duplicate the url when it is in the text already', () => {
     const t = noteDefinition.build(
       { content: `senti ${AUDIO.url} che roba`, attachments: [AUDIO] },
       CTX,
@@ -47,12 +47,12 @@ describe('nota con allegato (kind 1 + NIP-92)', () => {
     expect(t.content.match(new RegExp(AUDIO.url, 'g'))).toHaveLength(1)
   })
 
-  it('con contenuto vuoto la nota diventa il solo indirizzo', () => {
+  it('makes the note the address alone when the content is empty', () => {
     const t = noteDefinition.build({ content: '', attachments: [AUDIO] }, CTX)
     expect(t.content).toBe(AUDIO.url)
   })
 
-  it('sopravvive al giro build → parse', () => {
+  it('survives the build → parse round trip', () => {
     const t = noteDefinition.build(
       { content: 'con allegato', attachments: [{ ...AUDIO, alt: 'un brano' }] },
       CTX,
@@ -63,30 +63,30 @@ describe('nota con allegato (kind 1 + NIP-92)', () => {
     expect(letto.attachments[0]?.mime).toBe('audio/mpeg')
   })
 
-  it('una nota senza allegati resta identica a prima', () => {
-    // La modifica non deve cambiare cio' che gia' funzionava.
+  it('leaves a note without attachments just as it was', () => {
+    // The change must not alter what already worked.
     const t = noteDefinition.build({ content: 'solo testo' }, CTX)
     expect(t.content).toBe('solo testo')
     expect(t.tags.some((x) => x[0] === 'imeta')).toBe(false)
   })
 })
 
-describe('episodio di podcast (kind 54, NIP-F4)', () => {
+describe('a podcast episode (kind 54, NIP-F4)', () => {
   const base = {
     title: 'Episodio 1',
     description: 'Di cosa parla.',
     audio: [{ url: AUDIO.url, mime: AUDIO.mime }],
   }
 
-  it("dichiara l'audio con il tag audio, non con imeta", () => {
-    // E' la specifica a volerlo cosi': niente hash e niente dimensione, quindi
-    // chi ascolta non puo' verificare che il file sia quello pubblicato.
+  it('declares the audio with the audio tag, not with imeta', () => {
+    // It is the specification that wants it this way: no hash and no size, so
+    // the listener cannot verify that the file is the one published.
     const t = podcastEpisodeDefinition.build(base, CTX)
     expect(t.tags).toContainEqual(['audio', AUDIO.url, 'audio/mpeg'])
     expect(t.tags.some((x) => x[0] === 'imeta')).toBe(false)
   })
 
-  it('accetta piu' + ' sorgenti audio, come prevede la specifica', () => {
+  it('accepts several audio sources, as the specification provides', () => {
     const t = podcastEpisodeDefinition.build(
       { ...base, audio: [{ url: 'https://a/1.mp3' }, { url: 'https://b/1.opus' }] },
       CTX,
@@ -94,21 +94,21 @@ describe('episodio di podcast (kind 54, NIP-F4)', () => {
     expect(t.tags.filter((x) => x[0] === 'audio')).toHaveLength(2)
   })
 
-  it('omette il tipo MIME quando non e' + ' dichiarato', () => {
+  it('omits the MIME type when it is not declared', () => {
     const t = podcastEpisodeDefinition.build({ ...base, audio: [{ url: 'https://a/1.mp3' }] }, CTX)
     expect(t.tags).toContainEqual(['audio', 'https://a/1.mp3'])
   })
 
-  it('rifiuta un episodio senza audio', () => {
+  it('refuses an episode without audio', () => {
     expect(() => podcastEpisodeDefinition.build({ ...base, audio: [] }, CTX)).toThrow(/ascoltabile/)
   })
 
-  it('rifiuta un episodio senza titolo', () => {
+  it('refuses an episode without a title', () => {
     expect(() => podcastEpisodeDefinition.build({ ...base, title: '  ' }, CTX)).toThrow(/titolo/)
   })
 
-  it('rifiuta un episodio senza descrizione, che NIP-F4 vuole obbligatoria', () => {
-    // Il parse invece la tollera assente: gli eventi altrui non li scriviamo noi.
+  it('refuses an episode without a description, which NIP-F4 makes mandatory', () => {
+    // The parse tolerates it missing: other people's events are not ours to write.
     expect(() => podcastEpisodeDefinition.build({ ...base, description: ' ' }, CTX)).toThrow(
       /descrizione/,
     )
@@ -124,12 +124,12 @@ describe('episodio di podcast (kind 54, NIP-F4)', () => {
     expect(letto.description).toBeUndefined()
   })
 
-  it('e' + ' regolare, quindi non modificabile come una nota', () => {
+  it('is regular, hence no more editable than a note', () => {
     expect(podcastEpisodeDefinition.class).toBe('regular')
     expect(podcastEpisodeDefinition.editable).toBe(false)
   })
 
-  it('sopravvive al giro build → parse', () => {
+  it('survives the build → parse round trip', () => {
     const t = podcastEpisodeDefinition.build(
       { ...base, content: 'Note dell’episodio.', description: 'Un riassunto.' },
       CTX,
@@ -143,10 +143,10 @@ describe('episodio di podcast (kind 54, NIP-F4)', () => {
   })
 })
 
-describe('descrizione del podcast (kind 10154)', () => {
-  it('e' + ' replaceable: esiste una versione sola per chiave', () => {
-    // NIP-F4 modella ogni podcast come una chiave a se': la scheda dello show
-    // sta sulla chiave, e ripubblicarla sostituisce la precedente.
+describe("the podcast's description (kind 10154)", () => {
+  it('is replaceable: there is a single version per key', () => {
+    // NIP-F4 models every podcast as a key of its own: the show's card sits on
+    // the key, and republishing it replaces the previous one.
     expect(podcastMetadataDefinition.class).toBe('replaceable')
     expect(podcastMetadataDefinition.editable).toBe(true)
   })
@@ -157,7 +157,7 @@ describe('descrizione del podcast (kind 10154)', () => {
     image: 'https://esempio.tld/copertina.png',
   }
 
-  it('conserva i siti e gli autori con il ruolo', () => {
+  it('keeps the websites and the authors with their role', () => {
     const t = podcastMetadataDefinition.build(
       {
         ...scheda,
@@ -171,11 +171,11 @@ describe('descrizione del podcast (kind 10154)', () => {
     expect(letto.authors[0]).toEqual({ pubkey: 'cc'.repeat(32), role: 'host' })
   })
 
-  it('rifiuta una scheda senza titolo', () => {
+  it('refuses a card without a title', () => {
     expect(() => podcastMetadataDefinition.build({ ...scheda, title: '' }, CTX)).toThrow(/titolo/)
   })
 
-  it('rifiuta una scheda senza immagine o senza descrizione: NIP-F4 le vuole entrambe', () => {
+  it('refuses a card without an image or without a description: NIP-F4 wants both', () => {
     expect(() => podcastMetadataDefinition.build({ ...scheda, image: '' }, CTX)).toThrow(/immagine/)
     expect(() => podcastMetadataDefinition.build({ ...scheda, description: '' }, CTX)).toThrow(
       /descrizione/,
@@ -183,23 +183,23 @@ describe('descrizione del podcast (kind 10154)', () => {
   })
 })
 
-describe('podcast di cui sono autore (kind 10064)', () => {
+describe('the podcasts I am an author of (kind 10064)', () => {
   const PODCAST = 'dd'.repeat(32)
 
-  it('e' + "' replaceable: una lista sola per persona", () => {
+  it('is replaceable: a single list per person', () => {
     expect(authoredPodcastsDefinition.class).toBe('replaceable')
     expect(authoredPodcastsDefinition.editable).toBe(true)
   })
 
-  it('nomina i podcast con un tag p ciascuno, senza doppioni', () => {
-    // E' l'autore a dichiararsi: la scheda del podcast da sola puo'
-    // attribuirsi chiunque, e solo il riscontro da questa parte lo conferma.
+  it('names the podcasts with one p tag each, without duplicates', () => {
+    // It is the author who declares themselves: the podcast's card on its own
+    // can claim anyone, and only the cross-check from this side confirms it.
     const t = authoredPodcastsDefinition.build({ podcasts: [PODCAST, PODCAST.toUpperCase()] }, CTX)
     expect(t.tags.filter((x) => x[0] === 'p')).toEqual([['p', PODCAST]])
     expect(t.content).toBe('')
   })
 
-  it('sopravvive al giro build → parse e scarta cio' + "' che non e' una chiave", () => {
+  it('survives the build → parse round trip and discards what is not a key', () => {
     const t = authoredPodcastsDefinition.build({ podcasts: [PODCAST, 'ee'.repeat(32)] }, CTX)
     const letto = authoredPodcastsDefinition.parse(
       evento({ kind: 10064, tags: [...t.tags, ['p', 'non-una-chiave']] }),
@@ -207,21 +207,21 @@ describe('podcast di cui sono autore (kind 10064)', () => {
     expect(letto.podcasts).toEqual([PODCAST, 'ee'.repeat(32)])
   })
 
-  it('rifiuta una lista vuota, e dice cosa fare invece', () => {
+  it('refuses an empty list, and says what to do instead', () => {
     expect(() => authoredPodcastsDefinition.build({ podcasts: ['  ', 'x'] }, CTX)).toThrow(
       /cancella/,
     )
   })
 })
 
-describe('oltre NIP-F4: cio’ che le piattaforme pretendono', () => {
+describe('beyond NIP-F4: what the platforms demand', () => {
   const scheda = {
     title: 'Show',
     description: 'D.',
     image: 'https://b.example/c.png',
   }
 
-  it('la scheda porta categoria, lingua, email ed explicit, e li rilegge', () => {
+  it('has the card carry the category, language, email and explicit flag, and read them back', () => {
     const t = podcastMetadataDefinition.build(
       {
         ...scheda,
@@ -238,7 +238,7 @@ describe('oltre NIP-F4: cio’ che le piattaforme pretendono', () => {
     expect(t.tags).toContainEqual(['language', 'it'])
     expect(t.tags).toContainEqual(['email', 'owner@esempio.tld'])
     expect(t.tags).toContainEqual(['content-warning', ''])
-    // I siti: senza doppioni, nell'ordine — il primo e' il <link> del feed.
+    // The websites: no duplicates, in order — the first is the feed's <link>.
     expect(t.tags.filter((x) => x[0] === 'website')).toEqual([
       ['website', 'https://esempio.tld'],
       ['website', 'https://podcasts.apple.com/x'],
@@ -254,7 +254,7 @@ describe('oltre NIP-F4: cio’ che le piattaforme pretendono', () => {
     expect(letto.contentWarning).toBe('')
   })
 
-  it('rifiuta una categoria che Apple non ha, una lingua non ISO, un’email storta', () => {
+  it('refuses a category Apple does not have, a non-ISO language, a crooked email', () => {
     expect(() =>
       podcastMetadataDefinition.build({ ...scheda, categories: [{ principale: 'Podcast' }] }, CTX),
     ).toThrow(/non e’ una categoria/)
@@ -272,7 +272,7 @@ describe('oltre NIP-F4: cio’ che le piattaforme pretendono', () => {
     ).toThrow(/email/)
   })
 
-  it('accetta al massimo tre categorie', () => {
+  it('accepts at most three categories', () => {
     const quattro = ['News', 'Technology', 'History', 'Government'].map((principale) => ({
       principale,
     }))
@@ -281,8 +281,8 @@ describe('oltre NIP-F4: cio’ che le piattaforme pretendono', () => {
     )
   })
 
-  it('legge una scheda altrui con una categoria sconosciuta senza rompersi', () => {
-    // Tollerante in lettura: non siamo noi ad averla scritta.
+  it("reads another's card with an unknown category without breaking", () => {
+    // Tolerant when reading: we are not the ones who wrote it.
     const letto = podcastMetadataDefinition.parse(
       evento({
         kind: 10154,
@@ -295,7 +295,7 @@ describe('oltre NIP-F4: cio’ che le piattaforme pretendono', () => {
     expect(letto.categories).toEqual([{ principale: 'Boh' }])
   })
 
-  it('l’episodio porta la durata in secondi interi e l’explicit', () => {
+  it('has the episode carry the duration in whole seconds and the explicit flag', () => {
     const t = podcastEpisodeDefinition.build(
       {
         title: 'E',

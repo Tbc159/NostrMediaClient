@@ -15,14 +15,14 @@ const bozza = useEventDraft()
 const esistente = useEventoEsistente()
 const rotta = useRoute()
 
-/** Vero quando si sta riaprendo un evento gia' pubblicato. */
+/** True when an already published event is being reopened. */
 const modifica = ref(false)
 
 useHead({
   title: () => (modifica.value ? 'Modifica evento' : 'Nuovo evento') + ' · NostrMediaClient',
 })
 
-/** Tutto il giorno → kind 31922, con orario → kind 31923. */
+/** All day → kind 31922, with a time → kind 31923. */
 const tuttoIlGiorno = ref(false)
 
 const identificatore = ref(newCalendarIdentifier())
@@ -34,13 +34,13 @@ const immagine = ref('')
 const partecipanti = ref('')
 
 /*
- * Gli hashtag sono un elenco, non una riga di testo.
+ * The hashtags are a list, not a line of text.
  *
- * Divisi sugli spazi, la categoria «Food & drink» di un altro client
- * diventava tre tag — «food», «&», «drink» — e l'evento tornava sui relay
- * peggiore di come era arrivato. Come elementi separati non c'e' niente da
- * dividere: quelli letti restano com'erano, e solo quelli scritti qui
- * passano dalla convenzione minuscola.
+ * Split on spaces, another client's «Food & drink» category became three tags
+ * — «food», «&», «drink» — and the event went back to the relays worse than
+ * it had arrived. As separate items there is nothing to split: the ones read
+ * stay as they were, and only the ones written here go through the lower-case
+ * convention.
  */
 const hashtag = ref<string[]>([])
 const nuovoHashtag = ref('')
@@ -55,10 +55,10 @@ const togliHashtag = (v: string): void => {
 }
 
 /*
- * I tag che questo form non scrive: letti dall'evento quando lo si riapre e
- * ripubblicati con lui. Vale per i colori e le coordinate di un altro
- * client, ma anche per cio' che il kind saprebbe scrivere e che il form non
- * gli passa — `g`, `r`, `a`, il ruolo dei partecipanti.
+ * The tags this form does not write: read from the event when it is reopened
+ * and republished with it. It holds for another client's colours and
+ * coordinates, but also for what the kind could write and the form does not
+ * pass it — `g`, `r`, `a`, the participants' roles.
  */
 const conservati = useTagConservati(() => nomiDelForm.value)
 const tagExtra = conservati.tags
@@ -71,8 +71,8 @@ const fuso = ref('UTC')
 const conFine = ref(true)
 
 onMounted(async () => {
-  // Il fuso del dispositivo si legge solo nel browser: in SSR darebbe quello
-  // del server, che non c'entra nulla con l'utente.
+  // The device's zone is read in the browser alone: in SSR it would give the
+  // server's, which has nothing to do with the user.
   fuso.value = localTimezone()
   const oggi = new Date().toISOString().slice(0, 10)
   dataInizio.value = oggi
@@ -86,11 +86,11 @@ onMounted(async () => {
 })
 
 /**
- * Riapre un evento pubblicato.
+ * Reopens a published event.
  *
- * L'identificatore **non** viene rigenerato: e' il tag `d`, ed e' cio' che fa
- * di questa una sostituzione invece che di un evento nuovo. Cambiarlo qui
- * lascerebbe in giro l'originale e ne creerebbe un secondo.
+ * The identifier is **not** regenerated: it is the `d` tag, and it is what
+ * makes this a replacement instead of a new event. Changing it here would
+ * leave the original lying about and create a second one.
  */
 async function riapri(kind: number, d: string): Promise<void> {
   const trovato = await esistente.perCoordinata(kind, d)
@@ -111,7 +111,7 @@ async function riapri(kind: number, d: string): Promise<void> {
     immagine.value = dati.image ?? ''
     partecipanti.value = dati.participants.map((p: { pubkey: string }) => p.pubkey).join(' ')
     hashtag.value = [...dati.hashtags]
-    // La fotografia dei tag si scatta adesso, sull'evento come sta sui relay.
+    // The snapshot of the tags is taken now, on the event as it stands on the relays.
     conservati.fotografa(definizione, trovato, inputDa(dati, kind))
 
     if (kind === 31922) {
@@ -121,10 +121,10 @@ async function riapri(kind: number, d: string): Promise<void> {
       return
     }
 
-    // Il timestamp e' un istante assoluto: per rimetterlo nei campi data e ora
-    // va riportato nel fuso dichiarato dall'evento, non in quello di chi
-    // modifica. Altrimenti riaprendo da Roma una riunione fissata a Tokyo si
-    // vedrebbe un orario diverso da quello che l'organizzatore aveva scritto.
+    // The timestamp is an absolute instant: to put it back into the date and
+    // time fields it has to be brought into the zone the event declared, not
+    // the editor's. Otherwise reopening from Rome a meeting set in Tokyo would
+    // show a time other than the one the organiser had written.
     fuso.value = dati.startTzid ?? localTimezone()
     const inizio = unixToZoned(dati.start, fuso.value)
     dataInizio.value = inizio.date
@@ -141,7 +141,7 @@ async function riapri(kind: number, d: string): Promise<void> {
   }
 }
 
-/** Giorno successivo a una data ISO, restando su UTC per non slittare. */
+/** The day after an ISO date, staying on UTC so as not to slip. */
 function giornoDopo(iso: string): string {
   const d = new Date(`${iso}T00:00:00Z`)
   d.setUTCDate(d.getUTCDate() + 1)
@@ -149,10 +149,9 @@ function giornoDopo(iso: string): string {
 }
 
 /*
- * Su un evento di giornata intera NIP-52 definisce la fine come ESCLUSIVA:
- * una fine uguale all'inizio descrive una durata nulla e viene rifiutata.
- * Il form si corregge da solo invece di lasciare l'utente davanti a un errore
- * che non ha causato lui.
+ * On a whole-day event NIP-52 defines the end as EXCLUSIVE: an end equal to
+ * the start describes a duration of zero and is refused. The form corrects
+ * itself instead of leaving the user in front of an error they did not cause.
  */
 watch([tuttoIlGiorno, dataInizio, conFine], () => {
   if (!tuttoIlGiorno.value || !conFine.value || !dataInizio.value) return
@@ -174,7 +173,7 @@ const listaPartecipanti = computed(() =>
     .filter(Boolean),
 )
 
-/** Anteprima leggibile dell'istante, per confermare che il fuso sia quello atteso. */
+/** A readable preview of the instant, to confirm the zone is the expected one. */
 const anteprimaInizio = computed(() => {
   if (tuttoIlGiorno.value || !dataInizio.value) return null
   try {
@@ -192,10 +191,10 @@ const anteprimaInizio = computed(() => {
 const puoComporre = computed(() => titolo.value.trim() !== '' && dataInizio.value !== '')
 
 /**
- * L'input che il form produrrebbe a partire da un evento letto.
+ * The input the form would produce starting from an event that was read.
  *
- * Serve solo alla fotografia dei tag: e' il «cosa scriverebbe il kind per
- * questo evento», e la differenza con l'evento vero sono i tag da conservare.
+ * Only the snapshot of the tags needs it: it is the «what the kind would write
+ * for this event», and the difference from the real event is the tags to keep.
  */
 function inputDa(dati: Record<string, unknown>, kind: number): Record<string, unknown> {
   const d = dati as {
@@ -224,7 +223,7 @@ function inputDa(dati: Record<string, unknown>, kind: number): Record<string, un
   }
 }
 
-/** I nomi dei tag che questo form compone: servono all'avviso sui doppioni. */
+/** The names of the tags this form composes: the warning about duplicates needs them. */
 const nomiDelForm = computed(() =>
   tuttoIlGiorno.value
     ? ['d', 'title', 'summary', 'image', 'location', 't', 'start', 'end', 'client']
@@ -378,7 +377,7 @@ function nuovo(): void {
           <BaseInput :id="id" v-model="sommario" :described-by="describedBy" />
         </BaseField>
 
-        <!-- ── Quando ── -->
+        <!-- ── When ── -->
         <div class="flex flex-col gap-4 rounded-lg border border-[var(--bordo)] p-4">
           <h2 class="text-sm font-medium">Quando</h2>
 
@@ -443,17 +442,17 @@ function nuovo(): void {
           </template>
         </div>
 
-        <!-- ── Dove e chi ── -->
+        <!-- ── Where and who ── -->
         <BaseField v-slot="{ id, describedBy }" label="Luogo">
           <BaseInput :id="id" v-model="luogo" :described-by="describedBy" />
         </BaseField>
 
         <!--
-          L'immagine si carica da qui: chi ha la locandina sul disco non deve
-          interrompere la composizione dell'evento, andare in Media, caricarla,
-          copiare l'indirizzo e tornare. Lo stesso campo dell'articolo, con
-          l'elenco di quelle gia' su Blossom — che per una locandina e' il caso
-          piu' comune, perche' spesso e' gia' stata usata altrove.
+          The image is uploaded from here: whoever has the poster on disk
+          should not have to interrupt composing the event, go to Media, upload
+          it, copy the address and come back. The same field as the article's,
+          with the list of the ones already on Blossom — which for a poster is
+          the commonest case, because it has often been used elsewhere already.
         -->
         <MediaCampoImmagine
           v-model="immagine"

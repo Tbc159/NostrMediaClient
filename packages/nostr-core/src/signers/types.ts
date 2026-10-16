@@ -1,29 +1,30 @@
 import type { EventTemplate, NostrEvent } from '../kinds/types.js'
 
 /**
- * Firma delegata (NIP-46).
+ * Delegated signing (NIP-46).
  *
- * Il problema che risolve: su Nostr un evento ha **una** `pubkey` e **una**
- * firma, e non esiste un campo "autore" distinto dal firmatario. Chi vuole che
- * un episodio risulti pubblicato dal podcast, e non da se stesso, non ha
- * alternative: quell'evento va firmato dalla chiave del podcast.
+ * The problem it solves: on Nostr an event has **one** `pubkey` and **one**
+ * signature, and there is no "author" field separate from the signer. Whoever
+ * wants an episode to appear as published by the podcast, and not by
+ * themselves, has no alternative: that event has to be signed by the
+ * podcast's key.
  *
- * NIP-46 separa le due cose senza consegnare la chiave. Chi la possiede tiene
- * un *banco di firma* in ascolto su un relay; chi vuole pubblicare compone
- * l'evento e ne chiede la firma. La chiave non lascia mai il dispositivo di
- * chi la possiede, e ogni richiesta puo' essere respinta.
+ * NIP-46 separates the two without handing over the key. Whoever holds it
+ * keeps a *signing desk* listening on a relay; whoever wants to publish
+ * composes the event and asks for a signature. The key never leaves the
+ * holder's device, and every request can be refused.
  */
 
-/** Qualcosa che sa firmare: la chiave locale, l'estensione, un banco remoto. */
+/** Something that can sign: the local key, the extension, a remote desk. */
 export interface Firmatario {
-  /** Chiave pubblica dell'identita' che comparira' nell'evento firmato. */
+  /** The public key of the identity that will appear on the signed event. */
   pubkey(): Promise<string>
   firma(template: EventTemplate): Promise<NostrEvent>
 }
 
-/** Una richiesta di firma arrivata al banco, in attesa di giudizio. */
+/** A signature request that reached the desk, awaiting judgement. */
 export interface RichiestaFirma {
-  /** Chiave pubblica di chi chiede. E' quella della *sessione*, non la sua identita' su Nostr. */
+  /** The requester's public key. It is the *session's*, not their Nostr identity. */
   cliente: string
   kind: number
   template: EventTemplate

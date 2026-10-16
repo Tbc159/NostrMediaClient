@@ -6,13 +6,14 @@ import {
   creaBozzaEpisodio,
   leggiBozzaEpisodio,
   type AllegatoBozza,
-} from '../src/episodi/index.js'
+} from '../src/episodes/index.js'
 
 /**
- * La bozza di episodio e' un oggetto solo con tre usi: salvata, scaricata come
- * proposta, importata da un'altra identita'. Le prove che contano sono che
- * sopravviva al giro per JSON senza perdere nulla, che dica cosa manca senza
- * lanciare, e che rifiuti cio' che non sa leggere spiegandosi.
+ * An episode draft is a single object with three uses: saved, downloaded as a
+ * proposal, imported from another identity. The checks that count are that it
+ * survives the trip through JSON without losing anything, that it says what is
+ * missing without throwing, and that it refuses what it cannot read with an
+ * explanation.
  */
 
 const AUDIO: AllegatoBozza = {
@@ -30,8 +31,8 @@ const AUDIO: AllegatoBozza = {
 
 const ADESSO = () => 1_800_000_100
 
-describe('creare e rileggere', () => {
-  it('sopravvive al giro JSON senza perdere nulla', () => {
+describe('creating and reading back', () => {
+  it('survives the JSON round trip without losing anything', () => {
     const bozza = creaBozzaEpisodio({
       preparataDa: 'npub1preparatore',
       perChiave: 'npub1podcast',
@@ -53,9 +54,9 @@ describe('creare e rileggere', () => {
     expect(riletta.creataAlle).toBe(1_800_000_100)
   })
 
-  it('conserva l’id e la data di creazione quando si risalva', () => {
-    // Una bozza ripresa e salvata di nuovo e' la stessa bozza: l'elenco non
-    // deve mostrarne due.
+  it('keeps the id and the creation date when saved again', () => {
+    // A draft picked up and saved again is the same draft: the list must not
+    // show two of them.
     const prima = creaBozzaEpisodio({
       episodio: { titolo: '', descrizione: '', contenuto: '', hashtag: [] },
       allegati: [],
@@ -73,7 +74,7 @@ describe('creare e rileggere', () => {
     expect(dopo.aggiornataAlle).toBe(200)
   })
 
-  it('puo’ essere vuota: e’ il suo scopo', () => {
+  it('can be empty: that is its purpose', () => {
     expect(() =>
       creaBozzaEpisodio({
         episodio: { titolo: '', descrizione: '', contenuto: '', hashtag: [] },
@@ -83,25 +84,25 @@ describe('creare e rileggere', () => {
   })
 })
 
-describe('cosa rifiuta, e come lo dice', () => {
-  it('un file che non e’ JSON', () => {
+describe('what it refuses, and how it says so', () => {
+  it('a file that is not JSON', () => {
     expect(() => leggiBozzaEpisodio('{ non json')).toThrow(/JSON/)
   })
 
-  it('una versione che non conosce, nominandola', () => {
-    // Meglio dirlo che caricare un form a meta' senza spiegazioni.
+  it('a version it does not know, naming it', () => {
+    // Better to say so than to load a half-filled form with no explanation.
     expect(() => leggiBozzaEpisodio(JSON.stringify({ versione: 7, kind: 54 }))).toThrow(
       /versione 7/,
     )
   })
 
-  it('un JSON qualunque, indicando il campo', () => {
+  it('any old JSON, pointing at the field', () => {
     expect(() => leggiBozzaEpisodio(JSON.stringify({ versione: 1, kind: 54 }))).toThrow(
       /Non e’ una bozza/,
     )
   })
 
-  it('un allegato senza descrittore: senza, non si puo’ riadottare', () => {
+  it('an attachment without a descriptor: without one it cannot be re-adopted', () => {
     const rotta = {
       versione: 1,
       kind: 54,
@@ -115,20 +116,20 @@ describe('cosa rifiuta, e come lo dice', () => {
   })
 })
 
-describe('completezza', () => {
+describe('completeness', () => {
   const vuota = {
     episodio: { titolo: '', descrizione: '', contenuto: '', hashtag: [] },
     allegati: [],
   }
 
-  it('elenca cosa manca, nell’ordine in cui va colmato', () => {
+  it('lists what is missing, in the order it should be filled in', () => {
     expect(completezzaEpisodio(vuota)).toEqual({
       pronta: false,
       manca: ['il titolo', 'la descrizione', 'un file audio su Blossom'],
     })
   })
 
-  it('non conta un’immagine come audio', () => {
+  it('does not count an image as audio', () => {
     const conImmagine = {
       ...vuota,
       episodio: { ...vuota.episodio, titolo: 'T', descrizione: 'D' },
@@ -143,7 +144,7 @@ describe('completezza', () => {
     expect(completezzaEpisodio(conImmagine).manca).toEqual(['un file audio su Blossom'])
   })
 
-  it('e’ pronta con titolo, descrizione e un audio', () => {
+  it('is ready with a title, a description and an audio file', () => {
     expect(
       completezzaEpisodio({
         episodio: { titolo: 'T', descrizione: 'D', contenuto: '', hashtag: [] },

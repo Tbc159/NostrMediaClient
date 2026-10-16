@@ -2,18 +2,18 @@
 import type { NostrEvent, Profile } from '@nmc/nostr-core'
 
 /**
- * Kind 0 — profilo.
+ * Kind 0 — the profile.
  *
- * Compare fra i propri eventi perche' e' un evento come gli altri: e' stato
- * scritto e pubblicato, e sapere *quando* e su quali relay e' finito serve
- * quanto per una nota. E' replaceable, quindi quello mostrato e' l'ultimo, non
- * la cronologia.
+ * It appears among your own events because it is an event like the others: it
+ * was written and published, and knowing *when* and which relays it ended up
+ * on matters as much as it does for a note. It is replaceable, so the one
+ * shown is the latest, not the history.
  */
 const props = defineProps<{ evento: NostrEvent; dati: Profile }>()
 
 const nome = computed(() => props.dati.display_name || props.dati.name || 'profilo senza nome')
 
-/** Campi valorizzati, per non mostrare righe vuote. */
+/** The fields that are set, so as not to show empty rows. */
 const campi = computed<[string, string][]>(() => {
   const tutti: [string, string | undefined][] = [
     ['sito', props.dati.website],

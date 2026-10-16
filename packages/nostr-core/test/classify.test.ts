@@ -3,69 +3,69 @@ import { describe, expect, it } from 'vitest'
 import { classifyKind, isReplaceableClass } from '../src/kinds/classify.js'
 
 describe('classifyKind', () => {
-  it('tratta 0 e 3 come replaceable, benche stiano sotto 1000', () => {
-    // Sono le eccezioni esplicite di NIP-01: precedono la formalizzazione
-    // delle fasce e non seguono la regola numerica.
-    expect(classifyKind(0)).toBe('replaceable') // profilo
-    expect(classifyKind(3)).toBe('replaceable') // lista follow
+  it('treats 0 and 3 as replaceable, although they sit below 1000', () => {
+    // They are NIP-01's explicit exceptions: they predate the formalisation of
+    // the ranges and do not follow the numeric rule.
+    expect(classifyKind(0)).toBe('replaceable') // the profile
+    expect(classifyKind(3)).toBe('replaceable') // the follow list
   })
 
-  it('tratta 1 e 2 come regolari', () => {
-    expect(classifyKind(1)).toBe('regular') // nota breve
-    expect(classifyKind(2)).toBe('regular') // relay consigliato, deprecato
+  it('treats 1 and 2 as regular', () => {
+    expect(classifyKind(1)).toBe('regular') // a short note
+    expect(classifyKind(2)).toBe('regular') // a recommended relay, deprecated
   })
 
-  it('tratta la fascia 4..44 come regolare', () => {
-    expect(classifyKind(4)).toBe('regular') // DM legacy
-    expect(classifyKind(20)).toBe('regular') // picture (NIP-68)
+  it('treats the 4..44 range as regular', () => {
+    expect(classifyKind(4)).toBe('regular') // a legacy DM
+    expect(classifyKind(20)).toBe('regular') // a picture (NIP-68)
     expect(classifyKind(21)).toBe('regular') // video
-    expect(classifyKind(22)).toBe('regular') // video verticale
+    expect(classifyKind(22)).toBe('regular') // vertical video
     expect(classifyKind(44)).toBe('regular')
   })
 
-  it('applica le fasce numeriche di NIP-01', () => {
+  it("applies NIP-01's numeric ranges", () => {
     expect(classifyKind(1000)).toBe('regular')
     expect(classifyKind(1063)).toBe('regular') // file metadata
-    expect(classifyKind(1111)).toBe('regular') // commento
+    expect(classifyKind(1111)).toBe('regular') // a comment
     expect(classifyKind(9999)).toBe('regular')
 
-    expect(classifyKind(10000)).toBe('replaceable') // mute list
-    expect(classifyKind(10002)).toBe('replaceable') // relay list, NIP-65
-    expect(classifyKind(10063)).toBe('replaceable') // server Blossom
+    expect(classifyKind(10000)).toBe('replaceable') // a mute list
+    expect(classifyKind(10002)).toBe('replaceable') // a relay list, NIP-65
+    expect(classifyKind(10063)).toBe('replaceable') // Blossom servers
     expect(classifyKind(19999)).toBe('replaceable')
 
     expect(classifyKind(20000)).toBe('ephemeral')
-    expect(classifyKind(24242)).toBe('ephemeral') // auth Blossom
+    expect(classifyKind(24242)).toBe('ephemeral') // a Blossom auth
     expect(classifyKind(29999)).toBe('ephemeral')
 
     expect(classifyKind(30000)).toBe('addressable')
-    expect(classifyKind(30023)).toBe('addressable') // articolo
-    expect(classifyKind(31923)).toBe('addressable') // evento calendario
+    expect(classifyKind(30023)).toBe('addressable') // an article
+    expect(classifyKind(31923)).toBe('addressable') // a calendar event
     expect(classifyKind(39999)).toBe('addressable')
   })
 
-  it("l'auth Blossom e' ephemeral, quindi non viene conservata dai relay", () => {
-    // Verifica esplicita perche' e' controintuitivo: 24242 e' un evento
-    // Nostr firmato, ma non va mai pubblicato su un relay.
+  it('makes the Blossom auth ephemeral, so the relays do not keep it', () => {
+    // An explicit check, because it is counter-intuitive: 24242 is a signed
+    // Nostr event, but it must never be published to a relay.
     expect(classifyKind(24242)).toBe('ephemeral')
   })
 
-  it("tratta le fasce non assegnate come regolari, che e l'ipotesi conservativa", () => {
-    // 45..999 e >= 40000 non sono coperte da NIP-01: il comportamento del
-    // relay non e' garantito, quindi non assumiamo alcuna sostituzione.
+  it('treats the unassigned ranges as regular, which is the conservative assumption', () => {
+    // 45..999 and >= 40000 are not covered by NIP-01: the relay's behaviour is
+    // not guaranteed, so we assume no replacement at all.
     expect(classifyKind(45)).toBe('regular')
     expect(classifyKind(999)).toBe('regular')
     expect(classifyKind(40000)).toBe('regular')
   })
 
-  it('rifiuta i kind non validi', () => {
+  it('refuses the invalid kinds', () => {
     expect(() => classifyKind(-1)).toThrow(RangeError)
     expect(() => classifyKind(1.5)).toThrow(RangeError)
   })
 })
 
 describe('isReplaceableClass', () => {
-  it('riconosce le sole classi per cui la modifica ha senso', () => {
+  it('recognises only the classes editing makes sense for', () => {
     expect(isReplaceableClass('replaceable')).toBe(true)
     expect(isReplaceableClass('addressable')).toBe(true)
     expect(isReplaceableClass('regular')).toBe(false)

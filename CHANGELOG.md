@@ -1,0 +1,295 @@
+# Changelog
+
+Everything that has changed in NostrMediaClient, newest first.
+
+The project has no released versions yet: the sections below are dated
+milestones, each one a block of work that was finished, verified and merged
+into `main`. Within a section the entries follow the conventions of
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/) — Added, Changed,
+Fixed, Removed.
+
+Two things are worth knowing when reading what follows:
+
+- **The client is a publisher, not a reader.** It manages your own content;
+  seeing it as the rest of the network sees it is the job of a reading client,
+  and the entries about "external clients" are about handing events over to
+  one.
+- **Nostr has no single "published" state.** There are relays that have an
+  event and relays that do not, so an outcome is reported per relay rather
+  than reduced to a success or a failure. Several entries below only make
+  sense in that light.
+
+---
+
+## 2026-10-16 — The repository speaks English
+
+### Changed
+
+- **Every comment and every document in the repository is now in English.**
+  Around 2 000 lines of comments across the core package, the Vue application,
+  the tests and the scripts, plus the three ADRs, the podcast guide, the
+  progress file and the API document. The reason is practical: Nostr's
+  specifications, the libraries and the people who might read this code are
+  English-speaking, and a codebase whose explanations are in another language
+  halves the audience that can check them.
+- **The identifiers stay Italian.** `conTagClient`, `bozza`, `piattaforme`,
+  `firmatario`: renaming them would have been a mechanical change across every
+  file with no gain in clarity, since a name is read for what it refers to and
+  not for what it means. The rule adopted is therefore: comments and
+  documentation in English, names as they are.
+- **The strings shown to a person stay Italian.** The application's interface
+  is Italian and remains so; translating the error messages in the core
+  package would have produced half-English alerts in an Italian UI. Where a
+  message is developer-facing only — an assertion, a script's output — it is
+  in English.
+- **Files with Italian names have been renamed**, and with them their
+  imports: `media/estensioni.ts` → `media/extensions.ts`, `media/scarica.ts` →
+  `media/download.ts`, `signers/trasporto.ts` → `signers/transport.ts`,
+  `signers/delega.ts` → `signers/delegation.ts`, `audio/attesa.ts` →
+  `audio/wait.ts`, `audio/tipi.ts` → `audio/types.ts`,
+  `podcast/categorie.ts` → `podcast/categories.ts`, `podcast/piattaforme.ts`
+  → `podcast/platforms.ts`, `kinds/conservazione.ts` →
+  `kinds/preservation.ts`, `servizi/` → `services/`, `episodi/` →
+  `episodes/`. The ten Italian-named test files and the two fakes were renamed
+  the same way.
+- **The test names are in English**, all 410 of them, and the awkward string
+  concatenations that avoided apostrophes (`'non e' + ' modificabile'`) are
+  gone with them.
+- `scripts/client.sh` is fully in English, messages included: its help text
+  _is_ its header comment, so a half-translated script would have printed half
+  a language.
+
+### Note
+
+The application's routes keep their Italian names (`/profilo`,
+`/impostazioni`, `/calendario`): they are URLs the user sees and bookmarks, so
+they belong to the interface rather than to the code. Making the UI bilingual
+would need the core's error messages turned into codes (88 of them) plus about
+260 interface strings and ten `it-IT` formatting sites; it has not been done.
+
+---
+
+## 2026-10-14 — Images for calendar events
+
+### Added
+
+- An event's image can be uploaded **without interrupting the composition of
+  the event**: the same field as the article's, with the list of what is
+  already on Blossom. Before, whoever had the poster on disk had to leave the
+  form, go to Media, upload it, copy the address and come back.
+
+---
+
+## 2026-09-24 — The client declares itself, and edits stop losing data
+
+### Added
+
+- **Every published event carries `["client", "NostrMediaClient"]`** (NIP-89,
+  in its simple form). It is injected in `defineKind`, which every one of the
+  seventeen definitions passes through, so no kind can be composed without it
+  — and an existing `client` tag from another client is overwritten rather
+  than sitting beside ours. The Blossom authorization (kind 24242) is
+  excluded: it is an HTTP header, not a publication.
+- **A «Tag» section at the bottom of the editing forms** — calendar, RSVP,
+  articles, profile, the podcast's card, the authored-podcasts list. Every
+  position of every tag is editable, because a Nostr tag is an array and not a
+  pair, and free tags can be added (`field-name: valueX`). The only warning
+  concerns a name the form writes itself, where two tags of the same name
+  would make the event ambiguous.
+
+### Fixed
+
+- **Editing an event no longer throws away what the form does not model.**
+  Reopening a Plektos calendar event and republishing it used to lose `lat`,
+  `lon`, `place_id`, the three colour tags, `description`, `client` and the
+  geohash, and would split the hashtag `Food & drink` into three. Now a
+  snapshot is taken when the event is opened — parse, rebuild, diff the tag
+  _names_ — and everything the kind does not write comes back in the
+  republished event. The snapshot is deliberately taken once: recomputing it
+  would let a field the user had just emptied back in through the window.
+- Hashtags are kept **to the letter**: the lower-case convention moved to the
+  form, where what the user types is normalised, so another client's category
+  is no longer rewritten while its title is being corrected.
+- **Kind 0 keeps the fields it does not know.** A client that writes
+  `pronouns` or `birthday` used to see them vanish on the first save made
+  here; the schema now preserves the unknown and rewrites it unchanged, and
+  the profile page lists what it is keeping.
+
+### Fixed (development)
+
+- Starting the client rebuilds the monorepo's packages first. A stale `dist`
+  after a change of branch produced a blank page **with no errors in the
+  server's log**, because the failure happened in the browser.
+
+---
+
+## 2026-09-18 — The podcast, ready for the platforms
+
+### Added
+
+- **What the platforms demand, in the events**: the category (Apple's 19
+  official ones, with their sub-categories), the language, the owner's email,
+  the explicit flag and the episodes' duration. NIP-F4 does not provide for
+  them, so they live in the kind 10154 and the kind 54 as simple tags the
+  feed's service can read.
+- **A checklist per platform** — Podcast Index, Apple, Spotify, Amazon,
+  YouTube — computed against the real data: this key's card, the measured
+  cover, the episodes' formats. Instead of a generic «invalid feed» it says,
+  for each platform, _what is missing_ and where to submit.
+- **A square cropper** for the covers, with zoom and drag: Apple, Amazon,
+  Spotify and YouTube want a square between 1400 and 3000 px, and asking the
+  user to crop elsewhere is the way to have wrong covers published.
+- **An «RSS feed» card in the profile**, under the podcast's: it shows the
+  URL, really checks it by downloading and reading it, and names the published
+  episodes that are not in the feed.
+- **«Redistribute to the relays»** for the card and the episodes: the same
+  event, already signed, sent to every write relay. A relay that has it
+  answers «duplicate», which counts as a success. It is the remedy for an
+  event that ended up on a single relay while the feed's service reads from
+  another.
+- The feed can be downloaded as **OPML**, which is what podcast apps exchange
+  subscriptions in. It always carries the title read from the feed: Fountain
+  looks every entry up in its own catalogue _by title_, and a generic
+  «Podcast» had people subscribe to 127 unrelated shows.
+
+### Fixed
+
+- Cropping an image given **by link** downloads it first — directly when the
+  server allows it, otherwise through the media-manager, which reads it from
+  its own side. A canvas drawn from an image without CORS stays tainted and
+  cannot be exported, so before this the operation simply failed.
+- The «Publish» button no longer **reappears** after a successful signing and
+  publishing: pushing the event to the relays that did not take it is done
+  from the outcome, relay by relay.
+- The feed is fetched with `no-store`: the browser used to keep its copy for
+  `max-age`, so «Check» right after a publication showed the previous feed.
+- Blossom URLs keep the extension the players expect — `.mp3` and not the
+  `.mpga` yakihonne answers with for `audio/mpeg`. BUD-01 obliges a server to
+  accept any extension when reading, so the client chooses.
+
+---
+
+## 2026-09-12/13 — Delegated signing, and events seen from outside
+
+### Added
+
+- **NIP-46 delegated signing**, both sides. The signing desk keeps the key in
+  this browser and approves every request by hand; the delegation side asks
+  from afar and publishes under the podcast's identity. It is the answer to
+  what NIP-F4 leaves exposed: a podcast _is_ a key, so whoever prepares the
+  episodes without holding it has no other way to publish in its name. Two
+  keys are kept distinct throughout — the transport key, which is the desk's
+  address, and the identity that signs.
+- **An exportable episode proposal**: the asynchronous counterpart to the
+  delegation. The same data as a draft, written to a file; whoever imports it
+  finds the files already on Blossom and signs with their own key.
+- **Kind 10064**, the podcasts a key declares itself an author of: the other
+  half of the cross-check, since a podcast's card can claim anyone.
+- **Transmit** among the external clients: a Nostr podcast player that has a
+  page per _show_ rather than per event, and that wins over a social client
+  for episodes and show cards — showing an episode as raw text is not showing
+  it.
+- Every event card can show **the JSON it is published as**, collapsible: it
+  is the only true representation of what sits on the relays.
+- The menu shows the **profile's name** instead of the npub, when there is one.
+
+### Changed
+
+- The podcast's card, the profile and the lists go to **every relay**
+  whatever rotation strategy is chosen: they are events that have to be
+  _found_, and a show whose card is on `nos.lol` is invisible to a player
+  reading `relay.damus.io`. That happened.
+
+---
+
+## 2026-09-06/11 — Audio pre-processing
+
+### Added
+
+- **An Audio section** that levels a recording, cuts its silences and converts
+  it, against the media-manager's `audio` domain. Every job is a job: 202 with
+  a `job_id`, then polling; jobs survive a restart of the service, so giving
+  up waiting does not lose the work.
+- Two **sliders** for the silence threshold and the minimum pause: the right
+  value depends on the recording, and a text field would have it chosen blind
+  because the decibel scale is not in common use.
+- The processed audio is **handed to «Upload to Blossom»** in podcast mode,
+  in memory and not through a query string.
+
+### Changed
+
+- The services' hosts and keys moved **into the settings**, with the
+  environment's values as first-run defaults: whoever opens «Audio» wants to
+  work on a recording, not answer administration questions.
+
+### Fixed
+
+- A medium is referred to by the **`filename` the service generates**, not by
+  the title we sent it: they are two different fields and the second does not
+  resolve. It is the defect a fake that resolved by title would have confirmed
+  instead of uncovering.
+- «No domain answers» is told apart from «the audio domain is missing»: from a
+  browser the first is nearly always CORS or the address, and saying «the
+  audio is missing» sends you looking for the problem where it is not.
+
+---
+
+## 2026-08-31/09-03 — Publishing, and handing events over
+
+### Added
+
+- **The media flow in three distinct moments** — choosing, uploading,
+  publishing — because there is no real coming back from Blossom: a blob is
+  identified by its hash and anyone who knows it can download it again. An
+  invariant stands: if the upload fails, no event is published.
+- A note with an attachment (NIP-92) and a podcast episode (NIP-F4) among the
+  ways to publish. A note with an attachment is the only way to publish a file
+  that _any_ social client shows.
+- **Opening an event in an external reading client**, chosen per device:
+  `matchMedia` decides, not the user agent. When the chosen client cannot
+  display a kind the client falls back on one that can and says so — noStrudel
+  opens a calendar event under «Unknown event kind», without the date or the
+  place it exists for.
+- The client is published as a **static site on GitHub Pages**.
+
+### Fixed
+
+- The external links were corrected against the real clients, loading all
+  three NIP-19 forms in a browser: noStrudel answers «Unknown type naddr» on
+  `/n/`, and Primal answers 404 to an `nprofile` on `/e/`.
+
+---
+
+## 2026-08-26/28 — The foundations
+
+### Added
+
+- **A kind registry** that describes formats and checks, at registration time,
+  the consistencies the compiler cannot: a class that matches the number,
+  `editable` only where NIP-01 allows replacement, an identifier for the
+  addressables. Adding a kind makes it appear in the interface without
+  touching a page.
+- **Publishing and reading from the relays**, with a per-relay outcome and two
+  strategies — one at a time, stopping at the first that accepts, or all in
+  parallel. The trade-off is real and has no single answer, so the choice
+  stays with the caller.
+- **Three login modes**: a NIP-07 extension, an npub for read-only, and a
+  private key encrypted at rest with NIP-49. A non-negotiable rule: the
+  decrypted key never enters the store's state, so it cannot be serialised
+  into Nuxt's SSR payload.
+- **NIP-37 encrypted drafts**, with the kind 10013 private relay list: an
+  empty content means a deleted draft, and the public identifier is a hash so
+  the relay does not learn the title from the `d` tag.
+- Reopening the replaceable events for editing, the profile and the RSVPs
+  included.
+- The calendar kinds aligned to the current NIP-52, the `D` tag included —
+  anchored to UTC, as the specification computes it, so the indices match the
+  ones other clients compute.
+- A README, the PolyForm Noncommercial licence and a note on commercial use.
+
+### Fixed
+
+- Signing with NIP-07 extensions: the template is flattened before being
+  handed over. Extensions pass the event to their content script with
+  `postMessage`, which uses the structured clone, and the structured clone
+  refuses the Proxy a reactive interface wraps everything in.
