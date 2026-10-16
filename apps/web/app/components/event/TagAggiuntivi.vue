@@ -2,32 +2,32 @@
 import type { Tag } from '@nmc/nostr-core'
 
 /**
- * I tag dell'evento che il form non governa.
+ * The event's tags that the form does not govern.
  *
- * Due strade portano qui. La prima: si riapre un evento scritto da un altro
- * client, che porta tag di cui noi non sappiamo nulla — `lat`, `lon`,
- * `place_id`, i colori del tema. Buttarli sarebbe il comportamento peggiore
- * possibile, perche' chi modifica il titolo non si aspetta di perdere il
- * luogo. La seconda: si vuole aggiungere un tag che il client non prevede,
- * `nome-campo: valoreX`, senza aspettare che qualcuno lo implementi.
+ * Two roads lead here. The first: an event written by another client is
+ * reopened, carrying tags we know nothing about — `lat`, `lon`, `place_id`,
+ * the theme's colours. Throwing them away would be the worst possible
+ * behaviour, because whoever edits the title does not expect to lose the
+ * place. The second: you want to add a tag the client does not provide for,
+ * `field-name: valueX`, without waiting for somebody to implement it.
  *
- * Un tag Nostr e' un array di stringhe, non una coppia: `["c", "#f7f5ed",
- * "background"]` ha due valori e il secondo dice a cosa serve il primo. Per
- * questo ogni posizione ha il suo campo — mostrarne solo la prima
- * significherebbe far modificare all'utente meta' di un dato.
+ * A Nostr tag is an array of strings, not a pair: `["c", "#f7f5ed",
+ * "background"]` has two values and the second says what the first is for.
+ * That is why every position has a field of its own — showing the first alone
+ * would have the user edit half a datum.
  *
- * Qui non si interpreta nulla e non si giudica: i nomi non hanno un
- * catalogo di «noti» e «sconosciuti», perche' un catalogo sarebbe sempre
- * indietro rispetto a cio' che i client inventano. L'unico avviso riguarda i
- * nomi che il form gia' scrive, dove due tag omonimi renderebbero l'evento
- * ambiguo.
+ * Nothing is interpreted here and nothing is judged: the names have no
+ * catalogue of «known» and «unknown», because a catalogue would always be
+ * behind what the clients invent. The only warning concerns the names the form
+ * writes already, where two tags of the same name would make the event
+ * ambiguous.
  */
 
 const props = withDefaults(
   defineProps<{
-    /** I nomi dei tag che il form compone da solo, per avvisare in caso di collisione. */
+    /** The names of the tags the form composes by itself, to warn on a collision. */
     nomiDelForm?: readonly string[]
-    /** Da quale evento arrivano: cambia solo il testo introduttivo. */
+    /** Which event they come from: it changes the introductory text alone. */
     daEventoEsistente?: boolean
   }>(),
   { nomiDelForm: () => [], daEventoEsistente: false },
@@ -39,7 +39,7 @@ const aperto = ref(false)
 const nuovoNome = ref('')
 const nuovoValore = ref('')
 
-/** Modifica una posizione di un tag. Si riscrive l'array: Vue segue meglio. */
+/** Edits one position of a tag. The array is rewritten: Vue follows that better. */
 function scrivi(riga: number, posizione: number, valore: string): void {
   const copia = tags.value.map((t) => [...t])
   const tag = copia[riga]
@@ -73,7 +73,7 @@ function aggiungi(): void {
   aperto.value = true
 }
 
-/** I nomi che il form scrive gia': un omonimo qui renderebbe l'evento ambiguo. */
+/** The names the form writes already: a namesake here would make the event ambiguous. */
 const inConflitto = computed(() =>
   [
     ...new Set(tags.value.map((t) => t[0] ?? '').filter((n) => props.nomiDelForm.includes(n))),

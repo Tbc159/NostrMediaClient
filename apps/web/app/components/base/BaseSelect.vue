@@ -1,8 +1,8 @@
 <script setup lang="ts">
 /**
- * Select nativa. Deliberatamente non un menu costruito a mano: quella nativa
- * e' gia' accessibile, funziona da tastiera e su mobile apre il selettore di
- * sistema. Rifarla porterebbe solo regressioni.
+ * A native select. Deliberately not a hand-built menu: the native one is
+ * accessible already, works from the keyboard and on mobile opens the system
+ * picker. Redoing it would bring nothing but regressions.
  */
 defineProps<{
   id?: string

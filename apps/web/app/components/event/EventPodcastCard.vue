@@ -5,10 +5,10 @@ import type { NostrEvent, PodcastEpisodeParsed } from '@nmc/nostr-core'
 const props = defineProps<{ evento: NostrEvent; dati: PodcastEpisodeParsed }>()
 
 /**
- * Sorgente da riprodurre: la prima che il browser sa suonare.
+ * The source to play: the first one the browser can play.
  *
- * NIP-F4 ammette piu' tag `audio`, e prendere sempre il primo lascerebbe un
- * lettore vuoto quando l'elenco inizia con un formato non supportato.
+ * NIP-F4 allows several `audio` tags, and always taking the first would leave
+ * an empty player when the list starts with an unsupported format.
  */
 const principale = computed(
   () => props.dati.audio.find((a) => !a.mime || a.mime.startsWith('audio/')) ?? props.dati.audio[0],

@@ -2,19 +2,19 @@
 import { getKindDefinition, type NostrEvent } from '@nmc/nostr-core'
 
 /**
- * Sceglie come mostrare un evento in base al suo kind.
+ * Chooses how to show an event according to its kind.
  *
- * Regola del progetto: **il client non si rompe mai davanti a un kind che non
- * conosce**. Nostr e' aperto per costruzione e un relay restituira' sempre
- * cose che non abbiamo previsto; la via d'uscita e' un rendering di ripiego,
- * non un errore. Lo stesso vale per un evento del kind giusto ma malformato:
- * il parse fallisce e si ricade sul grezzo.
+ * A rule of the project: **the client never breaks in front of a kind it does
+ * not know**. Nostr is open by construction and a relay will always return
+ * things we have not provided for; the way out is a fallback rendering, not an
+ * error. The same holds for an event of the right kind but malformed: the
+ * parse fails and we fall back on the raw form.
  */
 const props = defineProps<{ evento: NostrEvent }>()
 
 const definizione = computed(() => getKindDefinition(props.evento.kind))
 
-/** Risultato del parse, oppure il motivo per cui non e' stato possibile. */
+/** The parse's result, or the reason it was not possible. */
 const analisi = computed<{ dati: unknown } | { errore: string }>(() => {
   const def = definizione.value
   if (!def) return { errore: `Kind ${props.evento.kind} non supportato da questo client.` }

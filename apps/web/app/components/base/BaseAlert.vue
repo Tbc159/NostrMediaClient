@@ -13,8 +13,8 @@ const toni = {
 
 <template>
   <!--
-    role=alert solo per i toni che segnalano un problema: applicarlo anche
-    alle note informative renderebbe lo screen reader inutilmente rumoroso.
+    role=alert for the tones that signal a problem alone: applying it to the
+    informative notes too would make the screen reader needlessly noisy.
   -->
   <div
     :role="tono === 'pericolo' || tono === 'avviso' ? 'alert' : undefined"

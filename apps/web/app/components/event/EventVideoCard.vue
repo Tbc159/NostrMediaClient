@@ -5,11 +5,11 @@ import type { NostrEvent, VideoParsed } from '@nmc/nostr-core'
 const props = defineProps<{ evento: NostrEvent; dati: VideoParsed }>()
 
 /**
- * La variante da riprodurre.
+ * The variant to play.
  *
- * NIP-71 elenca risoluzioni diverse dello stesso video: si prende la prima
- * riproducibile dal browser, non la prima in assoluto, altrimenti un HLS in
- * cima all'elenco lascerebbe un player vuoto su Firefox.
+ * NIP-71 lists different resolutions of the same video: the first one the
+ * browser can play is taken, not the first outright, otherwise an HLS at the
+ * top of the list would leave an empty player on Firefox.
  */
 const principale = computed(
   () =>

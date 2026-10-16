@@ -1,10 +1,10 @@
 <script setup lang="ts">
 /**
- * Contenitore di un campo: etichetta, aiuto, errore.
+ * A field's container: label, help, error.
  *
- * Genera un id e lo collega al controllo tramite lo slot, cosi' l'etichetta
- * punta davvero al campo e l'errore viene annunciato: sono le due cose che si
- * dimenticano piu' spesso scrivendo form a mano.
+ * It generates an id and connects it to the control through the slot, so the
+ * label really points at the field and the error gets announced: they are the
+ * two things most often forgotten when writing forms by hand.
  */
 const props = defineProps<{
   label: string
@@ -33,7 +33,7 @@ const describedBy = computed(
     <p v-if="hint && !error" :id="hintId" class="text-xs text-[var(--testo-tenue)]">
       {{ hint }}
     </p>
-    <!-- role=alert: il messaggio viene letto appena compare -->
+    <!-- role=alert: the message is read as soon as it appears -->
     <p v-if="error" :id="errorId" role="alert" class="text-xs text-[var(--pericolo)]">
       {{ error }}
     </p>

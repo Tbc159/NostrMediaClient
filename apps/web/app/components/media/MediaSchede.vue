@@ -1,10 +1,10 @@
 <script setup lang="ts">
 /**
- * Le due schede della sezione Media.
+ * The Media section's two tabs.
  *
- * Una voce sola nel menu e tre lavori dentro: mettere un file in rete,
- * preparare un audio, pubblicare un episodio. Chi arriva dall'una trova le
- * altre a un clic, senza tornare al menu.
+ * One entry in the menu and three jobs inside: putting a file on the network,
+ * preparing audio, publishing an episode. Whoever arrives at one finds the
+ * others a click away, without going back to the menu.
  */
 const schede = [
   { to: '/media', etichetta: 'Carica su Blossom', esatto: false },
@@ -13,7 +13,7 @@ const schede = [
 ]
 
 const rotta = useRoute()
-// «Carica su Blossom» copre /media e /media/nuovo; le altre solo se stesse.
+// «Upload to Blossom» covers /media and /media/nuovo; the others only themselves.
 const attiva = (s: (typeof schede)[number]) =>
   s.esatto
     ? rotta.path === s.to

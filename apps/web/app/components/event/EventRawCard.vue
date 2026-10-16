@@ -2,11 +2,11 @@
 import type { NostrEvent } from '@nmc/nostr-core'
 
 /**
- * Ripiego per gli eventi che non sappiamo interpretare.
+ * The fallback for the events we cannot interpret.
  *
- * Non e' una schermata d'errore: e' il modo in cui il client resta onesto
- * davanti a un protocollo aperto. L'evento c'e', e' firmato, e mostrarlo per
- * quello che e' vale piu' che nasconderlo.
+ * It is not an error screen: it is how the client stays honest in front of an
+ * open protocol. The event is there, it is signed, and showing it for what it
+ * is counts for more than hiding it.
  */
 defineProps<{ evento: NostrEvent; motivo?: string }>()
 </script>

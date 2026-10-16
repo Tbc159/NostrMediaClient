@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { NostrEvent, RsvpParsed } from '@nmc/nostr-core'
 
-/** Kind 31925 — risposta a un invito. */
+/** Kind 31925 — the answer to an invitation. */
 const props = defineProps<{ evento: NostrEvent; dati: RsvpParsed }>()
 
 const risposte: Record<
@@ -16,8 +16,8 @@ const risposte: Record<
 const risposta = computed(() => risposte[props.dati.status])
 
 /**
- * L'RSVP punta a una coordinata `<kind>:<pubkey>:<d>`, non a un id: si mostra
- * l'identificatore finale, che e' l'unica parte leggibile da un umano.
+ * The RSVP points at a `<kind>:<pubkey>:<d>` coordinate, not at an id: the
+ * final identifier is shown, which is the only part a human can read.
  */
 const identificatoreEvento = computed(() => props.dati.eventAddress.split(':').slice(2).join(':'))
 </script>
