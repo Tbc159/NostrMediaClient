@@ -128,17 +128,17 @@ if (existsSync(store)) {
   }
 } else {
   console.log(
-    '· store pnpm assente: salto il controllo delle copie duplicate (esegui pnpm install)',
+    '· the pnpm store is absent: skipping the check for duplicate copies (run pnpm install)',
   )
 }
 
-// --- Esito -----------------------------------------------------------------
+// --- The outcome -----------------------------------------------------------
 
 if (problems.length > 0) {
-  console.error('\n✗ guard-deps: trovati problemi sulle dipendenze critiche\n')
+  console.error('\n✗ guard-deps: problems found with the critical dependencies\n')
   for (const p of problems) console.error(`  - ${p}`)
-  console.error('\nVedi docs/adr/0002-applesauce-6x-and-nostr-tools-pin.md\n')
+  console.error('\nSee docs/adr/0002-applesauce-6x-and-nostr-tools-pin.md\n')
   process.exit(1)
 }
 
-console.log('✓ guard-deps: dipendenze critiche a posto')
+console.log('✓ guard-deps: the critical dependencies are in order')

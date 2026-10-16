@@ -23,14 +23,14 @@ import {
 /** The NIPs the client uses and that are worth seeing declared by a relay. */
 const NIP_INTERESSANTI = {
   1: 'base',
-  9: 'cancellazione',
-  11: 'info relay',
-  17: 'DM privati',
-  22: 'commenti',
+  9: 'deletion',
+  11: 'relay info',
+  17: 'private DMs',
+  22: 'comments',
   23: 'long-form',
   42: 'AUTH',
-  50: 'ricerca',
-  52: 'calendario',
+  50: 'search',
+  52: 'calendar',
   65: 'outbox',
 }
 
@@ -54,24 +54,26 @@ function stampaRelay(check, ruoli) {
   console.log(`\n${c.bold}${url}${c.reset}`)
 
   if (probe.reachable) {
-    console.log(ok(`risponde in ${probe.firstDataMs ?? probe.connectMs} ms`))
+    console.log(ok(`answers in ${probe.firstDataMs ?? probe.connectMs} ms`))
     if (probe.retried) {
-      console.log(warn('il primo tentativo era fallito: relay instabile o con rate limit per IP'))
+      console.log(
+        warn('the first attempt had failed: an unstable relay, or one with a per-IP rate limit'),
+      )
     }
   } else {
-    console.log(ko(`connessione: ${probe.error ?? 'nessun dato'}`))
+    console.log(ko(`connection: ${probe.error ?? 'no data'}`))
   }
 
   if (probe.authRequested) {
-    console.log(warn('richiede AUTH (NIP-42): serve una chiave anche solo per leggere'))
+    console.log(warn('asks for AUTH (NIP-42): a key is needed even just to read'))
   }
-  if (probe.closedReason) console.log(warn(`sottoscrizione rifiutata: ${probe.closedReason}`))
+  if (probe.closedReason) console.log(warn(`subscription refused: ${probe.closedReason}`))
   for (const n of probe.notices) console.log(info(`NOTICE: ${n}`))
 
   if (infoError) {
-    console.log(info(`NIP-11 non leggibile (${infoError}) — non e' bloccante`))
+    console.log(info(`NIP-11 not readable (${infoError}) — not blocking`))
   } else if (doc) {
-    if (doc.name) console.log(info(`nome: ${doc.name}`))
+    if (doc.name) console.log(info(`name: ${doc.name}`))
     if (doc.software) {
       console.log(info(`software: ${String(doc.software).split('/').pop()} ${doc.version ?? ''}`))
     }
@@ -84,35 +86,34 @@ function stampaRelay(check, ruoli) {
       .filter(([n]) => !nips.includes(Number(n)))
       .map(([n, label]) => `${n} ${label}`)
 
-    if (presenti.length) console.log(info(`NIP dichiarati: ${presenti.join(', ')}`))
-    if (mancanti.length)
-      console.log(info(`${c.dim}non dichiarati: ${mancanti.join(', ')}${c.reset}`))
+    if (presenti.length) console.log(info(`NIPs declared: ${presenti.join(', ')}`))
+    if (mancanti.length) console.log(info(`${c.dim}not declared: ${mancanti.join(', ')}${c.reset}`))
 
     const lim = doc.limitation ?? {}
     if (lim.payment_required) {
-      console.log(warn(`a pagamento — listino: ${doc.payments_url ?? 'non indicato'}`))
+      console.log(warn(`paid — price list: ${doc.payments_url ?? 'not stated'}`))
       if (doc.fees) console.log(info(`fees: ${JSON.stringify(doc.fees)}`))
     }
     if (lim.auth_required) console.log(warn('auth_required: true'))
     if (lim.restricted_writes) {
-      console.log(warn('restricted_writes: true — scrittura non aperta a tutti'))
+      console.log(warn('restricted_writes: true — writing is not open to everyone'))
     }
-    if (lim.max_message_length) console.log(info(`max messaggio: ${lim.max_message_length} byte`))
+    if (lim.max_message_length) console.log(info(`max message: ${lim.max_message_length} bytes`))
   }
 
-  console.log(info(`ruoli: ${ruoli.join(', ')}`))
+  console.log(info(`roles: ${ruoli.join(', ')}`))
 }
 
 function stampaBlossom(check) {
   console.log(`\n${c.bold}${check.url}${c.reset}`)
   if (!check.reachable) {
-    console.log(ko(`irraggiungibile: ${check.error}`))
+    console.log(ko(`unreachable: ${check.error}`))
     return
   }
   if (check.speaksBlossom) {
-    console.log(ok('risponde 404 su un blob inesistente: parla Blossom (BUD-01)'))
+    console.log(ok('answers 404 on a non-existent blob: it speaks Blossom (BUD-01)'))
   } else {
-    console.log(warn('non ha risposto 404 a un blob inesistente: potrebbe non essere Blossom'))
+    console.log(warn('did not answer 404 to a non-existent blob: it may not be Blossom'))
   }
   if (check.uploadHint) {
     const linea = `HEAD /upload → ${check.uploadStatus ?? '?'}: ${check.uploadHint}`
@@ -120,19 +121,19 @@ function stampaBlossom(check) {
   }
 }
 
-// --- esecuzione -------------------------------------------------------------
+// --- execution --------------------------------------------------------------
 
 let config
 try {
   config = resolveClientConfig(process.env)
 } catch (err) {
-  console.error(`\n${c.red}Configurazione non valida${c.reset}\n`)
+  console.error(`\n${c.red}The configuration is not valid${c.reset}\n`)
   console.error(err.message)
   process.exit(1)
 }
 
-console.log(`${c.bold}${c.blue}Diagnostico endpoint${c.reset}`)
-console.log(`${c.dim}Tutte le verifiche sono anonime e in sola lettura.${c.reset}`)
+console.log(`${c.bold}${c.blue}Endpoint diagnostic${c.reset}`)
+console.log(`${c.dim}Every check is anonymous and read-only.${c.reset}`)
 
 // The same relay often appears in several roles. It is to be queried once
 // only: many relays limit the concurrent connections per IP, so a second probe
@@ -143,15 +144,15 @@ const aggiungiRuolo = (url, ruolo) => {
   ruoliPerRelay.set(url, [...(ruoliPerRelay.get(url) ?? []), ruolo])
 }
 
-for (const u of config.readRelays) aggiungiRuolo(u, 'lettura')
-for (const u of config.writeRelays) aggiungiRuolo(u, 'scrittura')
-for (const u of config.indexerRelays) aggiungiRuolo(u, 'indicizzatore')
-aggiungiRuolo(config.draftRelay, 'bozze')
+for (const u of config.readRelays) aggiungiRuolo(u, 'read')
+for (const u of config.writeRelays) aggiungiRuolo(u, 'write')
+for (const u of config.indexerRelays) aggiungiRuolo(u, 'indexer')
+aggiungiRuolo(config.draftRelay, 'drafts')
 
 const esiti = []
 
 if (ruoliPerRelay.size > 0) {
-  console.log(`\n${c.bold}${c.blue}── Relay (${ruoliPerRelay.size} unici) ──${c.reset}`)
+  console.log(`\n${c.bold}${c.blue}── Relays (${ruoliPerRelay.size} unique) ──${c.reset}`)
   for (const [url, ruoli] of ruoliPerRelay) {
     const check = await checkRelay(url)
     stampaRelay(check, ruoli)
@@ -160,17 +161,17 @@ if (ruoliPerRelay.size > 0) {
 }
 
 if (!config.draftRelay) {
-  console.log(`\n${c.bold}Relay bozze (kind 30024)${c.reset}`)
+  console.log(`\n${c.bold}Draft relay (kind 30024)${c.reset}`)
   console.log(
     info(
-      'non configurato: il salvataggio bozze resta disabilitato (ADR 0003), non ripiega su relay pubblici',
+      'not configured: saving drafts stays disabled (ADR 0003), with no fallback to public relays',
     ),
   )
 }
 
-console.log(`\n${c.bold}${c.blue}── Server Blossom ──${c.reset}`)
+console.log(`\n${c.bold}${c.blue}── Blossom servers ──${c.reset}`)
 if (config.blossomServers.length === 0) {
-  console.log(warn('nessuno configurato: gli upload media non saranno possibili'))
+  console.log(warn('none configured: media uploads will not be possible'))
 } else {
   for (const url of config.blossomServers) {
     const check = await checkBlossomServer(url)
@@ -180,11 +181,11 @@ if (config.blossomServers.length === 0) {
 }
 
 const morti = esiti.filter((e) => !e.alive)
-console.log(`\n${c.bold}Riepilogo${c.reset}`)
-console.log(`  endpoint verificati: ${esiti.length}`)
-console.log(`  raggiungibili:       ${esiti.length - morti.length}`)
+console.log(`\n${c.bold}Summary${c.reset}`)
+console.log(`  endpoints checked: ${esiti.length}`)
+console.log(`  reachable:         ${esiti.length - morti.length}`)
 if (morti.length > 0) {
-  console.log(`  ${c.red}non raggiungibili:   ${morti.length}${c.reset}`)
+  console.log(`  ${c.red}unreachable:       ${morti.length}${c.reset}`)
   for (const m of morti) console.log(`    - ${m.url}`)
 }
 console.log()
