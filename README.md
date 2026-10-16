@@ -195,6 +195,10 @@ enforces it — so it runs identically in the browser and during SSR.
 needs to change: it appears in the lists, gets rendered, and becomes publishable
 on its own. That is the point of the whole structure.
 
+What changed and when is in **[CHANGELOG.md](CHANGELOG.md)**; where the work
+stands and how to put the environment back on its feet is in
+**[docs/PROGRESS.md](docs/PROGRESS.md)**.
+
 ## Security notes
 
 - The signer, the relay pool and any key material are **client-only**. SSR
