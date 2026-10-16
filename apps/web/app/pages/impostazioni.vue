@@ -12,18 +12,18 @@ const config = computed(() => configSafe.value)
 
 const configurazione = useConfigurazione()
 
-// Questa e' la pagina da cui si accede con l'estensione: vale la pena
-// ricontrollare che ci sia ogni volta che la si apre, invece di fidarsi del
-// rilevamento fatto all'avvio dell'applicazione.
+// This is the page you log in with the extension from: it is worth checking
+// again that it is there every time the page is opened, instead of trusting
+// the detection done when the application started.
 onMounted(() => identita.rilevaEstensione())
 
 /**
- * Copia modificabile degli endpoint.
+ * An editable copy of the endpoints.
  *
- * Si edita una bozza e non lo store direttamente: cambiando i relay carattere
- * per carattere si passa per stati intermedi non validi (`wss://u`), e
- * applicarli man mano significherebbe far pubblicare il client su indirizzi
- * scritti a meta'.
+ * A draft is edited and not the store directly: changing the relays character
+ * by character goes through invalid intermediate states (`wss://u`), and
+ * applying them as they come would have the client publish to half-written
+ * addresses.
  */
 const bozzaEndpoint = reactive(
   Object.fromEntries(
@@ -63,13 +63,13 @@ function salvaEndpoint(): void {
 // --- Servizio di elaborazione ------------------------------------------------
 
 /*
- * Il servizio dietro la sezione Audio.
+ * The service behind the Audio section.
  *
- * Archivio ed elaborazione audio sono due domini dello stesso microservizio:
- * un indirizzo, una chiave. E stanno qui, non nella pagina: chi apre «Audio»
- * vuole lavorare su una registrazione, non rispondere a domande di
- * amministrazione. Il default arriva dall'ambiente ed e' gia' quello
- * funzionante.
+ * The archive and the audio processing are two domains of the same
+ * microservice: one address, one key. And they are here, not in the page:
+ * whoever opens «Audio» wants to work on a recording, not answer
+ * administration questions. The default comes from the environment and is the
+ * working one already.
  */
 
 const mediaManager = useMediaManager()
@@ -79,9 +79,9 @@ const bozzaServizi = reactive({
   chiave: mediaManager.apiKey,
 })
 
-// I default arrivano dal plugin, che gira prima di questa pagina ma non prima
-// del `reactive` qui sopra in un ricaricamento a caldo: riallinea la bozza
-// quando i valori effettivi cambiano da sotto (ripristino compreso).
+// The defaults come from the plugin, which runs before this page but not
+// before the `reactive` above in a hot reload: it realigns the draft when the
+// effective values change from underneath (a reset included).
 watch(
   () => [mediaManager.baseUrl, mediaManager.apiKey] as const,
   ([u, k]) => {
@@ -93,14 +93,14 @@ watch(
 
 const serviziSalvati = ref(false)
 
-// Questa e' la pagina dove si viene a capire se il servizio risponde: le
-// pastiglie dei domini devono esserci gia' all'apertura, non solo dopo aver
-// premuto «Salva e verifica».
+// This is the page you come to in order to find out whether the service
+// answers: the domains' pills have to be there when it opens, not only after
+// «Save and check» has been pressed.
 onMounted(() => {
   if (mediaManager.configurato) void mediaManager.verifica()
 })
 
-/** I domini del servizio, con il nome della sezione che ciascuno alimenta. */
+/** The service's domains, with the name of the section each one feeds. */
 const dominiServizio = [
   { chiave: 'media' as const, etichetta: 'media', a_cosa_serve: 'archivio' },
   { chiave: 'audio' as const, etichetta: 'audio', a_cosa_serve: 'elaborazione audio' },
@@ -134,7 +134,7 @@ const piattaforme: { id: PiattaformaClient; etichetta: string; nota: string }[] 
   },
 ]
 
-/** Evento finto, solo per mostrare che forma prende il link. */
+/** A fake event, only to show what shape the link takes. */
 const eventoDiEsempio = {
   id: 'ff'.repeat(32),
   pubkey: 'ab'.repeat(32),
@@ -182,8 +182,8 @@ function tornaAiDefault(): void {
 type Scheda = 'estensione' | 'chiave' | 'lettura'
 const scheda = ref<Scheda>('estensione')
 
-// Definite qui e non nel template: le espressioni di un template Vue sono
-// JavaScript puro, quindi `as const` non e' utilizzabile li'.
+// Defined here and not in the template: the expressions of a Vue template are
+// plain JavaScript, so `as const` cannot be used there.
 const schede: { id: Scheda; label: string }[] = [
   { id: 'estensione', label: 'Estensione' },
   { id: 'chiave', label: 'Chiave privata' },
@@ -207,8 +207,8 @@ const robustezza = computed(() => passwordStrength(password.value))
 const coloreRobustezza = ['var(--pericolo)', 'var(--avviso)', 'var(--avviso)', 'var(--successo)']
 
 function pulisci(): void {
-  // I campi con materiale sensibile non restano appesi in memoria piu' del
-  // necessario, e non ricompaiono se l'utente torna sulla pagina.
+  // The fields with sensitive material do not hang about in memory longer
+  // than necessary, and do not reappear when the user comes back to the page.
   chiaveInserita.value = ''
   password.value = ''
   passwordConferma.value = ''
@@ -300,7 +300,7 @@ const etichettaModo: Record<string, string> = {
             Puoi pubblicare eventi firmati con questa identità.
           </BaseAlert>
 
-          <!-- Chiave salvata ma bloccata: serve la password per firmare -->
+          <!-- A saved but locked key: the password is needed to sign -->
           <form
             v-if="identita.modo === 'locale' && !identita.sbloccato"
             class="flex flex-col gap-3"

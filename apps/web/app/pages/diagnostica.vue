@@ -33,17 +33,17 @@ const NIP_INTERESSANTI: Record<number, string> = {
   65: 'outbox',
 }
 
-// La configurazione puo' essere invalida: in quel caso mostriamo l'errore
-// invece di far esplodere la pagina.
+// The configuration can be invalid: in that case we show the error instead of
+// blowing the page up.
 const erroreConfig = ref<string | null>(null)
 const relays = ref<RigaRelay[]>([])
 const blossom = ref<RigaBlossom[]>([])
 const draftRelayConfigurato = ref(true)
 const inCorso = ref(false)
 
-// Orario dell'ultima verifica completata. Senza, una pagina lasciata aperta
-// mostra risultati vecchi identici a quelli freschi: chi guarda non ha modo
-// di accorgersi che il server e' stato riavviato o che .env e' cambiato.
+// The time of the last completed check. Without it, a page left open shows
+// old results identical to fresh ones: whoever looks has no way of noticing
+// that the server has been restarted or that .env has changed.
 const ultimaVerifica = ref<Date | null>(null)
 
 try {
@@ -59,8 +59,8 @@ async function esegui(): Promise<void> {
   if (inCorso.value) return
   inCorso.value = true
 
-  // In sequenza, non in parallelo: molti relay limitano le connessioni per IP
-  // e sonde simultanee producono falsi negativi.
+  // In sequence, not in parallel: many relays limit the connections per IP
+  // and simultaneous probes produce false negatives.
   for (const riga of relays.value) {
     riga.stato = 'incorso'
     riga.errore = undefined

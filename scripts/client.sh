@@ -1,23 +1,24 @@
 #!/usr/bin/env bash
 #
-# Gestione del client in sviluppo: start, stop, restart, status, log.
+# Managing the client in development: start, stop, restart, status, logs.
 #
-# Si occupa da solo delle due cose che altrimenti vanno ricordate a mano:
-#   1. Node e pnpm vivono sotto nvm e non sono nel PATH di una shell nuova
-#      (la shell di sistema ha ancora Node 18, che non basta a Vite 8).
-#   2. Il file .env sta nella radice del monorepo, non in apps/web, quindi
-#      Nuxt va istruito con --dotenv o non lo legge.
+# It takes care by itself of the two things that otherwise have to be
+# remembered by hand:
+#   1. Node and pnpm live under nvm and are not in a new shell's PATH
+#      (the system shell still has Node 18, which is not enough for Vite 8).
+#   2. The .env file sits in the monorepo's root, not in apps/web, so Nuxt has
+#      to be told with --dotenv or it does not read it.
 #
-# Uso:
-#   ./scripts/client.sh start     [porta]   avvia in background
-#   ./scripts/client.sh fg        [porta]   avvia in primo piano (Ctrl-C per uscire)
-#   ./scripts/client.sh stop                ferma
-#   ./scripts/client.sh restart   [porta]   riavvia (per rileggere .env)
-#   ./scripts/client.sh status              stato e configurazione servita
-#   ./scripts/client.sh logs                segue il log in tempo reale
-#   ./scripts/client.sh check               verifica gli endpoint di .env
+# Usage:
+#   ./scripts/client.sh start     [port]    starts in the background
+#   ./scripts/client.sh fg        [port]    starts in the foreground (Ctrl-C to leave)
+#   ./scripts/client.sh stop                stops it
+#   ./scripts/client.sh restart   [port]    restarts it (to re-read .env)
+#   ./scripts/client.sh status              the status and the configuration served
+#   ./scripts/client.sh logs                follows the log in real time
+#   ./scripts/client.sh check               checks the endpoints in .env
 #
-# La porta si puo' dare anche con la variabile PORT. Default: 3000.
+# The port can also be given with the PORT variable. The default: 3000.
 
 set -uo pipefail
 
@@ -48,14 +49,14 @@ carica_toolchain() {
   fi
 
   if ! command -v pnpm >/dev/null 2>&1; then
-    err "pnpm non trovato. Installa nvm e Node 22, poi: corepack enable"
+    err "pnpm not found. Install nvm and Node 22, then: corepack enable"
     exit 1
   fi
 
   local maggiore
   maggiore="$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo 0)"
   if [ "$maggiore" -lt 20 ]; then
-    err "Node $(node -v) troppo vecchio: Vite 8 richiede >= 20.19. Attesa la 22."
+    err "Node $(node -v) is too old: Vite 8 requires >= 20.19. Expecting 22."
     exit 1
   fi
 }
@@ -78,17 +79,17 @@ risponde() {
 
 # --- comandi ---------------------------------------------------------------
 
-# I pacchetti del monorepo si importano dal loro `dist`, che non sta in git:
-# dopo un cambio di branch o un pull e' quello vecchio, e Vite fallisce
-# l'import di un export che non esiste ancora. Il sintomo e' una pagina
-# bianca **senza errori nel log del server**, perche' l'errore accade nel
-# browser: un'ora buttata la prima volta, mai piu' dalla seconda.
+# The monorepo's packages are imported from their `dist`, which is not in git:
+# after a change of branch or a pull it is the old one, and Vite fails to
+# import an export that does not exist yet. The symptom is a blank page **with
+# no errors in the server's log**, because the error happens in the browser: an
+# hour wasted the first time, never again from the second.
 compila_pacchetti() {
-  nota "compilo i pacchetti del monorepo…"
+  nota "building the monorepo's packages…"
   if ( cd "$RADICE" && pnpm build:packages > "$RUNDIR/build-packages.log" 2>&1 ); then
-    ok "pacchetti aggiornati"
+    ok "packages up to date"
   else
-    err "compilazione dei pacchetti fallita. Ultime righe:"
+    err "building the packages failed. The last lines:"
     tail -20 "$RUNDIR/build-packages.log"
     return 1
   fi
@@ -100,30 +101,31 @@ avvia() {
 
   if pid_vivo; then
     local p; p="$(porta_registrata)"
-    avv "gia' in esecuzione (PID $(cat "$PIDFILE"), porta $p)"
-    nota "usa 'restart' per riavviarlo, 'stop' per fermarlo"
+    avv "already running (PID $(cat "$PIDFILE"), port $p)"
+    nota "use 'restart' to restart it, 'stop' to stop it"
     return 0
   fi
 
   if risponde "$PORTA"; then
-    err "la porta $PORTA e' gia' occupata da un altro processo"
-    nota "liberala con: fuser -k -n tcp $PORTA    oppure usa un'altra porta"
+    err "port $PORTA is already taken by another process"
+    nota "free it with: fuser -k -n tcp $PORTA    or use another port"
     return 1
   fi
 
   if [ ! -f "$RADICE/.env" ]; then
-    avv "manca .env: lo creo da .env.example"
+    avv ".env is missing: creating it from .env.example"
     cp "$RADICE/.env.example" "$RADICE/.env"
   fi
 
   compila_pacchetti || return 1
 
-  printf "avvio sulla porta %s…\n" "$PORTA"
+  printf "starting on port %s…\n" "$PORTA"
 
-  # setsid stacca il processo in un gruppo suo e </dev/null gli toglie lo
-  # stdin del terminale: senza queste due cose il comando non restituisce il
-  # controllo alla shell, perche' il figlio ne tiene aperti i descrittori.
-  # Il gruppo separato serve anche a 'stop', che termina l'intero albero.
+  # setsid detaches the process into a group of its own and </dev/null takes
+  # the terminal's stdin away from it: without those two things the command
+  # does not give control back to the shell, because the child keeps its
+  # descriptors open. The separate group also serves 'stop', which terminates
+  # the whole tree.
   local lanciatore="nohup"
   command -v setsid >/dev/null 2>&1 && lanciatore="setsid"
 
@@ -134,7 +136,7 @@ avvia() {
   for _ in $(seq 1 90); do
     risponde "$PORTA" && break
     if ! pid_vivo; then
-      err "il processo e' morto durante l'avvio. Ultime righe del log:"
+      err "the process died during start-up. The last lines of the log:"
       tail -20 "$LOGFILE"
       rm -f "$PIDFILE" "$PORTFILE"
       return 1
@@ -143,11 +145,11 @@ avvia() {
   done
 
   if risponde "$PORTA"; then
-    ok "attivo su http://localhost:$PORTA"
-    nota "diagnostica endpoint: http://localhost:$PORTA/diagnostica"
-    nota "log: ./scripts/client.sh logs"
+    ok "up on http://localhost:$PORTA"
+    nota "endpoint diagnostics: http://localhost:$PORTA/diagnostica"
+    nota "logs: ./scripts/client.sh logs"
   else
-    err "avviato ma non risponde entro 90s. Log:"
+    err "started but not answering within 90s. The log:"
     tail -20 "$LOGFILE"
     return 1
   fi
@@ -158,7 +160,7 @@ primo_piano() {
   mkdir -p "$RUNDIR"
   if [ ! -f "$RADICE/.env" ]; then cp "$RADICE/.env.example" "$RADICE/.env"; fi
   compila_pacchetti || return 1
-  nota "primo piano sulla porta $PORTA — Ctrl-C per uscire"
+  nota "foreground on port $PORTA — Ctrl-C to leave"
   cd "$APP" && exec npx nuxt dev --port "$PORTA" --dotenv ../../.env
 }
 
@@ -167,16 +169,16 @@ ferma() {
 
   if pid_vivo; then
     local pid; pid="$(cat "$PIDFILE")"
-    # Il processo npx genera figli: si termina l'intero gruppo, altrimenti
-    # nuxt resta vivo e continua a tenere occupata la porta.
+    # The npx process spawns children: the whole group is terminated,
+    # otherwise nuxt stays alive and goes on holding the port.
     kill -TERM -"$(ps -o pgid= "$pid" | tr -d ' ')" 2>/dev/null || kill -TERM "$pid" 2>/dev/null
     for _ in $(seq 1 10); do pid_vivo || break; sleep 0.5; done
     pid_vivo && kill -9 "$pid" 2>/dev/null
     fermato=1
   fi
 
-  # Rete di sicurezza: qualunque cosa tenga ancora la porta va chiusa,
-  # anche se il PID file si e' perso (riavvio della macchina, kill manuale).
+  # A safety net: whatever is still holding the port has to be closed, even
+  # when the PID file has been lost (a reboot, a manual kill).
   local p; p="$(porta_registrata)"
   if risponde "$p"; then
     fuser -k -n tcp "$p" >/dev/null 2>&1 && fermato=1
@@ -184,34 +186,34 @@ ferma() {
   fi
 
   rm -f "$PIDFILE" "$PORTFILE"
-  [ "$fermato" = 1 ] && ok "fermato" || nota "non era in esecuzione"
+  [ "$fermato" = 1 ] && ok "stopped" || nota "it was not running"
 }
 
 stato() {
   local p; p="$(porta_registrata)"
 
   if pid_vivo && risponde "$p"; then
-    ok "in esecuzione — PID $(cat "$PIDFILE"), http://localhost:$p"
+    ok "running — PID $(cat "$PIDFILE"), http://localhost:$p"
   elif pid_vivo; then
-    avv "processo vivo (PID $(cat "$PIDFILE")) ma non risponde sulla porta $p"
+    avv "the process is alive (PID $(cat "$PIDFILE")) but not answering on port $p"
   elif risponde "$p"; then
-    avv "qualcosa risponde sulla porta $p ma non e' stato avviato da questo script"
+    avv "something answers on port $p but it was not started by this script"
   else
-    nota "non in esecuzione"
+    nota "not running"
   fi
 
   echo
-  printf "${b}Configurazione in .env${z}\n"
+  printf "${b}The configuration in .env${z}\n"
   if [ -f "$RADICE/.env" ]; then
     grep -E '^NUXT_PUBLIC' "$RADICE/.env" | while IFS='=' read -r chiave valore; do
       printf "  %-38s %s\n" "${chiave#NUXT_PUBLIC_}" "$(echo "$valore" | tr -d '"')"
     done
   else
-    err "manca .env (copialo da .env.example)"
+    err ".env is missing (copy it from .env.example)"
   fi
 
   echo
-  nota "il server legge .env solo all'avvio: dopo una modifica serve 'restart'"
+  nota "the server reads .env at start-up only: after a change it needs 'restart'"
 }
 
 # --- dispatch --------------------------------------------------------------
@@ -222,9 +224,9 @@ case "${1:-status}" in
   stop)    ferma ;;
   restart) ferma; echo; avvia ;;
   status)  stato ;;
-  logs)    [ -f "$LOGFILE" ] && tail -f "$LOGFILE" || err "nessun log: il server non e' mai stato avviato" ;;
+  logs)    [ -f "$LOGFILE" ] && tail -f "$LOGFILE" || err "no log: the server has never been started" ;;
   check)   carica_toolchain; cd "$RADICE" && pnpm check:endpoints ;;
   *)
-    sed -n '3,25p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+    sed -n '3,22p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
     exit 1 ;;
 esac

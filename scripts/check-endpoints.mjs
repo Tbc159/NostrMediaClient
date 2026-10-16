@@ -1,17 +1,17 @@
 #!/usr/bin/env node
 /**
- * Diagnostico degli endpoint configurati in .env.
+ * A diagnostic for the endpoints configured in .env.
  *
- * La logica di sonda vive in `@nmc/nostr-core` (relays/probe.ts), condivisa
- * con la pagina /diagnostica dell'app: qui c'e' solo la presentazione a
- * terminale. Cosi' riga di comando e browser danno per costruzione la stessa
- * diagnosi.
+ * The probing logic lives in `@nmc/nostr-core` (relays/probe.ts), shared with
+ * the app's /diagnostica page: here is the presentation to the terminal alone.
+ * That way the command line and the browser give the same diagnosis by
+ * construction.
  *
- * Uso:  pnpm check:endpoints
- *       (il nome "doctor" non e' utilizzabile: e' un comando interno di pnpm
- *        e avrebbe la precedenza sullo script del workspace)
+ * Usage:  pnpm check:endpoints
+ *         (the name "doctor" cannot be used: it is an internal pnpm command
+ *          and would take precedence over the workspace's script)
  *
- * Nessuna chiave privata viene usata o richiesta.
+ * No private key is used or asked for.
  */
 
 import {
@@ -20,7 +20,7 @@ import {
   resolveClientConfig,
 } from '../packages/nostr-core/dist/index.js'
 
-/** NIP che il client usa e che vale la pena vedere dichiarati da un relay. */
+/** The NIPs the client uses and that are worth seeing declared by a relay. */
 const NIP_INTERESSANTI = {
   1: 'base',
   9: 'cancellazione',
@@ -134,9 +134,9 @@ try {
 console.log(`${c.bold}${c.blue}Diagnostico endpoint${c.reset}`)
 console.log(`${c.dim}Tutte le verifiche sono anonime e in sola lettura.${c.reset}`)
 
-// Lo stesso relay compare spesso in piu' ruoli. Va interrogato una volta sola:
-// molti relay limitano le connessioni concorrenti per IP, quindi una seconda
-// sonda in parallelo verrebbe rifiutata e produrrebbe un falso negativo.
+// The same relay often appears in several roles. It is to be queried once
+// only: many relays limit the concurrent connections per IP, so a second probe
+// in parallel would be refused and would produce a false negative.
 const ruoliPerRelay = new Map()
 const aggiungiRuolo = (url, ruolo) => {
   if (!url) return

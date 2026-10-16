@@ -2,9 +2,9 @@
 useHead({ title: 'Articoli · NostrMediaClient' })
 
 /**
- * Si leggono anche i 30024: NIP-23 li dichiara deprecati, ma chi ha usato
- * altri client ne ha, e non mostrarli significherebbe far sparire testi che
- * l'utente sa di avere scritto.
+ * The 30024s are read too: NIP-23 declares them deprecated, but whoever has
+ * used other clients has some, and not showing them would make texts the user
+ * knows they wrote disappear.
  */
 const elenco = useEventiPropri([30023, 30024], { limite: 100 })
 const bozzeLocali = useBozzeLocali()

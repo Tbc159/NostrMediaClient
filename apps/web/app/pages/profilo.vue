@@ -27,34 +27,34 @@ const nip05 = ref('')
 const lud16 = ref('')
 const bot = ref(false)
 
-/** Vero quando si e' partiti da un profilo gia' pubblicato. */
+/** True when we started from an already published profile. */
 const daPubblicato = ref(false)
 
 /*
- * Cio' che nel profilo pubblicato non ha un campo qui.
+ * What in the published profile has no field here.
  *
- * Il kind 0 e' un JSON libero e i client ci scrivono quello che vogliono —
- * `pronouns`, `birthday`, estensioni proprie. Il profilo e' sostituibile:
- * salvarlo da questa pagina riscrive tutto, e senza tenerli da parte quei
- * campi sparirebbero al primo salvataggio. Non si mostrano modificabili
- * perche' un valore puo' essere un oggetto, non una riga di testo: si
- * elencano e si ripubblicano com'erano.
+ * Kind 0 is free-form JSON and the clients write what they like in it —
+ * `pronouns`, `birthday`, extensions of their own. The profile is replaceable:
+ * saving it from this page rewrites everything, and without setting those
+ * fields aside they would vanish on the first save. They are not shown
+ * editable because a value can be an object, not a line of text: they are
+ * listed and republished as they were.
  */
 const campiEstranei = ref<Record<string, unknown>>({})
 const nomiCampiEstranei = computed(() => Object.keys(campiEstranei.value))
 
-/** I tag del profilo: il kind 0 non ne scrive, quindi tutto cio' che c'era resta. */
+/** The profile's tags: kind 0 writes none, so everything that was there stays. */
 const nomiDelFormProfilo = ['client']
 const conservatiProfilo = useTagConservati(nomiDelFormProfilo)
 const tagExtraProfilo = conservatiProfilo.tags
 
 /**
- * Il profilo e' **replaceable**: esiste una sola versione per pubkey, e
- * ripubblicarlo sostituisce quella precedente per intero.
+ * The profile is **replaceable**: there is a single version per pubkey, and
+ * republishing it replaces the previous one entirely.
  *
- * Da qui la conseguenza che rende obbligatorio caricare prima: un campo
- * lasciato vuoto non resta com'era, **sparisce**. Pubblicare un profilo
- * composto da zero cancellerebbe tutto quello che c'e' gia'.
+ * Hence the consequence that makes loading first compulsory: a field left
+ * empty does not stay as it was, it **disappears**. Publishing a profile
+ * composed from scratch would delete everything already there.
  */
 async function carica(): Promise<void> {
   const trovato = await esistente.perCoordinata(0)
@@ -74,8 +74,8 @@ async function carica(): Promise<void> {
     nip05.value = dati.nip05 ?? ''
     lud16.value = dati.lud16 ?? ''
     bot.value = dati.bot === true
-    // Tutto quello che non ha un campo in questa pagina: si conserva e si
-    // riscrive identico, senza provare a interpretarlo.
+    // Everything that has no field on this page: it is kept and rewritten
+    // identical, without trying to interpret it.
     const noti = new Set([
       'name',
       'display_name',
@@ -117,13 +117,13 @@ function componi(): void {
     return
   }
 
-  // I campi vuoti non vengono scritti: la definizione li scarta, e un campo
-  // presente ma vuoto verrebbe letto come "impostato a niente".
+  // The empty fields are not written: the definition discards them, and a
+  // field present but empty would be read as "set to nothing".
   bozza.costruisci(
     definizione,
     {
-      // Prima i campi altrui: quelli qui sotto hanno la precedenza se per caso
-      // un client ha usato lo stesso nome con un valore diverso.
+      // Other people's fields first: the ones below take precedence should a
+      // client happen to have used the same name with a different value.
       ...campiEstranei.value,
       name: nome.value.trim() || undefined,
       display_name: nomeVisualizzato.value.trim() || undefined,
@@ -139,16 +139,16 @@ function componi(): void {
   )
 }
 
-// ─── Podcast di cui sono autore (NIP-F4, kind 10064) ──────────────────────
+// ─── The podcasts I am an author of (NIP-F4, kind 10064) ──────────────────
 /*
- * L'altra meta' del cerchio. La scheda del podcast dice chi sono gli autori,
- * ma «un podcast puo' attribuirsi chiunque»: e' l'autore, dalla sua chiave,
- * a confermare. Facoltativo e chiuso di default: serve solo a chi lavora per
- * un podcast che non e' la propria identita' — per esempio con una delega.
+ * The other half of the circle. The podcast's card says who the authors are,
+ * but «a podcast can claim anyone»: it is the author, from their key, who
+ * confirms. Optional and closed by default: only whoever works for a podcast
+ * that is not their own identity needs it — with a delegation, for instance.
  */
 const bozzaAutore = useEventDraft()
 const autoreEsistente = useEventoEsistente()
-/** Il 10064 scrive solo `p`: qualunque altra cosa ci fosse resta. */
+/** The 10064 writes `p` alone: whatever else was there stays. */
 const nomiDelFormAutore = ['p', 'client']
 const conservatiAutore = useTagConservati(nomiDelFormAutore)
 const tagExtraAutore = conservatiAutore.tags
@@ -168,7 +168,7 @@ async function caricaAutore(): Promise<void> {
     conservatiAutore.fotografa(definizione, trovato, { podcasts: podcastDiCuiSonoAutore.value })
     mostraAutore.value = podcastDiCuiSonoAutore.value.length > 0
   } catch {
-    // Lista malformata: si riparte da vuoto invece di bloccare il profilo.
+    // A malformed list: we start again from empty instead of blocking the profile.
   }
 }
 
@@ -202,9 +202,9 @@ function componiAutore(): void {
   )
 }
 
-// Arrivando da una delega appena collegata (`?autore-di=<npub>`), la chiave
-// del podcast e' gia' nel campo e la sezione e' aperta: il rimando ha senso
-// solo se non costringe a ricopiare.
+// Arriving from a just-connected delegation (`?autore-di=<npub>`), the
+// podcast's key is in the field already and the section is open: the pointer
+// only makes sense if it does not force you to copy it out again.
 onMounted(() => {
   const suggerito = rotta.query['autore-di']
   if (typeof suggerito === 'string' && suggerito) {
@@ -215,14 +215,14 @@ onMounted(() => {
 
 // ─── Podcast (NIP-F4) ──────────────────────────────────────────────────────
 /*
- * Sta qui e non nella sezione media perche' NIP-F4 modella ogni podcast come
- * una *chiave a se'*: la scheda dello show appartiene all'identita', non a un
- * singolo episodio. I lettori di podcast leggono questa e possono ignorare del
- * tutto il kind 0.
+ * It is here and not in the media section because NIP-F4 models every podcast
+ * as a *key of its own*: the show's card belongs to the identity, not to a
+ * single episode. Podcast players read this one and can ignore kind 0
+ * entirely.
  */
 const bozzaPodcast = useEventDraft()
 const podcastEsistente = useEventoEsistente()
-/** I tag della scheda del podcast che questo form non scrive. */
+/** The podcast card's tags that this form does not write. */
 const nomiDelFormPodcast = [
   'title',
   'description',
@@ -238,10 +238,10 @@ const nomiDelFormPodcast = [
 const conservatiPodcast = useTagConservati(nomiDelFormPodcast)
 const tagExtraPodcast = conservatiPodcast.tags
 /*
- * La scheda si ridistribuisce da qui, non solo da «Eventi»: e' il posto dove
- * la si modifica, ed e' dopo una modifica che ci si accorge che sta su un
- * relay solo. Si manda la versione piu' recente che questa pagina conosce —
- * quella appena pubblicata, se c'e', altrimenti quella letta dai relay.
+ * The card is redistributed from here, not from «Events» alone: this is the
+ * place it is edited, and it is after an edit that you notice it sits on a
+ * single relay. The most recent version this page knows is sent — the one just
+ * published, when there is one, otherwise the one read from the relays.
  */
 const ridistribuzionePodcast = useRidistribuzione()
 const schedaDaRidistribuire = computed(() =>
@@ -259,9 +259,9 @@ const podcastTitolo = ref('')
 const podcastDescrizione = ref('')
 const podcastImmagine = ref('')
 /**
- * I siti dello show: il primo e' il `<link>` del feed, gli altri sono i link
- * dello show sulle piattaforme (Apple, Spotify…). NIP-F4 ammette piu'
- * `website`, quindi non serve un tag apposta: si riconoscono dal dominio.
+ * The show's websites: the first is the feed's `<link>`, the others are the
+ * show's links on the platforms (Apple, Spotify…). NIP-F4 allows several
+ * `website`s, so no special tag is needed: they are recognised by their domain.
  */
 const podcastSiti = ref<string[]>([])
 const nuovoSito = ref('')
@@ -269,11 +269,12 @@ const haPodcast = ref(false)
 const mostraPodcast = ref(false)
 
 /*
- * Oltre NIP-F4: cio' che le piattaforme pretendono nel feed.
+ * Beyond NIP-F4: what the platforms demand in the feed.
  *
- * Categoria (Apple, Amazon), lingua, email per la verifica della proprieta'
- * (Spotify, Amazon, YouTube), explicit. NIP-F4 non li prevede; stanno nel
- * 10154 con tag semplici che il servizio del feed sa leggere.
+ * The category (Apple, Amazon), the language, the email for the ownership
+ * verification (Spotify, Amazon, YouTube), the explicit flag. NIP-F4 does not
+ * provide for them; they sit in the 10154 with simple tags the feed's service
+ * can read.
  */
 const podcastCategorie = ref<CategoriaPodcast[]>([])
 const nuovaPrincipale = ref('')
@@ -307,7 +308,7 @@ function togliCategoria(i: number): void {
 const etichettaCategoria = (c: CategoriaPodcast): string =>
   c.sotto ? `${c.principale} › ${c.sotto}` : c.principale
 
-/** Il nome della piattaforma a cui un sito appartiene, dal dominio; altrimenti «sito». */
+/** The name of the platform a website belongs to, from the domain; otherwise «sito». */
 function etichettaSito(url: string): string {
   try {
     const host = new URL(url).hostname.toLowerCase()
@@ -333,9 +334,9 @@ function togliSito(url: string): void {
 }
 
 /**
- * Gli autori dichiarati dalla scheda, con il ruolo (`host`, `cohost`,
- * `editor`). E' la meta' del riscontro che sta dal lato del podcast: l'altra
- * e' il kind 10064 pubblicato da ciascun autore sulla propria chiave.
+ * The authors the card declares, with their role (`host`, `cohost`,
+ * `editor`). It is the half of the cross-check on the podcast's side: the
+ * other is the kind 10064 each author publishes on their own key.
  */
 const podcastAutori = ref<{ pubkey: string; role: string }[]>([])
 const nuovoAutore = ref('')
@@ -366,12 +367,12 @@ function togliAutorePodcast(hex: string): void {
 }
 
 /*
- * Chi firma la scheda.
+ * Who signs the card.
  *
- * La scheda sta sulla chiave del podcast. Se quella chiave e' un'altra —
- * un banco aperto in un'altra sessione — si sceglie qui la delega, e la
- * scheda che si modifica e' la *sua*, non la propria: per questo cambiando
- * firmatario si ricarica il form dalla chiave giusta.
+ * The card sits on the podcast's key. When that key is another one — a desk
+ * open in another session — the delegation is chosen here, and the card being
+ * edited is *its*, not your own: that is why changing signer reloads the form
+ * from the right key.
  */
 const deleghe = useDeleghe()
 const firmaPodcastCon = ref('')
@@ -455,7 +456,7 @@ async function caricaPodcast(): Promise<void> {
     haPodcast.value = true
     mostraPodcast.value = true
   } catch {
-    // Scheda malformata: si lascia il form vuoto invece di bloccare il profilo.
+    // A malformed card: the form is left empty instead of blocking the profile.
   }
 }
 
@@ -465,8 +466,8 @@ function componiPodcast(): void {
     bozzaPodcast.errore.value = 'Kind 10154 non registrato.'
     return
   }
-  // Descrizione e immagine le vuole NIP-F4: la `build` le rifiuta vuote, e il
-  // form le chiede prima invece di lasciar arrivare l'errore.
+  // NIP-F4 wants the description and the image: the `build` refuses them
+  // empty, and the form asks for them first instead of letting the error arrive.
   bozzaPodcast.costruisci(
     definizione,
     {
@@ -485,9 +486,9 @@ function componiPodcast(): void {
 }
 
 /**
- * Un sito scritto senza schema — «tbc159.github.io/…» — finisce nel feed RSS
- * come `<link>`, e i validatori lo rifiutano perche' non e' un URL. Meglio
- * completarlo qui che scoprirlo su Podcast Index.
+ * A website written without a scheme — «tbc159.github.io/…» — ends up in the
+ * RSS feed as the `<link>`, and the validators refuse it because it is not a
+ * URL. Better to complete it here than to find out on Podcast Index.
  */
 const conSchema = (sito: string): string => {
   const s = sito.trim()
@@ -580,10 +581,10 @@ const valori = { nome, nomeVisualizzato, immagine, copertina, sito, nip05, lud16
             />
 
             <!--
-              I campi JSON di altri client non si modificano da qui: un valore
-              puo' essere un oggetto, e un editor JSON in mezzo al profilo
-              sarebbe un invito a romperlo. Si dice che ci sono e che
-              restano — che e' cio' che conta sapere.
+              Other clients' JSON fields are not edited from here: a value can
+              be an object, and a JSON editor in the middle of the profile
+              would be an invitation to break it. We say that they are there
+              and that they stay — which is what matters to know.
             -->
             <p v-if="nomiCampiEstranei.length" class="text-xs text-[var(--testo-tenue)]">
               Nel profilo pubblicato ci sono anche
@@ -854,7 +855,7 @@ const valori = { nome, nomeVisualizzato, immagine, copertina, sito, nip05, lud16
                 </BaseAlert>
               </div>
 
-              <!-- ── Chi firma ── -->
+              <!-- ── Who signs ── -->
               <BaseField
                 v-if="deleghe.elenco.length"
                 v-slot="{ id }"
@@ -930,12 +931,12 @@ const valori = { nome, nomeVisualizzato, immagine, copertina, sito, nip05, lud16
         </BaseCard>
 
         <!--
-          Il feed sta qui e non fra i media: e' la scheda del podcast vista da
-          fuori Nostr, e si verifica subito dopo averla modificata.
+          The feed is here and not among the media: it is the podcast's card
+          seen from outside Nostr, and it is checked right after editing it.
         -->
         <MediaFeedRss />
 
-        <!-- ─────────── Podcast di cui sono autore (NIP-F4) ─────────── -->
+        <!-- ─────────── The podcasts I am an author of (NIP-F4) ─────────── -->
         <BaseCard
           title="Podcast di cui sono autore"
           subtitle="Kind 10064, facoltativo. Per chi lavora a un podcast che è un’altra chiave: la scheda del podcast può nominarti, ma sei tu a confermare."

@@ -4,16 +4,16 @@ import { describe, expect, it } from 'vitest'
 import { costruttiNonRicostruibili, markdownDaHtml } from '../app/composables/useMarkdown'
 
 /**
- * Il giro dell'editor formattato: Markdown → HTML → Markdown.
+ * The formatted editor's round trip: Markdown → HTML → Markdown.
  *
- * Quello che conta non e' che la conversione funzioni in astratto, ma che il
- * testo **torni uguale**: l'editor riscrive la sorgente a ogni modifica, e una
- * differenza che si accumula a ogni giro allontanerebbe l'articolo da come
- * l'ha scritto il suo autore.
+ * What counts is not that the conversion works in the abstract, but that the
+ * text **comes back the same**: the editor rewrites the source on every
+ * change, and a difference that accumulated on every round trip would take the
+ * article away from how its author wrote it.
  *
- * Qui si prova la coppia marked → turndown senza DOMPurify, che vuole un DOM e
- * vive nel browser: e' la conversione a poter perdere pezzi, non la
- * sanificazione.
+ * The marked → turndown pair is tested here without DOMPurify, which wants a
+ * DOM and lives in the browser: it is the conversion that can lose pieces, not
+ * the sanitising.
  */
 
 const html = (md: string): string =>
@@ -21,7 +21,7 @@ const html = (md: string): string =>
 const giro = (md: string): string => markdownDaHtml(html(md))
 
 describe('Markdown → HTML → Markdown', () => {
-  it('riporta indietro identico ciò che l’editor sa scrivere', () => {
+  it('brings back identical what the editor can write', () => {
     const md = [
       '## Titolo di sezione',
       '',
@@ -46,27 +46,28 @@ describe('Markdown → HTML → Markdown', () => {
     expect(giro(md)).toBe(md)
   })
 
-  it('è stabile: il secondo giro non cambia più nulla', () => {
-    // E' la proprieta' che conta davvero: l'editor converte a ogni tasto, e
-    // una differenza che si ripresenta a ogni giro farebbe crescere il testo.
+  it('is stable: the second round trip changes nothing more', () => {
+    // It is the property that really counts: the editor converts on every
+    // keystroke, and a difference recurring on every round trip would make the
+    // text grow.
     const uno = giro('# Titolo\n\nTesto con *corsivo* e - elenco\n- a\n- b')
     expect(giro(uno)).toBe(uno)
   })
 
-  it('normalizza la sintassi equivalente invece di inventare contenuto', () => {
-    // `*corsivo*` diventa `_corsivo_`, un titolo setext diventa `#`: cambia il
-    // simbolo, non il testo. E' il prezzo dichiarato dell'editor formattato.
+  it('normalises the equivalent syntax instead of inventing content', () => {
+    // `*corsivo*` becomes `_corsivo_`, a setext heading becomes `#`: the
+    // symbol changes, not the text. It is the declared price of the formatted editor.
     expect(giro('*corsivo*')).toBe('_corsivo_')
     expect(giro('Titolo\n======')).toBe('# Titolo')
   })
 
-  it('non lascia righe vuote che si accumulano', () => {
+  it('leaves no blank lines that pile up', () => {
     expect(giro('a\n\n\n\n\nb')).toBe('a\n\nb')
   })
 
-  it('le voci di un elenco non si allargano con righe vuote', () => {
-    // E' la forma che produce l'editor: <li><p>…</p></li>. Senza la regola, fra
-    // una voce e l'altra resta una riga vuota e l'elenco diventa «largo».
+  it("does not loosen a list's items with blank lines", () => {
+    // It is the form the editor produces: <li><p>…</p></li>. Without the rule,
+    // a blank line is left between the items and the list becomes «loose».
     expect(markdownDaHtml('<ul><li><p>uno</p></li><li><p>due</p></li></ul>')).toBe(
       '-   uno\n-   due',
     )
@@ -75,26 +76,26 @@ describe('Markdown → HTML → Markdown', () => {
     )
   })
 
-  it('un paragrafo vuoto non diventa una riga di spazi', () => {
-    // Due spazi a fine riga, in Markdown, sono un'interruzione di riga: un
-    // paragrafo lasciato vuoto nell'editor non deve pubblicarne una.
+  it('does not turn an empty paragraph into a line of spaces', () => {
+    // Two spaces at the end of a line, in Markdown, are a line break: a
+    // paragraph left empty in the editor must not publish one.
     expect(markdownDaHtml('<p>a</p><p><br></p><p>b</p>')).toBe('a\n\nb')
   })
 })
 
 describe('costruttiNonRicostruibili', () => {
-  it('non trova nulla in un testo normale', () => {
+  it('finds nothing in an ordinary text', () => {
     expect(
       costruttiNonRicostruibili('# Titolo\n\nUn **testo** con [link](https://x.tld).'),
     ).toEqual([])
   })
 
-  it('riconosce una tabella e dice a quale riga', () => {
+  it('recognises a table and says on which line', () => {
     const md = 'Prima\n\n| a | b |\n| - | - |\n| 1 | 2 |'
     expect(costruttiNonRicostruibili(md)).toEqual([{ nome: 'tabelle', riga: 3 }])
   })
 
-  it('riconosce note a piè di pagina, HTML a mano e link per riferimento', () => {
+  it('recognises footnotes, hand-written HTML and reference links', () => {
     const nomi = costruttiNonRicostruibili(
       'Testo con nota[^1].\n\n<div class="x">blocco</div>\n\n[rif]: https://x.tld\n\n[^1]: la nota',
     ).map((p) => p.nome)
@@ -103,12 +104,12 @@ describe('costruttiNonRicostruibili', () => {
     expect(nomi).toContain('link per riferimento')
   })
 
-  it('dentro un blocco di codice non vede costrutti: è testo, non sintassi', () => {
+  it('sees no constructs inside a code block: it is text, not syntax', () => {
     const md = 'Esempio:\n\n```\n| a | b |\n<div>ciao</div>\n```\n\nFine.'
     expect(costruttiNonRicostruibili(md)).toEqual([])
   })
 
-  it('una tabella davvero non sopravvive al giro: è per questo che si avvisa', () => {
+  it('confirms a table really does not survive the round trip: that is why we warn', () => {
     const md = '| a | b |\n| - | - |\n| 1 | 2 |'
     expect(giro(md)).not.toContain('|')
   })

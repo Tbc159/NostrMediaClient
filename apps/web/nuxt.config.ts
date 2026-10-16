@@ -1,12 +1,12 @@
 import tailwindcss from '@tailwindcss/vite'
 
 /*
- * Percorso di base della pubblicazione.
+ * The publication's base path.
  *
- * Su GitHub Pages il sito vive in una sottocartella, e serve gia' qui — non a
- * runtime — perche' l'icona deve stare nell'HTML **generato**: il browser
- * chiede la favicon prima che il JavaScript parta, e un `useHead` arriverebbe
- * troppo tardi, lasciando un 404 a ogni caricamento.
+ * On GitHub Pages the site lives in a subfolder, and it is needed here
+ * already — not at runtime — because the icon has to be in the **generated**
+ * HTML: the browser asks for the favicon before the JavaScript starts, and a
+ * `useHead` would arrive too late, leaving a 404 on every load.
  */
 const base = process.env.NUXT_APP_BASE_URL ?? '/'
 
@@ -28,9 +28,9 @@ export default defineNuxtConfig({
   css: ['~/assets/css/main.css'],
 
   vite: {
-    // Tailwind 4 si integra con il plugin Vite, non con @nuxtjs/tailwindcss:
-    // quel modulo supporta ancora solo la 3.4. La configurazione del tema
-    // vive in CSS, in assets/css/main.css, tramite @theme.
+    // Tailwind 4 integrates with the Vite plugin, not with @nuxtjs/tailwindcss:
+    // that module still supports 3.4 alone. The theme's configuration lives in
+    // CSS, in assets/css/main.css, through @theme.
     plugins: [tailwindcss()],
   },
 
@@ -40,24 +40,24 @@ export default defineNuxtConfig({
   },
 
   /**
-   * Regola di sicurezza (sezione 4 del piano): l'SSR copre solo dati pubblici.
-   * Feed personale, DM e impostazioni restano client-only, perche' il payload
-   * SSR viene serializzato dentro l'HTML e non deve mai contenere materiale
-   * di identita'.
+   * A security rule (section 4 of the plan): SSR covers public data alone.
+   * The personal feed, the DMs and the settings stay client-only, because the
+   * SSR payload is serialised inside the HTML and must never contain identity
+   * material.
    */
   routeRules: {
     '/': { ssr: false },
     '/messages/**': { ssr: false },
     '/settings/**': { ssr: false },
-    // La diagnostica apre WebSocket verso i relay: e' per forza client-only.
+    // The diagnostics opens WebSockets to the relays: it has to be client-only.
     '/diagnostica': { ssr: false },
-    // Composizione e impostazioni toccano identita' e chiavi: mai in SSR,
-    // dove lo stato finirebbe serializzato nel payload HTML.
+    // Composing and the settings touch identities and keys: never in SSR,
+    // where the state would end up serialised in the HTML payload.
     '/impostazioni': { ssr: false },
     '/scrivi': { ssr: false },
     '/calendario/**': { ssr: false },
-    // Media e articoli leggono dai relay e caricano su Blossom: tutto client.
-    // Le due forme servono entrambe: `/**` non copre la rotta senza segmenti.
+    // Media and articles read from the relays and upload to Blossom: all client.
+    // Both forms are needed: `/**` does not cover the route with no segments.
     '/media': { ssr: false },
     '/media/**': { ssr: false },
     '/articoli': { ssr: false },
@@ -65,12 +65,12 @@ export default defineNuxtConfig({
     '/calendario': { ssr: false },
     '/profilo': { ssr: false },
     /*
-     * Route pubbliche: SSR attivo per le anteprime Open Graph.
+     * The public routes: SSR on, for the Open Graph previews.
      *
-     * Su un host statico — GitHub Pages — l'SSR non esiste e queste regole non
-     * hanno effetto: le anteprime dei link richiedono un host Node. La build
-     * statica resta comunque completa, perche' tutto il resto e' gia'
-     * client-only per scelta di sicurezza.
+     * On a static host — GitHub Pages — SSR does not exist and these rules
+     * have no effect: link previews require a Node host. The static build is
+     * complete all the same, because everything else is client-only already by
+     * a security choice.
      */
     '/a/**': { ssr: true },
     '/e/**': { ssr: true },
@@ -80,16 +80,16 @@ export default defineNuxtConfig({
   runtimeConfig: {
     public: {
       /*
-       * Popolate dalle variabili NUXT_PUBLIC_* — vedi .env.example.
+       * Populated from the NUXT_PUBLIC_* variables — see .env.example.
        *
-       * I valori qui sono **default di primo avvio su endpoint pubblici**, non
-       * scelte di progetto: servono a far partire il client senza `.env`, che
-       * e' il caso di chi lo prova appena clonato e di una build statica
-       * pubblicata. Restano tutti sostituibili dalle impostazioni.
+       * The values here are **first-run defaults on public endpoints**, not
+       * design choices: they are there to get the client started without a
+       * `.env`, which is the case of whoever tries it freshly cloned and of a
+       * published static build. They all stay replaceable from the settings.
        *
-       * Il relay per le bozze resta **vuoto di proposito**: un default pubblico
-       * la' significherebbe mandare le bozze di chi non ha configurato nulla su
-       * un relay altrui.
+       * The relay for the drafts stays **deliberately empty**: a public
+       * default there would mean sending the drafts of whoever has configured
+       * nothing to somebody else's relay.
        */
       defaultReadRelays: 'wss://relay.damus.io,wss://nos.lol,wss://relay.primal.net',
       defaultWriteRelays: 'wss://nos.lol,wss://relay.primal.net',
@@ -100,18 +100,17 @@ export default defineNuxtConfig({
       njumpUrl: 'https://njump.me',
 
       /*
-       * Servizio di elaborazione (sezione Audio).
+       * The processing service (the Audio section).
        *
-       * Archivio ed elaborazione audio sono domini dello stesso microservizio.
-       * L'indirizzo qui e' quello **oggi funzionante**,
-       * perche' una sezione che si apre chiedendo un indirizzo non e'
-       * utilizzabile da chi non lo conosce. Resta sostituibile dalle
-       * impostazioni.
+       * The archive and the audio processing are domains of the same
+       * microservice. The address here is the one **working today**, because a
+       * section that opens by asking for an address is of no use to whoever
+       * does not know it. It stays replaceable from the settings.
        *
-       * La chiave resta **vuota di proposito**: e' una credenziale, e i valori
-       * `public` finiscono nel bundle servito al browser. Chi sviluppa la mette
-       * nel proprio `.env`; una build pubblica, che quel `.env` non ce l'ha,
-       * parte senza chiave e lo dice nelle impostazioni.
+       * The key stays **deliberately empty**: it is a credential, and the
+       * `public` values end up in the bundle served to the browser. Whoever
+       * develops puts it in their own `.env`; a public build, which does not
+       * have that `.env`, starts without a key and says so in the settings.
        */
       mediaManagerUrl: 'https://mediamanager-dev.duckdns.org',
       mediaManagerApiKey: '',

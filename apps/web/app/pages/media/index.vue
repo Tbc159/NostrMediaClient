@@ -2,10 +2,10 @@
 useHead({ title: 'Media · NostrMediaClient' })
 
 /**
- * Kind 20, 21, 22, 1063 e 54 insieme: sono modi diversi di descrivere la
- * stessa cosa — un file su un server, riferito da un evento — e separarli in
- * cinque elenchi costringerebbe l'utente a ricordare con quale kind aveva
- * pubblicato.
+ * Kinds 20, 21, 22, 1063 and 54 together: they are different ways of
+ * describing the same thing — a file on a server, referred to by an event —
+ * and separating them into five lists would force the user to remember which
+ * kind they had published with.
  */
 const elenco = useEventiPropri([20, 21, 22, 1063, 54], { limite: 100 })
 

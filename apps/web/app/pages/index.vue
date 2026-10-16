@@ -4,19 +4,20 @@ import { publishableKinds } from '@nmc/nostr-core'
 useHead({ title: 'NostrMediaClient' })
 
 /**
- * Tutto quello che questo client sa pubblicare, in un elenco solo.
+ * Everything this client can publish, in a single list.
  *
- * L'insieme arriva dal registry e non da una lista scritta a mano: registrare
- * un kind nuovo lo fa comparire qui senza toccare questa pagina, che e' il
- * punto dell'intera struttura dei kind. Restano fuori gli effimeri, che NIP-01
- * dice ai relay di non conservare — interrogarli darebbe sempre il vuoto.
+ * The set comes from the registry and not from a hand-written list:
+ * registering a new kind makes it appear here without touching this page,
+ * which is the point of the whole kind structure. The ephemerals stay out,
+ * which NIP-01 tells relays not to keep — querying them would always give
+ * nothing.
  */
 const kinds = publishableKinds()
 const LIMITE = 100
 
 const elenco = useEventiPropri(kinds, { limite: LIMITE })
 
-/** `null` significa "tutti": e' un filtro, non una selezione obbligata. */
+/** `null` means "all": it is a filter, not a forced choice. */
 const filtro = ref<number | null>(null)
 
 const conteggi = computed(() => {
@@ -32,9 +33,9 @@ const mostrati = computed(() =>
 )
 
 /*
- * Il filtro lavora su quello che e' gia' stato letto, senza tornare ai relay:
- * gli eventi ci sono tutti, e una seconda interrogazione aggiungerebbe attesa
- * per mostrare un sottoinsieme di dati che sono gia' in pagina.
+ * The filter works on what has been read already, without going back to the
+ * relays: every event is there, and a second query would add waiting in order
+ * to show a subset of data that are on the page already.
  */
 watch(
   () => elenco.eventi.value,

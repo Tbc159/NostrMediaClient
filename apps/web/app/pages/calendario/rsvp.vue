@@ -6,7 +6,7 @@ const bozza = useEventDraft()
 const esistente = useEventoEsistente()
 const rotta = useRoute()
 
-/** Vero quando si sta cambiando una risposta gia' data. */
+/** True when an answer already given is being changed. */
 const modifica = ref(false)
 
 useHead({
@@ -14,7 +14,7 @@ useHead({
 })
 
 const identificatore = ref(newCalendarIdentifier())
-/** Coordinata dell'evento a cui si risponde: `<kind>:<pubkey>:<d>`. */
+/** The coordinate of the event being answered: `<kind>:<pubkey>:<d>`. */
 const coordinata = ref('')
 const stato = ref<'accepted' | 'declined' | 'tentative'>('accepted')
 const disponibilita = ref<'busy' | 'free'>('busy')
@@ -28,7 +28,7 @@ const risposte = [
 
 const coordinataValida = computed(() => /^\d+:[0-9a-f]{64}:.*$/i.test(coordinata.value.trim()))
 
-/** I tag della risposta che questo form non scrive, conservati alla lettera. */
+/** The answer's tags that this form does not write, kept to the letter. */
 const nomiDelForm = ['d', 'a', 'e', 'status', 'fb', 'p', 'client']
 const conservati = useTagConservati(nomiDelForm)
 const tagExtra = conservati.tags
@@ -36,7 +36,7 @@ const tagExtra = conservati.tags
 onMounted(async () => {
   const d = rotta.query.d
   const a = rotta.query.a
-  // Arrivando da un evento di calendario si riceve la coordinata a cui rispondere.
+  // Arriving from a calendar event we receive the coordinate to answer.
   if (typeof a === 'string' && a) coordinata.value = a
   if (typeof d === 'string' && d) await riapri(d)
 })
@@ -51,9 +51,9 @@ async function riapri(d: string): Promise<void> {
   try {
     const dati = definizione.parse(trovato)
     modifica.value = true
-    // L'identificatore resta quello: e' cio' che rende questa una sostituzione
-    // della risposta precedente invece di una seconda risposta allo stesso
-    // evento, che lascerebbe l'organizzatore con due RSVP contraddittori.
+    // The identifier stays as it was: it is what makes this a replacement of
+    // the previous answer instead of a second answer to the same event, which
+    // would leave the organiser with two contradictory RSVPs.
     identificatore.value = dati.identifier
     coordinata.value = dati.eventAddress
     stato.value = dati.status
@@ -84,11 +84,11 @@ function componi(): void {
       identifier: identificatore.value,
       eventAddress: coordinata.value.trim(),
       status: stato.value,
-      // La disponibilita' su un rifiuto non ha senso e la definizione la scarta:
-      // non la si manda nemmeno.
+      // Availability on a refusal makes no sense and the definition discards
+      // it: it is not even sent.
       ...(stato.value === 'declined' ? {} : { freebusy: disponibilita.value }),
       ...(nota.value.trim() ? { note: nota.value.trim() } : {}),
-      // L'organizzatore va avvisato: e' la pubkey dentro la coordinata.
+      // The organiser is to be notified: it is the pubkey inside the coordinate.
       ...(coordinataValida.value ? { organizer: coordinata.value.split(':')[1] } : {}),
     },
     { aggiuntivi: tagExtra.value },

@@ -3,22 +3,22 @@ useHead({ title: 'Calendario · NostrMediaClient' })
 
 const elenco = useEventiPropri([31922, 31923], { limite: 100 })
 
-/** Istante di inizio, per ordinare eventi con e senza orario nella stessa lista. */
+/** The starting instant, to order events with and without a time in the same list. */
 function inizio(tags: string[][], kind: number): number {
   const grezzo = tags.find((t) => t[0] === 'start')?.[1]
   if (!grezzo) return 0
   if (kind === 31923) return Number.parseInt(grezzo, 10) || 0
-  // Il 31922 non ha orario: si ancora a mezzanotte UTC solo per ordinare.
+  // The 31922 has no time: it is anchored to UTC midnight only to order it.
   return Math.floor(Date.parse(`${grezzo}T00:00:00Z`) / 1000) || 0
 }
 
 const adesso = Math.floor(Date.now() / 1000)
 
 /**
- * Ordinati per data dell'evento, non per data di pubblicazione.
+ * Ordered by the event's date, not by the publication's.
  *
- * `useTimeline` ordina per `created_at`, che per un calendario e' la cosa
- * sbagliata: interessa quando l'evento *accade*, non quando e' stato scritto.
+ * `useTimeline` orders by `created_at`, which for a calendar is the wrong
+ * thing: what matters is when the event *happens*, not when it was written.
  */
 const ordinati = computed(() =>
   [...elenco.eventi.value].sort((a, b) => inizio(a.tags, a.kind) - inizio(b.tags, b.kind)),

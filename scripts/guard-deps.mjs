@@ -1,20 +1,20 @@
 #!/usr/bin/env node
 /**
- * Guardia sulle dipendenze critiche del monorepo.
+ * A guard on the monorepo's critical dependencies.
  *
- * Blinda le due trappole individuate in fase di specifica (docs/adr/0002):
+ * It armours the two traps identified during the specification (docs/adr/0002):
  *
- *  1. `applesauce-factory` e' fermo alla 4.x e dipende da applesauce-core@^4.3.0,
- *     mentre il resto della famiglia e' 6.2.x. Installarlo significa avere due
- *     copie di applesauce-core in bundle, quindi due identita' della classe
- *     EventStore: gli `instanceof` falliscono e gli eventi non si propagano.
- *     Nella 6.x le factory vivono in `applesauce-core/factories`.
+ *  1. `applesauce-factory` is stuck at 4.x and depends on applesauce-core@^4.3.0,
+ *     while the rest of the family is 6.2.x. Installing it means having two
+ *     copies of applesauce-core in the bundle, hence two identities of the
+ *     EventStore class: the `instanceof`s fail and the events do not
+ *     propagate. In 6.x the factories live in `applesauce-core/factories`.
  *
- *  2. applesauce-core e applesauce-relay dichiarano `"nostr-tools": "~2.19"`.
- *     Se un package del workspace chiede ^2.25 si ottengono due copie di
- *     nostr-tools, con due tabelle di codifica nip19 distinte.
+ *  2. applesauce-core and applesauce-relay declare `"nostr-tools": "~2.19"`.
+ *     If a package of the workspace asks for ^2.25 you get two copies of
+ *     nostr-tools, with two distinct nip19 encoding tables.
  *
- * Esce con codice 1 al primo problema, cosi' la CI si ferma.
+ * It exits with code 1 on the first problem, so the CI stops.
  */
 
 import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs'
@@ -23,19 +23,19 @@ import { fileURLToPath } from 'node:url'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 
-/** Pacchetti che non devono comparire in nessun package.json del workspace. */
+/** The packages that must not appear in any package.json of the workspace. */
 const FORBIDDEN = {
   'applesauce-factory':
     'fermo alla 4.x, tira dentro una seconda copia di applesauce-core. ' +
     'Le factory della 6.x sono in `applesauce-core/factories`.',
 }
 
-/** Pacchetti che devono essere pinnati a una versione esatta. */
+/** The packages that have to be pinned to an exact version. */
 const PINNED = {
   'nostr-tools': '2.19.4',
 }
 
-/** Famiglie che devono risolversi a una sola copia in node_modules. */
+/** The families that have to resolve to a single copy in node_modules. */
 const SINGLETONS = ['applesauce-core', 'nostr-tools']
 
 const DEP_FIELDS = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies']
@@ -75,8 +75,8 @@ for (const manifestPath of findPackageJsons(ROOT)) {
       }
       if (PINNED[name]) {
         const expected = PINNED[name]
-        // Accetta sia il pin diretto sia il riferimento al catalog di pnpm,
-        // che a sua volta e' verificato piu' sotto.
+        // It accepts both the direct pin and the reference to pnpm's catalog,
+        // which is itself checked further down.
         const viaCatalog = range === 'catalog:' || range.startsWith('catalog:')
         if (!viaCatalog && range !== expected) {
           problems.push(
@@ -107,13 +107,13 @@ if (existsSync(workspaceFile)) {
   }
 }
 
-// --- 3. Controllo delle copie effettive dopo l'install ----------------------
+// --- 3. Checking the actual copies after the install -----------------------
 
 const store = join(ROOT, 'node_modules', '.pnpm')
 if (existsSync(store)) {
   const entries = readdirSync(store)
   for (const pkg of SINGLETONS) {
-    // Le directory dello store pnpm hanno forma "<nome>@<versione>_<peer-hash>".
+    // The pnpm store's directories have the form "<name>@<version>_<peer-hash>".
     const versions = new Set()
     for (const entry of entries) {
       const m = entry.match(new RegExp(`^${pkg}@(\\d+\\.\\d+\\.\\d+[^_]*)`))
