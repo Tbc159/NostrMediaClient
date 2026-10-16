@@ -16,19 +16,21 @@ import type {
 } from './tipi.js'
 
 /**
- * Client del dominio `audio` del media-manager.
+ * The client for the media-manager's `audio` domain.
  *
- * E' lo **stesso servizio** che compone le immagini e tiene l'archivio: stessa
- * radice, stessa chiave. Sta in un modulo suo perche' e' un dominio distinto
- * del contratto, non perche' sia un'altra installazione.
+ * It is the **same service** that composes images and keeps the archive: same
+ * root, same key. It lives in a module of its own because it is a separate
+ * domain of the contract, not because it is another installation.
  *
- * Tutte le lavorazioni sono job: `POST` risponde 202 con `job_id`, e si segue
- * con `GET /audio/job/{id}`. I job sopravvivono al riavvio del servizio,
- * quindi smettere di attendere non perde il lavoro.
+ * Every processing job is a job: `POST` answers 202 with a `job_id`, and you
+ * follow it with `GET /audio/job/{id}`. Jobs survive a restart of the
+ * service, so giving up waiting does not lose the work.
+ *
+ * The messages stay in Italian: the Audio page shows them.
  */
 
 export interface OpzioniClientAudio {
-  /** Radice del servizio, senza `/v0`. */
+  /** The service's root, without `/v0`. */
   baseUrl: string
   apiKey?: string
   fetch?: typeof globalThis.fetch
@@ -52,12 +54,12 @@ interface RispostaStato {
 }
 
 /**
- * Traduce l'errore diagnostico del servizio in una frase leggibile.
+ * Turns the service's diagnostic error into a readable sentence.
  *
- * Il contratto promette `field`, `value` e `searched_by` proprio perche' un
- * «asset non trovato» da solo non permette di distinguere «ho usato il campo
- * sbagliato» da «il file non c'e'». Buttarli via qui vanificherebbe il lavoro
- * fatto sul servizio per fornirli.
+ * The contract promises `field`, `value` and `searched_by` precisely because
+ * an «asset not found» on its own does not let you tell «I used the wrong
+ * field» from «the file is not there». Throwing them away here would undo the
+ * work done on the service to provide them.
  */
 function spiegaErroreLavoro(e: RispostaStato['error']): string {
   if (!e) return 'motivo non riportato'
@@ -100,7 +102,7 @@ export function creaServizioAudio(opzioni: OpzioniClientAudio): ServizioAudio {
     return lavoro.job_id
   }
 
-  /** Il media con questo titolo, se c'e'. Serve a riusarlo dopo un 409. */
+  /** The medium with this title, when there is one. It is what reuses it after a 409. */
   async function cercaPerTitolo(titolo: string, mime: string): Promise<MediaItem | null> {
     const q = new URLSearchParams({ type: mime, title: titolo })
     const risposta = await chiama(`/media?${q}`, { headers: intestazioni() })
@@ -125,7 +127,7 @@ export function creaServizioAudio(opzioni: OpzioniClientAudio): ServizioAudio {
       modulo.append('file', file, titolo)
       modulo.append('title', titolo)
       modulo.append('media_type', mime)
-      // Nessun content-type a mano: il confine multipart lo scrive fetch.
+      // No content-type by hand: fetch writes the multipart boundary.
       const risposta = await chiama('/media', {
         method: 'POST',
         headers: intestazioni(),
@@ -133,13 +135,13 @@ export function creaServizioAudio(opzioni: OpzioniClientAudio): ServizioAudio {
       })
 
       /*
-       * Un 409 non e' un errore: e' «ce l'ho gia'».
+       * A 409 is not an error: it is «I have it already».
        *
-       * Rielaborare la stessa registrazione e' la cosa piu' normale del mondo —
-       * si riprova con una soglia diversa, si torna il giorno dopo — e senza
-       * questo la seconda volta l'operazione si fermerebbe qui, dicendo che il
-       * file esiste come se fosse un guasto. Il record si ritrova per titolo,
-       * che e' l'unico appiglio prima di aver visto una risposta.
+       * Reprocessing the same recording is the most normal thing in the world
+       * — you try again with a different threshold, you come back the next
+       * day — and without this the second attempt would stop here, saying the
+       * file exists as though that were a fault. The record is found again by
+       * title, which is the only handle available before seeing a response.
        */
       if (risposta.status === 409) {
         const esistente = await cercaPerTitolo(titolo, mime)
@@ -180,8 +182,8 @@ export function creaServizioAudio(opzioni: OpzioniClientAudio): ServizioAudio {
         headers: intestazioni(),
       })
       if (risposta.status === 404) {
-        // Un job che non esiste non e' «in corso»: dirlo com'e' evita
-        // un'attesa che non finirebbe mai.
+        // A job that does not exist is not «in progress»: saying so as it is
+        // avoids a wait that would never end.
         throw new ErroreServizio(`Il servizio non conosce il lavoro ${idLavoro}.`, 404)
       }
       const j = await esitoHttp<RispostaStato>(risposta)
@@ -196,9 +198,9 @@ export function creaServizioAudio(opzioni: OpzioniClientAudio): ServizioAudio {
     },
 
     async scarica(media) {
-      // I byte stanno dietro la chiave: si passa da qui e non da un `fetch`
-      // diretto, che riceverebbe 401. Il `signed_url` serve invece ai tag del
-      // browser, dove le intestazioni non si possono mettere.
+      // The bytes sit behind the key: this is the way through, not a direct
+      // `fetch`, which would get a 401. The `signed_url` is for the browser's
+      // own tags instead, where headers cannot be set.
       const percorso = media.download_url.replace(/^\/?v0/, '')
       const risposta = await chiama(percorso.startsWith('/') ? percorso : `/${percorso}`, {
         headers: intestazioni(),

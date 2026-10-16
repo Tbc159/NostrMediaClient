@@ -4,33 +4,33 @@ import { defineKind } from '../registry.js'
 import { optionalTag, repeatedTags, tagValue, tagValues } from '../tags.js'
 
 /**
- * Kind 30023 — articolo long-form (NIP-23).
+ * Kind 30023 — a long-form article (NIP-23).
  *
- * Il `content` e' **Markdown**, con due divieti espliciti nella specifica:
- * niente HTML, e niente a capo forzati a fine riga. Il secondo sembra un
- * dettaglio tipografico e non lo e': un testo mandato a capo a 80 colonne si
- * legge male su un telefono, dove le righe vengono spezzate una seconda volta.
+ * The `content` is **Markdown**, with two explicit prohibitions in the
+ * specification: no HTML, and no hard line breaks at the end of a line. The
+ * second looks like a typographic detail and is not: text wrapped at 80
+ * columns reads badly on a phone, where the lines get broken a second time.
  *
- * E' addressable, quindi **modificabile davvero**: ripubblicare con lo stesso
- * `d` sostituisce la versione precedente. Da qui la distinzione fra due date
- * che e' facile confondere:
+ * It is addressable, hence **really editable**: republishing with the same `d`
+ * replaces the previous version. Hence the distinction between two dates that
+ * is easy to confuse:
  *
- *   - `created_at` e' l'ultima modifica;
- *   - `published_at` e' la prima pubblicazione, e non cambia mai.
+ *   - `created_at` is the last edit;
+ *   - `published_at` is the first publication, and never changes.
  *
- * Se si aggiorna `published_at` a ogni salvataggio, l'articolo risulta
- * ripubblicato da capo ogni volta e scala i feed cronologici altrui senza
- * motivo.
+ * If `published_at` is updated on every save, the article looks published
+ * afresh every time and climbs other people's chronological feeds for no
+ * reason.
  */
 
 export const articleSchema = z.object({
-  /** Corpo dell'articolo, in Markdown. */
+  /** The article's body, in Markdown. */
   content: z.string(),
   identifier: z.string(),
   title: z.string().optional(),
   summary: z.string().optional(),
   image: z.string().optional(),
-  /** Prima pubblicazione, secondi unix. Non cambia con le modifiche. */
+  /** The first publication, in unix seconds. It does not change with edits. */
   publishedAt: z.number().int().positive().optional(),
   hashtags: z.array(z.string()),
 })
@@ -47,17 +47,17 @@ export interface ArticleInput {
   hashtags?: string[]
 }
 
-/** Identificatore leggibile ricavato dal titolo, per un `d` tag parlante. */
+/** A readable identifier derived from the title, for a `d` tag that speaks. */
 export function slugFromTitle(titolo: string): string {
   const base = titolo
     .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '') // via gli accenti
+    .replace(/[̀-ͯ]/g, '') // away with the accents
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 60)
-  // Un titolo di soli simboli lascerebbe un identificatore vuoto, che come
-  // tag `d` significherebbe "l'articolo senza nome" e collidere con altri.
+  // A title made of symbols alone would leave an empty identifier, which as a
+  // `d` tag would mean "the article with no name" and collide with others.
   return base.length > 0 ? base : `articolo-${Date.now().toString(36)}`
 }
 
@@ -114,8 +114,8 @@ function creaDefinizioneArticolo(kind: 30023 | 30024, nome: string) {
           ...optionalTag('title', input.title),
           ...optionalTag('summary', input.summary),
           ...optionalTag('image', input.image),
-          // Alla prima pubblicazione coincide con created_at; nelle modifiche
-          // successive va passato quello originale, non ricalcolato.
+          // On the first publication it coincides with created_at; on later
+          // edits the original one has to be passed, not recomputed.
           ['published_at', String(input.publishedAt ?? ctx.now)],
           ...repeatedTags('t', input.hashtags ?? []),
         ],
@@ -128,14 +128,14 @@ function creaDefinizioneArticolo(kind: 30023 | 30024, nome: string) {
 export const articleDefinition = creaDefinizioneArticolo(30023, 'articolo')
 
 /**
- * Kind 30024 — bozza long-form.
+ * Kind 30024 — a long-form draft.
  *
- * **NIP-23 lo dichiara deprecato**: la via consigliata per le bozze e' ora
- * NIP-37 (kind 31234, cifrato NIP-44 verso se stessi). Lo teniamo registrato
- * per *leggere* le bozze che gli utenti hanno gia', non per crearne di nuove.
+ * **NIP-23 declares it deprecated**: the recommended way for drafts is now
+ * NIP-37 (kind 31234, NIP-44-encrypted to yourself). We keep it registered to
+ * *read* the drafts users already have, not to create new ones.
  *
- * La differenza pratica e' sostanziale: un 30024 e' in chiaro, quindi chiunque
- * abbia accesso al relay lo legge. Chiamarlo "bozza" e' fuorviante — e' un
- * articolo pubblicato in un posto poco frequentato.
+ * The practical difference matters: a 30024 is in the clear, so anyone with
+ * access to the relay reads it. Calling it a "draft" is misleading — it is an
+ * article published in a quiet place.
  */
 export const articleDraftDefinition = creaDefinizioneArticolo(30024, 'bozza-articolo-legacy')

@@ -5,53 +5,55 @@ import { plainEventTemplate } from '../identity/keys.js'
 import type { Firmatario } from './types.js'
 
 /**
- * Delega di firma: il lato di NIP-46 che chiede, senza possedere la chiave.
+ * Delegated signing: the side of NIP-46 that asks, without holding the key.
  *
- * Chi si collega compone l'evento come sempre e, al momento della firma, lo
- * manda al banco invece che alla propria chiave. L'evento che torna porta la
- * `pubkey` del titolare: agli occhi di chiunque lo legga e' stato pubblicato
- * da lui, e il contributo di chi lo ha preparato non compare.
+ * Whoever connects composes the event as always and, when it is time to sign,
+ * sends it to the desk instead of to their own key. The event that comes back
+ * carries the holder's `pubkey`: in the eyes of anyone who reads it, it was
+ * published by them, and the contribution of whoever prepared it does not
+ * appear.
  */
 
 export interface OpzioniDelega {
-  /** Pool gia' aperto. Il ciclo di vita resta del chiamante. */
+  /** An already open pool. Its lifecycle stays with the caller. */
   pool: NostrPool
-  /** Indirizzo `bunker://` ricevuto da chi possiede la chiave. Serve al primo collegamento. */
+  /** The `bunker://` address received from whoever holds the key. It is for the first connection. */
   uri?: string
-  /** Sessione gia' autorizzata, da `Delega.sessione()`, per non ripetere l'abbinamento. */
+  /** An already authorized session, from `Delega.sessione()`, to avoid repeating the pairing. */
   sessione?: string
   /**
-   * Chi ci si aspetta che firmi, in esadecimale.
+   * Who is expected to sign, in hexadecimal.
    *
-   * E' il controllo che rende sicuro identificare una delega con un npub. Un
-   * indirizzo `bunker://` non dice **chi** firmera': porta la chiave di
-   * trasporto del banco, che per NIP-46 puo' essere diversa dall'identita'.
-   * Solo dopo il collegamento si puo' chiedere `get_public_key` e vedere se
-   * risponde quello che l'utente si aspettava. Senza questo confronto, un
-   * indirizzo sbagliato — o sostituito — farebbe firmare un'identita' diversa
-   * da quella scelta, e nessuno se ne accorgerebbe.
+   * It is the check that makes it safe to identify a delegation by an npub. A
+   * `bunker://` address does not say **who** will sign: it carries the desk's
+   * transport key, which under NIP-46 may be different from the identity. Only
+   * after connecting can you ask `get_public_key` and see whether it answers
+   * what the user expected. Without this comparison, a wrong address — or a
+   * substituted one — would have an identity other than the chosen one sign,
+   * and nobody would notice.
    */
   autoreAtteso?: string
-  /** I kind per cui si chiede il permesso, dichiarati al collegamento. */
+  /** The kinds permission is asked for, declared when connecting. */
   kinds: readonly number[]
 }
 
 export interface Delega extends Firmatario {
-  /** L'identita' che firmera' davvero, verificata al collegamento. */
+  /** The identity that will really sign, verified when connecting. */
   autore: string
   /**
-   * La sessione da conservare per ricollegarsi senza ripetere l'abbinamento.
+   * The session to keep in order to reconnect without repeating the pairing.
    *
-   * **Contiene la chiave privata della sessione.** Non e' l'identita' di
-   * nessuno e non firma nulla da sola: autorizza soltanto a *chiedere* al
-   * banco, che resta libero di rifiutare. Chi la ottenesse potrebbe pero'
-   * presentarsi al banco al posto tuo, quindi va trattata come una credenziale.
+   * **It contains the session's private key.** It is nobody's identity and it
+   * signs nothing on its own: it only authorizes *asking* the desk, which
+   * remains free to refuse. Whoever obtained it could, though, present
+   * themselves at the desk in your place, so it is to be treated as a
+   * credential.
    */
   sessione(): string
   scollega(): Promise<void>
 }
 
-/** Si collega a un banco di firma e verifica che risponda l'identita' attesa. */
+/** Connects to a signing desk and checks that the expected identity answers. */
 export async function collegaDelega(opzioni: OpzioniDelega): Promise<Delega> {
   const permessi = NostrConnectSigner.buildSigningPermissions([...opzioni.kinds])
 
@@ -79,9 +81,9 @@ export async function collegaDelega(opzioni: OpzioniDelega): Promise<Delega> {
   }
 
   if (opzioni.autoreAtteso && autore !== opzioni.autoreAtteso) {
-    // Ci si ferma qui invece di adattarsi: firmare con un'identita' diversa da
-    // quella scelta e' esattamente il modo in cui questa funzione fallirebbe
-    // senza che nessuno lo noti.
+    // We stop here instead of adapting: signing with an identity other than
+    // the chosen one is exactly how this function would fail without anyone
+    // noticing.
     await signer.close().catch(() => {})
     throw new Error(
       'Il banco firma con un’identita’ diversa da quella che hai indicato. ' +
@@ -92,9 +94,9 @@ export async function collegaDelega(opzioni: OpzioniDelega): Promise<Delega> {
   return {
     autore,
     pubkey: () => Promise.resolve(autore),
-    // Appiattito prima di partire: il template arriva da un'interfaccia
-    // reattiva e finisce in `JSON.stringify`, che sui proxy di Vue si comporta
-    // in modo meno prevedibile di quanto sembri.
+    // Flattened before leaving: the template comes from a reactive interface
+    // and ends up in `JSON.stringify`, which on Vue's proxies behaves less
+    // predictably than it seems.
     firma: (template: EventTemplate): Promise<NostrEvent> =>
       signer.signEvent(plainEventTemplate(template)),
     sessione: () => signer.getNbunksec(),
@@ -106,7 +108,7 @@ function messaggio(e: unknown): string {
   return e instanceof Error ? e.message : String(e)
 }
 
-/** Legge un indirizzo `bunker://` senza collegarsi, per validarlo in un form. */
+/** Reads a `bunker://` address without connecting, to validate it in a form. */
 export function leggiIndirizzoBanco(uri: string): { trasporto: string; relays: string[] } {
   const letto = NostrConnectSigner.parseBunkerURI(uri.trim())
   if (letto.relays.length === 0) {

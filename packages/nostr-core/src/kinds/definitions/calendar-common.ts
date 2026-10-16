@@ -4,51 +4,51 @@ import { optionalTag, repeatedTags, tagValue, tagValues, tagsNamed } from '../ta
 import type { NostrEvent } from '../types.js'
 
 /**
- * Parti comuni ai due kind di evento calendario NIP-52: 31922 (su data) e
- * 31923 (su orario). Cambia solo come si esprimono inizio e fine.
+ * The parts common to NIP-52's two calendar event kinds: 31922 (by date) and
+ * 31923 (by time). Only how start and end are expressed changes.
  */
 
-/** Partecipante a un evento: pubkey, relay consigliato e ruolo. */
+/** A participant in an event: pubkey, suggested relay and role. */
 export const calendarParticipantSchema = z.object({
   pubkey: z.string(),
-  /** Relay dove trovare quel profilo. Stringa vuota se non indicato. */
+  /** The relay to find that profile on. An empty string when not stated. */
   relay: z.string().optional(),
-  /** Ruolo libero: "speaker", "organizer", "host"… */
+  /** A free-form role: "speaker", "organizer", "host"… */
   role: z.string().optional(),
 })
 
 export type CalendarParticipant = z.infer<typeof calendarParticipantSchema>
 
-/** Campi descrittivi condivisi. */
+/** The shared descriptive fields. */
 export const calendarSharedSchema = z.object({
   identifier: z.string(),
   title: z.string(),
-  /** Descrizione libera: sta nel `content`, non in un tag. */
+  /** A free-form description: it sits in the `content`, not in a tag. */
   description: z.string(),
   summary: z.string().optional(),
   image: z.string().optional(),
   /**
-   * Luoghi dell'evento. NIP-52 definisce `location` come ripetibile: un
-   * incontro puo' avere insieme un indirizzo fisico e un link alla
-   * videochiamata, e tenerne uno solo perderebbe informazione.
+   * The event's places. NIP-52 defines `location` as repeatable: a meeting can
+   * have both a physical address and a link to the video call, and keeping
+   * only one of them would lose information.
    */
   locations: z.array(z.string()),
-  /** Geohash del luogo (tag `g`). */
+  /** The place's geohash (the `g` tag). */
   geohash: z.string().optional(),
   participants: z.array(calendarParticipantSchema),
   /**
-   * Hashtag (tag `t`), **come stanno nell'evento**.
+   * The hashtags (the `t` tag), **as they stand in the event**.
    *
-   * Non si abbassano di caso ne' si normalizzano qui: un altro client scrive
-   * `Food & drink` come categoria, e riscriverlo `food & drink` — o peggio
-   * spezzarlo — significa cambiare il dato di qualcun altro nel solo atto di
-   * modificargli il titolo. La convenzione minuscola si applica a cio' che
-   * l'utente scrive nel form, con `normalizeHashtag`, dove nasce.
+   * They are neither lower-cased nor normalised here: another client writes
+   * `Food & drink` as a category, and rewriting it `food & drink` — or worse,
+   * splitting it — means changing somebody else's data in the mere act of
+   * editing their title. The lower-case convention applies to what the user
+   * writes in the form, with `normalizeHashtag`, where it originates.
    */
   hashtags: z.array(z.string()),
-  /** Riferimenti esterni, es. link all'evento originale (tag `r`). */
+  /** External references, e.g. a link to the original event (the `r` tag). */
   references: z.array(z.string()),
-  /** Coordinate di calendari (kind 31924) in cui si chiede di comparire. */
+  /** The coordinates of the calendars (kind 31924) it asks to appear in. */
   calendars: z.array(z.string()),
 })
 
@@ -56,45 +56,45 @@ export type CalendarShared = z.infer<typeof calendarSharedSchema>
 
 export interface CalendarSharedInput {
   /**
-   * Valore del tag `d`. Obbligatorio e a carico del chiamante di proposito:
-   * generarlo qui lo renderebbe diverso a ogni chiamata, e una modifica
-   * finirebbe per creare un evento nuovo invece di sostituire il precedente.
-   * Per un evento nuovo usare `newCalendarIdentifier()`.
+   * The `d` tag's value. Mandatory and the caller's responsibility on purpose:
+   * generating it here would make it different on every call, and an edit
+   * would end up creating a new event instead of replacing the previous one.
+   * For a new event use `newCalendarIdentifier()`.
    */
   identifier: string
   title: string
   description?: string
   summary?: string
   image?: string
-  /** Uno o piu' luoghi. Una stringa sola resta il caso comune. */
+  /** One or more places. A single string remains the common case. */
   location?: string | string[]
   geohash?: string
-  /** Pubkey semplici, oppure partecipanti con relay e ruolo. */
+  /** Plain pubkeys, or participants with a relay and a role. */
   participants?: (string | CalendarParticipant)[]
   hashtags?: string[]
   references?: string[]
-  /** Coordinate `31924:<pubkey>:<d>` dei calendari a cui proporre l'evento. */
+  /** The `31924:<pubkey>:<d>` coordinates of the calendars to offer the event to. */
   calendars?: string[]
 }
 
-/** Identificatore per un evento calendario nuovo. */
+/** An identifier for a new calendar event. */
 export function newCalendarIdentifier(): string {
   return crypto.randomUUID()
 }
 
-/** Normalizza un partecipante scritto come semplice pubkey. */
+/** Normalises a participant written as a plain pubkey. */
 function toParticipant(p: string | CalendarParticipant): CalendarParticipant {
   return typeof p === 'string' ? { pubkey: p } : p
 }
 
-/** Legge dall'evento i campi descrittivi comuni. */
+/** Reads the common descriptive fields from the event. */
 export function parseShared(event: NostrEvent): CalendarShared {
   const partecipanti: CalendarParticipant[] = tagsNamed(event, 'p')
     .filter((t) => typeof t[1] === 'string' && t[1].length > 0)
     .map((t) => ({
       pubkey: t[1] as string,
-      // Le posizioni 2 e 3 sono relay e ruolo. Spesso il relay e' una stringa
-      // vuota usata come segnaposto per raggiungere il ruolo: va scartata.
+      // Positions 2 and 3 are the relay and the role. The relay is often an
+      // empty string used as a placeholder to reach the role: discard it.
       ...(t[2] ? { relay: t[2] } : {}),
       ...(t[3] ? { role: t[3] } : {}),
     }))
@@ -118,7 +118,7 @@ export function parseShared(event: NostrEvent): CalendarShared {
   }
 }
 
-/** Costruisce i tag comuni, escluso `d` che dipende dal kind chiamante. */
+/** Builds the common tags, except `d`, which depends on the calling kind. */
 export function buildSharedTags(input: CalendarSharedInput): string[][] {
   const luoghi =
     input.location === undefined
@@ -130,8 +130,8 @@ export function buildSharedTags(input: CalendarSharedInput): string[][] {
   const partecipanti = (input.participants ?? []).map(toParticipant).flatMap((p) => {
     const pubkey = p.pubkey.trim()
     if (!pubkey) return []
-    // Il ruolo sta in quarta posizione: per raggiungerlo serve comunque il
-    // campo relay, anche vuoto. Senza ruolo il tag resta corto.
+    // The role sits in fourth position: reaching it requires the relay field
+    // all the same, even empty. Without a role the tag stays short.
     if (p.role) return [['p', pubkey, p.relay ?? '', p.role]]
     if (p.relay) return [['p', pubkey, p.relay]]
     return [['p', pubkey]]
@@ -151,14 +151,15 @@ export function buildSharedTags(input: CalendarSharedInput): string[][] {
   ]
 }
 
-// --- Fusi orari -------------------------------------------------------------
+// --- Time zones -------------------------------------------------------------
 
 /**
- * Elenco dei fusi orari IANA riconosciuti dal runtime.
+ * The list of IANA time zones the runtime recognises.
  *
- * `Intl.supportedValuesOf` esiste in Node 18+ e nei browser moderni, ma non e'
- * garantito ovunque: se manca si restituisce una lista vuota e la validazione
- * ricade su `isValidTimezone`, che prova direttamente il fuso.
+ * `Intl.supportedValuesOf` exists in Node 18+ and in modern browsers, but it
+ * is not guaranteed everywhere: when it is missing an empty list is returned
+ * and the validation falls back on `isValidTimezone`, which tries the zone
+ * itself.
  */
 export function availableTimezones(): string[] {
   try {
@@ -168,16 +169,16 @@ export function availableTimezones(): string[] {
   }
 }
 
-/** Fuso orario del dispositivo, da usare come default nei form. */
+/** The device's time zone, to use as the default in the forms. */
 export function localTimezone(): string {
   return Intl.DateTimeFormat().resolvedOptions().timeZone
 }
 
 /**
- * Verifica che una stringa sia un fuso IANA utilizzabile.
+ * Checks that a string is a usable IANA zone.
  *
- * Si prova a costruire un formatter: e' il controllo piu' affidabile, perche'
- * usa la stessa implementazione che poi formattera' le date.
+ * A formatter is built as the test: it is the most reliable check, because it
+ * uses the same implementation that will then format the dates.
  */
 export function isValidTimezone(tz: string): boolean {
   if (!tz) return false
@@ -194,10 +195,10 @@ export const timezoneSchema = z.string().refine(isValidTimezone, {
 })
 
 /**
- * Data in formato `YYYY-MM-DD`, come la vuole il kind 31922.
+ * A date in `YYYY-MM-DD` form, as kind 31922 wants it.
  *
- * Il controllo non e' solo sulla forma: si verifica che la data esista davvero,
- * altrimenti "2026-02-30" passerebbe.
+ * The check is not only on the shape: that the date really exists is verified
+ * too, otherwise "2026-02-30" would pass.
  */
 export const isoDateSchema = z
   .string()
@@ -207,14 +208,14 @@ export const isoDateSchema = z
     return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s
   }, 'data inesistente nel calendario')
 
-// --- Conversione fra orario locale e istante assoluto -----------------------
+// --- Converting between local time and an absolute instant ------------------
 
 /**
- * Offset del fuso `tz` rispetto a UTC, in secondi, all'istante indicato.
+ * The `tz` zone's offset from UTC, in seconds, at the given instant.
  *
- * Non esiste un'API diretta: si chiede a `Intl` di formattare l'istante in quel
- * fuso e si misura di quanto il risultato si discosta da UTC. E' il metodo
- * standard, e usa lo stesso database dei fusi che poi formattera' le date.
+ * There is no direct API: `Intl` is asked to format the instant in that zone
+ * and the result is measured against UTC. It is the standard method, and it
+ * uses the same zone database that will then format the dates.
  */
 function offsetAt(unix: number, tz: string): number {
   const istante = new Date(unix * 1000)
@@ -234,8 +235,8 @@ function offsetAt(unix: number, tz: string): number {
     if (parte.type !== 'literal') p[parte.type] = Number.parseInt(parte.value, 10)
   }
 
-  // Alcune combinazioni di locale rendono la mezzanotte come "24": va
-  // riportata a 0, altrimenti l'offset risulta sfalsato di un giorno.
+  // Some locale combinations render midnight as "24": it has to be brought
+  // back to 0, otherwise the offset comes out a day off.
   const ora = (p.hour ?? 0) % 24
 
   const comeUtc = Date.UTC(
@@ -250,17 +251,17 @@ function offsetAt(unix: number, tz: string): number {
 }
 
 /**
- * Converte un orario da calendario ("il 3 marzo alle 09:00 a Tokyo") nel
- * corrispondente istante assoluto in secondi unix.
+ * Converts a calendar time ("3 March at 09:00 in Tokyo") into the
+ * corresponding absolute instant in unix seconds.
  *
- * Servono due passaggi. Il primo stima l'offset trattando l'orario come se
- * fosse UTC; ma vicino a un cambio di ora legale l'offset all'istante corretto
- * puo' differire da quello stimato, quindi si ricalcola. Con un solo passaggio
- * si sbaglia di un'ora nei giorni di transizione.
+ * Two passes are needed. The first estimates the offset by treating the time
+ * as though it were UTC; but near a daylight-saving change the offset at the
+ * correct instant can differ from the estimated one, so it is recomputed. With
+ * a single pass you are an hour out on the transition days.
  *
- * @param isoDate giorno in formato `YYYY-MM-DD`
- * @param time    orario in formato `HH:MM`
- * @param tz      fuso IANA, es. `Europe/Rome`
+ * @param isoDate the day, in `YYYY-MM-DD` form
+ * @param time    the time, in `HH:MM` form
+ * @param tz      the IANA zone, e.g. `Europe/Rome`
  */
 export function zonedToUnix(isoDate: string, time: string, tz: string): number {
   const [anno, mese, giorno] = isoDate.split('-').map((n) => Number.parseInt(n, 10))
@@ -284,10 +285,10 @@ export function zonedToUnix(isoDate: string, time: string, tz: string): number {
 }
 
 /**
- * Scompone un istante nei suoi campi di calendario, letti nel fuso indicato.
+ * Breaks an instant down into its calendar fields, read in the given zone.
  *
- * E' l'inverso di `zonedToUnix` e serve a ripopolare i form quando si modifica
- * un evento gia' pubblicato.
+ * It is the inverse of `zonedToUnix` and it is what repopulates the forms when
+ * an already published event is edited.
  */
 export function unixToZoned(unix: number, tz: string): { date: string; time: string } {
   const parti = new Intl.DateTimeFormat('en-CA', {
@@ -312,7 +313,7 @@ export function unixToZoned(unix: number, tz: string): { date: string; time: str
   }
 }
 
-/** Formatta un istante per la lettura, nel fuso in cui l'evento va mostrato. */
+/** Formats an instant for reading, in the zone the event is to be shown in. */
 export function formatInTimezone(unix: number, tz: string, locale = 'it-IT'): string {
   return new Intl.DateTimeFormat(locale, {
     timeZone: tz,
@@ -321,43 +322,43 @@ export function formatInTimezone(unix: number, tz: string, locale = 'it-IT'): st
   }).format(new Date(unix * 1000))
 }
 
-// --- Tag D: indice giornaliero (solo kind 31923) ----------------------------
+// --- The D tag: the daily index (kind 31923 only) ----------------------------
 
-/** Secondi in un giorno. */
+/** Seconds in a day. */
 const SECONDI_AL_GIORNO = 86_400
 
 /**
- * Soglia oltre la quale una durata e' quasi certamente un errore di unita'.
+ * The threshold beyond which a duration is almost certainly a unit mistake.
  *
- * NIP-52 non prevede ricorrenze: un evento singolo che copre piu' di un anno
- * non esiste nella pratica. Il caso reale che questa soglia intercetta e' un
- * timestamp passato in millisecondi invece che in secondi, che fa apparire un
- * evento di un giorno come lungo esattamente 1000 giorni. La soglia deve
- * quindi restare sotto quel valore per essere utile.
+ * NIP-52 has no recurrences: a single event spanning more than a year does not
+ * exist in practice. The real case this threshold catches is a timestamp
+ * passed in milliseconds instead of seconds, which makes a one-day event look
+ * exactly 1000 days long. The threshold therefore has to stay below that value
+ * to be of any use.
  */
 const GIORNI_MASSIMI = 366
 
 /**
- * Indice del giorno su cui cade un istante, come lo definisce NIP-52:
+ * The index of the day an instant falls on, as NIP-52 defines it:
  * `floor(unix_seconds / seconds_in_one_day)`.
  *
- * E' un calcolo puramente aritmetico sul timestamp, quindi **ancorato a UTC**:
- * il fuso dell'evento non entra nel conto. La conseguenza e' controintuitiva
- * ma voluta dalla specifica — un evento alle 23:00 a Tokyo cade nel giorno UTC
- * precedente, e il suo tag `D` sara' quello. Introdurre qui il fuso
- * produrrebbe indici che non corrispondono a quelli calcolati dagli altri
- * client, rendendo l'evento invisibile alle loro ricerche per giorno.
+ * It is a purely arithmetic computation on the timestamp, hence **anchored to
+ * UTC**: the event's zone does not enter into it. The consequence is
+ * counter-intuitive but intended by the specification — an event at 23:00 in
+ * Tokyo falls on the previous UTC day, and its `D` tag will be that one.
+ * Bringing the zone in here would produce indices that do not match the ones
+ * other clients compute, making the event invisible to their searches by day.
  */
 export function dayIndex(unixSeconds: number): number {
   return Math.floor(unixSeconds / SECONDI_AL_GIORNO)
 }
 
 /**
- * Tutti gli indici giornalieri coperti da un evento, estremi inclusi.
+ * Every daily index an event covers, both ends included.
  *
- * NIP-52 chiede piu' tag `D` per coprire l'intera durata: servono ai relay e
- * ai client per trovare gli eventi di un dato giorno senza scorrere l'intero
- * archivio. Un evento senza fine occupa un giorno solo.
+ * NIP-52 asks for several `D` tags to cover the whole duration: relays and
+ * clients need them to find a given day's events without scanning the whole
+ * archive. An event without an end takes up a single day.
  */
 export function dayIndexRange(start: number, end?: number): number[] {
   const primo = dayIndex(start)
@@ -379,7 +380,7 @@ export function dayIndexRange(start: number, end?: number): number[] {
   return Array.from({ length: quanti }, (_, i) => primo + i)
 }
 
-/** Tag `D` da inserire nell'evento, uno per giorno coperto. */
+/** The `D` tags to put in the event, one per day covered. */
 export function buildDayTags(start: number, end?: number): string[][] {
   return dayIndexRange(start, end).map((g) => ['D', String(g)])
 }

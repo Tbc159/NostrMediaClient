@@ -11,28 +11,29 @@ import {
 } from './calendar-common.js'
 
 /**
- * Kind 31922 — evento calendario su data intera (NIP-52).
+ * Kind 31922 — a whole-day calendar event (NIP-52).
  *
- * Niente orario e niente fuso: e' il caso di compleanni, festivita', ferie.
- * Un evento "il 3 marzo" e' il 3 marzo ovunque lo si guardi, e trasformarlo in
- * un istante assoluto introdurrebbe proprio l'errore che questo kind evita.
+ * No time and no zone: it is the case of birthdays, public holidays, time off.
+ * An event "on 3 March" is 3 March wherever you look at it from, and turning
+ * it into an absolute instant would introduce exactly the error this kind
+ * avoids.
  *
- * NIP-52 definisce `end` come **esclusivo**: un evento di un solo giorno o
- * omette `end`, oppure lo mette al giorno successivo. Un `end` uguale a `start`
- * descriverebbe un evento di durata nulla.
+ * NIP-52 defines `end` as **exclusive**: a single-day event either omits `end`
+ * or sets it to the next day. An `end` equal to `start` would describe an event
+ * of zero length.
  *
- * Nota sul tag `D`: la specifica lo richiede **solo per il kind 31923**, dove
- * serve a indicizzare per giorno un istante assoluto. Qui non ha ragione di
- * esistere, perche' `start` ed `end` sono gia' date di calendario: aggiungerlo
- * significherebbe reintrodurre proprio l'ancoraggio a UTC che questo kind
- * evita. La sezione del 31922 elenca infatti soltanto `start` ed `end`, e il
- * suo esempio JSON non contiene alcun `D`.
+ * A note on the `D` tag: the specification requires it **for kind 31923
+ * only**, where it serves to index an absolute instant by day. Here it has no
+ * reason to exist, because `start` and `end` are calendar dates already:
+ * adding it would mean reintroducing precisely the anchoring to UTC this kind
+ * avoids. The 31922 section indeed lists only `start` and `end`, and its JSON
+ * example contains no `D` at all.
  */
 
 export const dateEventSchema = calendarSharedSchema.extend({
-  /** Giorno di inizio, `YYYY-MM-DD`. */
+  /** The starting day, `YYYY-MM-DD`. */
   start: isoDateSchema,
-  /** Giorno di fine, esclusivo. */
+  /** The ending day, exclusive. */
   end: isoDateSchema.optional(),
 })
 
@@ -75,7 +76,7 @@ export const calendarDateEventDefinition = defineKind<DateEventParsed, DateEvent
     if (input.end !== undefined) {
       isoDateSchema.parse(input.end)
       if (input.end <= input.start) {
-        // Confronto lessicografico: su YYYY-MM-DD equivale a quello cronologico.
+        // A lexicographic comparison: on YYYY-MM-DD it equals the chronological one.
         throw new Error(
           `end (${input.end}) deve essere successivo a start (${input.start}): ` +
             'NIP-52 lo definisce esclusivo, quindi un evento di un giorno solo omette end ' +

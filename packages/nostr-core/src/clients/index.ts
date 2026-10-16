@@ -5,27 +5,27 @@ import { identifier } from '../kinds/tags.js'
 import type { NostrEvent } from '../kinds/types.js'
 
 /**
- * Apertura di un evento in un client Nostr esterno.
+ * Opening an event in an external Nostr client.
  *
- * Questo client serve a *gestire* i propri contenuti, non a leggerli come li
- * legge il resto della rete. Per vedere una pubblicazione come la vedono gli
- * altri serve un client di lettura, e la scelta di quale non e' nostra: ognuno
- * ha il suo, e cambia fra scrivania e telefono.
+ * This client is for *managing* your own content, not for reading it the way
+ * the rest of the network reads it. To see a publication as the others see it
+ * you need a reading client, and choosing which one is not up to us: everyone
+ * has their own, and it changes between desk and phone.
  *
- * Da qui il modello a **modello di URL con segnaposto** invece di un elenco
- * chiuso: i preset coprono i casi comuni, ma qualunque client si aggiunge
- * incollando il suo formato, senza aspettare una nostra versione nuova.
+ * Hence the design based on **a URL template with a placeholder** instead of a
+ * closed list: the presets cover the common cases, but any client at all is
+ * added by pasting its format, without waiting for a new version of ours.
  */
 
-/** Dove il client viene usato. Determina quale preferenza si applica. */
+/** Where the client is used. It decides which preference applies. */
 export type PiattaformaClient = 'desktop' | 'app'
 
 /**
- * Forma NIP-19 con cui ci si riferisce a un evento dall'esterno.
+ * The NIP-19 form an event is referred to by from outside.
  *
- * Non e' un dettaglio interno: **alcuni client hanno un percorso diverso per
- * ciascuna forma**, e usare quello sbagliato porta a una pagina d'errore. E'
- * il caso di Primal, che apre gli eventi da `/e/` e i profili da `/p/`.
+ * It is not an internal detail: **some clients have a different path for each
+ * form**, and using the wrong one leads to an error page. That is the case
+ * with Primal, which opens events from `/e/` and profiles from `/p/`.
  */
 export type TipoPuntatore = 'nevent' | 'naddr' | 'nprofile'
 
@@ -33,60 +33,60 @@ export interface ClientEsterno {
   id: string
   nome: string
   /**
-   * Modello dell'URL. `{pointer}` viene sostituito dall'identificatore NIP-19
-   * (`nevent`, `naddr` o `nprofile`) dell'evento da aprire.
+   * The URL's template. `{pointer}` is replaced by the NIP-19 identifier
+   * (`nevent`, `naddr` or `nprofile`) of the event to open.
    */
   template: string
   /**
-   * Modelli alternativi per le forme che il client tratta a parte.
+   * Alternative templates for the forms the client treats separately.
    *
-   * Vale la pena averlo perche' il caso esiste davvero: Primal risponde `404`
-   * a `/e/nprofile1…`. Chi non lo dichiara usa `template` per tutto, che e'
-   * quello che fa la maggioranza dei client.
+   * It is worth having because the case really exists: Primal answers `404` to
+   * `/e/nprofile1…`. Whoever does not declare it uses `template` for
+   * everything, which is what the majority of clients do.
    */
   templatePerTipo?: Partial<Record<TipoPuntatore, string>>
   /**
-   * Kind che il client **non sa mostrare**, verificati caricandoli davvero.
+   * The kinds the client **cannot display**, verified by actually loading them.
    *
-   * E' dichiarato in negativo di proposito: un kind assente significa «non
-   * risulta rotto», non «supportato». Elencare i kind supportati sarebbe una
-   * promessa che nessuno puo' mantenere — i client ne aggiungono di continuo —
-   * e trasformerebbe ogni novita' in un pulsante che sparisce.
+   * It is declared in the negative on purpose: a missing kind means «not known
+   * to be broken», not «supported». Listing the supported kinds would be a
+   * promise nobody can keep — clients add them all the time — and would turn
+   * every novelty into a button that disappears.
    */
   kindsNonSupportati?: readonly number[]
   /**
-   * Kind per cui il client esiste, quando e' un lettore specializzato.
+   * The kinds the client exists for, when it is a specialised reader.
    *
-   * L'opposto di `kindsNonSupportati`, e serve a un caso solo: un lettore di
-   * podcast sa mostrare episodi e schede dello show, e nient'altro. Proporlo
-   * per una nota sarebbe un pulsante che apre una pagina vuota.
+   * The opposite of `kindsNonSupportati`, and it serves one case only: a
+   * podcast player can display episodes and show cards, and nothing else.
+   * Offering it for a note would be a button that opens an empty page.
    */
   soloKinds?: readonly number[]
-  /** Piattaforme per cui ha senso proporlo come predefinito. Vuoto: mai predefinito, solo ripiego. */
+  /** The platforms it makes sense to offer it as the default on. Empty: never the default, a fallback only. */
   piattaforme: PiattaformaClient[]
   nota?: string
 }
 
 /**
- * Preset verificati contro i client veri, non ricavati dalla documentazione.
+ * Presets verified against the real clients, not derived from the documentation.
  *
- * La verifica e' stata rifatta caricando ogni modello in un browser con
- * puntatori reali di **tutte e tre** le forme, ed e' cosi' che sono emersi due
- * difetti che la sola prova con un `nevent` non mostrava: noStrudel risponde
- * «Unknown type naddr» sul percorso `/n/`, che e' la vista di una nota, e
- * Primal risponde `404` a un `nprofile` sul percorso `/e/`.
+ * The verification was redone by loading every template in a browser with real
+ * pointers of **all three** forms, and that is how two defects came out that
+ * testing with an `nevent` alone did not show: noStrudel answers «Unknown type
+ * naddr» on the `/n/` path, which is a note's view, and Primal answers `404`
+ * to an `nprofile` on the `/e/` path.
  *
- * La lezione, per chi aggiungera' un preset: **provare tutte le forme**. Un
- * link a una nota che funziona non dice nulla su un link a un articolo.
+ * The lesson, for whoever adds a preset: **try every form**. A link to a note
+ * that works says nothing about a link to an article.
  */
 export const clientEsterniPredefiniti: readonly ClientEsterno[] = [
   {
     id: 'nostrudel',
     nome: 'noStrudel',
     template: 'https://nostrudel.ninja/l/{pointer}',
-    // Mostra note, profili, immagini, articoli e schede file. Su video,
-    // podcast e calendario risponde «Unknown event kind»: resta il testo
-    // grezzo, senza lettore ne’ data ne’ luogo.
+    // It displays notes, profiles, images, articles and file cards. On video,
+    // podcast and calendar it answers «Unknown event kind»: the raw text is
+    // all that is left, with no player, no date and no place.
     kindsNonSupportati: [21, 22, 54, 31922, 31923, 31925],
     piattaforme: ['desktop'],
     nota: 'Client web completo. Il percorso /l/ smista da solo note, articoli, immagini e profili; /n/ è la sola vista delle note e rifiuta il resto.',
@@ -110,9 +110,9 @@ export const clientEsterniPredefiniti: readonly ClientEsterno[] = [
     id: 'coracle',
     nome: 'Coracle',
     template: 'https://coracle.social/{pointer}',
-    // Copre quello che manca a noStrudel: video, podcast e calendario. Degli
-    // eventi con orario mostra anche inizio, fine e luogo. Su scheda file e
-    // RSVP rende una pagina vuota.
+    // It covers what noStrudel lacks: video, podcast and calendar. Of the
+    // events with a time it also shows start, end and place. On a file card
+    // and an RSVP it renders an empty page.
     kindsNonSupportati: [1063, 31925],
     piattaforme: ['desktop'],
     nota: 'Mostra i tipi che noStrudel non conosce: video, episodi di podcast ed eventi da calendario, con data e luogo.',
@@ -121,16 +121,16 @@ export const clientEsterniPredefiniti: readonly ClientEsterno[] = [
     id: 'snort',
     nome: 'Snort',
     template: 'https://snort.social/{pointer}',
-    // Sugli eventi con orario dice esplicitamente di non capire il kind.
+    // On the events with a time it says explicitly that it does not know the kind.
     kindsNonSupportati: [31923],
     piattaforme: ['desktop'],
   },
   {
     id: 'transmit',
     nome: 'Transmit',
-    // Un lettore di podcast Nostr (NIP-F4): non ha una pagina per evento ma
-    // per *show*, che e' la chiave. Il segnaposto e' quindi l'npub dell'autore,
-    // e la stessa pagina vale per un episodio e per la scheda 10154.
+    // A Nostr podcast player (NIP-F4): it does not have a page per event but
+    // per *show*, which is the key. The placeholder is therefore the author's
+    // npub, and the same page serves an episode and the 10154 card alike.
     template: 'https://www.transmit.fm/shows/{npub}',
     soloKinds: [54, 10154],
     piattaforme: [],
@@ -151,20 +151,21 @@ export const CLIENT_PREDEFINITO: Record<PiattaformaClient, string> = {
 }
 
 /**
- * Identificatore NIP-19 con cui riferirsi a un evento dall'esterno.
+ * The NIP-19 identifier an event is referred to by from outside.
  *
- * La forma dipende dalla classe dell'evento, e sbagliarla significa mandare
- * l'utente su una pagina vuota:
+ * The form depends on the event's class, and getting it wrong means sending
+ * the user to an empty page:
  *
- *  - **addressable** → `naddr`, che punta alla *coordinata*. Un `nevent`
- *    punterebbe a una versione superata non appena l'evento viene modificato.
- *  - **profilo** (kind 0) → `nprofile`, perche' i client hanno una pagina per
- *    il profilo, non per l'evento che lo descrive.
- *  - tutto il resto → `nevent`, con l'id.
+ *  - **addressable** → `naddr`, which points at the *coordinate*. An `nevent`
+ *    would point at a superseded version as soon as the event is edited.
+ *  - **profile** (kind 0) → `nprofile`, because clients have a page for the
+ *    profile, not for the event that describes it.
+ *  - everything else → `nevent`, with the id.
  *
- * I relay finiscono dentro l'identificatore come **suggerimenti**: senza, il
- * client esterno cerca l'evento solo sui propri relay e spesso non lo trova.
- * E' la differenza pratica fra un link che funziona e uno che apre il vuoto.
+ * The relays end up inside the identifier as **hints**: without them the
+ * external client looks for the event on its own relays alone and often does
+ * not find it. It is the practical difference between a link that works and
+ * one that opens nothing.
  */
 export function tipoPuntatorePer(evento: NostrEvent): TipoPuntatore {
   if (evento.kind === 0) return 'nprofile'
@@ -173,8 +174,8 @@ export function tipoPuntatorePer(evento: NostrEvent): TipoPuntatore {
 }
 
 export function nip19PointerFor(evento: NostrEvent, relays: readonly string[] = []): string {
-  // Pochi suggerimenti e buoni: alcuni client li interrogano tutti, e un
-  // identificatore lunghissimo e' anche sgradevole da condividere.
+  // Few hints, and good ones: some clients query them all, and a very long
+  // identifier is also unpleasant to share.
   const suggerimenti = [...new Set(relays)].slice(0, 3)
 
   if (evento.kind === 0) {
@@ -201,7 +202,7 @@ export function nip19PointerFor(evento: NostrEvent, relays: readonly string[] = 
   })
 }
 
-/** Sostituisce il segnaposto nel modello. */
+/** Replaces the placeholder in the template. */
 export function componiLinkEsterno(
   template: string,
   pointer: string,
@@ -220,39 +221,39 @@ export function componiLinkEsterno(
 }
 
 /**
- * Ordine dei ripieghi, dal piu' completo al piu' generico.
+ * The order of the fallbacks, from the most complete to the most generic.
  *
- * E' un elenco esplicito e non «il primo preset che va bene» perche' ripiegare
- * su un client non provato sposterebbe soltanto il problema: si finirebbe su
- * un'altra pagina rotta, con in piu' l'impressione che il client scelto fosse
- * il colpevole. Questi due sono stati caricati con eventi veri di ogni tipo.
+ * It is an explicit list and not «the first preset that fits» because falling
+ * back on an untested client would only move the problem: you would end up on
+ * another broken page, with the added impression that the chosen client was to
+ * blame. These two were loaded with real events of every type.
  */
 const RIPIEGHI: readonly string[] = ['coracle', 'njump']
-/** Per alcuni kind esiste un lettore fatto apposta: viene prima dei client sociali. */
+/** For some kinds a purpose-built player exists: it comes before the social clients. */
 const RIPIEGHI_PER_KIND: Readonly<Record<number, readonly string[]>> = {
   54: ['transmit', ...RIPIEGHI],
   10154: ['transmit', ...RIPIEGHI],
 }
 
-/** Vero se il client, per sua dichiarazione, non mostra questo kind. */
+/** True when the client, by its own declaration, does not display this kind. */
 function nonMostra(client: ClientEsterno, kind: number): boolean {
   if (client.soloKinds && !client.soloKinds.includes(kind)) return true
   return client.kindsNonSupportati?.includes(kind) ?? false
 }
 
 /**
- * Il client con cui aprire davvero questo evento.
+ * The client this event should actually be opened with.
  *
- * Un client di lettura conosce i kind che conosce, e nessuno li conosce tutti:
- * noStrudel non mostra video, podcast ne' eventi da calendario, e li rende
- * come testo grezzo sotto la scritta «Unknown event kind». Aprire li' un
- * evento da calendario significa perdere proprio le informazioni per cui
- * esiste — data, ora, luogo.
+ * A reading client knows the kinds it knows, and none of them knows them all:
+ * noStrudel displays neither video, nor podcast, nor calendar events, and
+ * renders them as raw text under the words «Unknown event kind». Opening a
+ * calendar event there means losing exactly the information it exists for —
+ * date, time, place.
  *
- * Invece di lasciare all'utente un pulsante che porta a una pagina inerte, si
- * ripiega su un client che quel kind lo mostra, e lo si dice: `sostituito`
- * porta il client che era stato scelto, cosi' l'interfaccia puo' spiegare
- * perche' il nome sul pulsante e' cambiato.
+ * Instead of leaving the user a button that leads to a lifeless page, we fall
+ * back on a client that does display that kind, and we say so: `sostituito`
+ * carries the client that had been chosen, so the interface can explain why
+ * the name on the button changed.
  */
 export function clientPerEvento(
   scelto: ClientEsterno,
@@ -260,9 +261,9 @@ export function clientPerEvento(
   disponibili: readonly ClientEsterno[] = clientEsterniPredefiniti,
 ): { client: ClientEsterno; sostituito: ClientEsterno | null } {
   const perKind = RIPIEGHI_PER_KIND[evento.kind]
-  // Un lettore fatto apposta vince sul client sociale scelto anche quando
-  // questo «non risulta rotto»: mostrare un episodio come testo non e'
-  // mostrarlo. Chi ha scelto proprio un lettore, invece, lo tiene.
+  // A purpose-built player wins over the chosen social client even when the
+  // latter is «not known to be broken»: showing an episode as text is not
+  // showing it. Whoever chose a player in the first place keeps it, though.
   const lettore = perKind ? disponibili.find((c) => c.id === perKind[0]) : undefined
   if (lettore && lettore.id !== scelto.id && !nonMostra(lettore, evento.kind)) {
     return { client: lettore, sostituito: scelto }
@@ -277,22 +278,22 @@ export function clientPerEvento(
     return { client: ripiego, sostituito: scelto }
   }
 
-  // Nessun ripiego migliore: meglio il client scelto, che almeno mostra il
-  // testo grezzo, che nessun pulsante.
+  // No better fallback: the chosen client, which at least shows the raw text,
+  // is better than no button at all.
   return { client: scelto, sostituito: null }
 }
 
-/** Il modello giusto per questo evento, tenendo conto delle forme trattate a parte. */
+/** The right template for this event, allowing for the forms treated separately. */
 export function templatePerEvento(client: ClientEsterno, evento: NostrEvent): string {
   return client.templatePerTipo?.[tipoPuntatorePer(evento)] ?? client.template
 }
 
 /**
- * Link diretto a un evento per un client esterno.
+ * A direct link to an event for an external client.
  *
- * Accetta il client intero — che e' la forma da preferire, perche' e' l'unica
- * che sa quali forme quel client tratta a parte — oppure un modello soltanto,
- * per l'anteprima di un modello scritto a mano che ancora non e' un client.
+ * It accepts the whole client — which is the form to prefer, because it is the
+ * only one that knows which forms that client treats separately — or a
+ * template alone, to preview a hand-written template that is not a client yet.
  */
 export function linkEventoEsterno(
   client: ClientEsterno | string,
@@ -306,11 +307,11 @@ export function linkEventoEsterno(
 }
 
 /**
- * Controlla un modello scritto a mano.
+ * Checks a hand-written template.
  *
- * Si accettano `https:` e gli schemi personalizzati delle app (`nostr:`,
- * `primal:`), ma **non** `javascript:` e simili: un modello finisce in un
- * `href`, e uno schema eseguibile diventerebbe codice cliccabile.
+ * `https:` and the apps' custom schemes (`nostr:`, `primal:`) are accepted,
+ * but **not** `javascript:` and the like: a template ends up in an `href`, and
+ * an executable scheme would become clickable code.
  */
 export function validaTemplate(template: string): string | null {
   const t = template.trim()
@@ -329,7 +330,7 @@ export function validaTemplate(template: string): string | null {
   return null
 }
 
-/** Il client scelto, o il predefinito della piattaforma se non e' piu' fra i preset. */
+/** The chosen client, or the platform's default when it is no longer among the presets. */
 export function risolviClient(
   id: string | undefined,
   piattaforma: PiattaformaClient,
@@ -340,6 +341,6 @@ export function risolviClient(
   if (scelto) return scelto
 
   const predefinito = tutti.find((c) => c.id === CLIENT_PREDEFINITO[piattaforma])
-  // L'ultima rete di sicurezza: un preset esiste sempre, ma il tipo non lo sa.
+  // The last safety net: a preset always exists, but the type does not know it.
   return predefinito ?? (clientEsterniPredefiniti[0] as ClientEsterno)
 }

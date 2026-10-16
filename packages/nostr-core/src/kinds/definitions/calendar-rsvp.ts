@@ -4,15 +4,15 @@ import { defineKind } from '../registry.js'
 import { optionalTag, tagValue } from '../tags.js'
 
 /**
- * Kind 31925 — risposta a un invito, RSVP (NIP-52).
+ * Kind 31925 — the answer to an invitation, an RSVP (NIP-52).
  *
- * Punta all'evento con un tag `a`, cioe' alla sua *coordinata*
- * `<kind>:<pubkey>:<d>` e non al suo id. E' deliberato: gli eventi calendario
- * sono addressable, quindi l'organizzatore puo' modificarli e cambiare id.
- * Un RSVP legato all'id resterebbe attaccato a una versione superata.
+ * It points at the event with an `a` tag, that is at its *coordinate*
+ * `<kind>:<pubkey>:<d>` and not at its id. That is deliberate: calendar events
+ * are addressable, so the organiser can edit them and change the id. An RSVP
+ * tied to the id would stay attached to a superseded version.
  *
- * Il tag `e` opzionale registra invece a *quale versione* si stava rispondendo,
- * utile quando l'evento cambia dopo che qualcuno ha gia' risposto.
+ * The optional `e` tag records instead *which version* was being answered,
+ * which is useful when the event changes after somebody has already answered.
  */
 
 export const rsvpStatusSchema = z.enum(['accepted', 'declined', 'tentative'])
@@ -23,16 +23,16 @@ export type RsvpFreebusy = z.infer<typeof rsvpFreebusySchema>
 
 export const rsvpSchema = z.object({
   identifier: z.string(),
-  /** Coordinata dell'evento: `<kind>:<pubkey>:<d>`. */
+  /** The event's coordinate: `<kind>:<pubkey>:<d>`. */
   eventAddress: z.string(),
-  /** Id della versione dell'evento a cui si risponde. */
+  /** The id of the version of the event being answered. */
   eventId: z.string().optional(),
   status: rsvpStatusSchema,
-  /** Disponibilita' dichiarata. Non ha senso su un rifiuto. */
+  /** The declared availability. It makes no sense on a refusal. */
   freebusy: rsvpFreebusySchema.optional(),
-  /** Pubkey dell'organizzatore, per fargli arrivare la notifica. */
+  /** The organiser's pubkey, so the notification reaches them. */
   organizer: z.string().optional(),
-  /** Nota libera che accompagna la risposta. */
+  /** A free-form note accompanying the answer. */
   note: z.string(),
 })
 
@@ -53,8 +53,8 @@ export const calendarRsvpDefinition = defineKind<RsvpParsed, RsvpInput>({
   name: 'rsvp-calendario',
   nip: 'NIP-52',
   class: 'addressable',
-  // Addressable: cambiare idea significa ripubblicare con lo stesso `d`,
-  // che sostituisce la risposta precedente invece di affiancarla.
+  // Addressable: changing your mind means republishing with the same `d`,
+  // which replaces the previous answer instead of sitting beside it.
   editable: true,
   deletable: true,
   schema: rsvpSchema,
@@ -86,8 +86,8 @@ export const calendarRsvpDefinition = defineKind<RsvpParsed, RsvpInput>({
   },
 
   build(input, ctx) {
-    // Un rifiuto con "sono libero" non vuol dire nulla: NIP-52 prevede `fb`
-    // solo per chi partecipa o forse partecipa.
+    // A refusal with "I am free" means nothing: NIP-52 provides `fb` only for
+    // whoever is attending, or might be.
     const freebusy = input.status === 'declined' ? undefined : input.freebusy
 
     return {

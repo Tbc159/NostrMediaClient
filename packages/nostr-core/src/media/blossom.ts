@@ -4,21 +4,20 @@ import { sha256Hex } from '../utils/hash.js'
 import { urlConEstensione } from './estensioni.js'
 
 /**
- * Client Blossom (BUD-01/02/04/11).
+ * The Blossom client (BUD-01/02/04/11).
  *
- * Blossom identifica i file per **hash**, non per nome o percorso: lo stesso
- * file caricato su dieci server ha lo stesso identificativo ovunque. Questo
- * cambia il modello mentale rispetto a un normale storage — non si "carica in
- * una cartella", si "rende disponibile un blob" — e rende gratuita la
- * ridondanza: mirrorare significa dire a un secondo server di andarsi a
- * prendere lo stesso hash.
+ * Blossom identifies files by **hash**, not by name or path: the same file
+ * uploaded to ten servers has the same identifier everywhere. This changes the
+ * mental model compared with ordinary storage — you do not "upload into a
+ * folder", you "make a blob available" — and it makes redundancy free:
+ * mirroring means telling a second server to go and fetch the same hash.
  *
- * L'hash e' anche cio' che lega l'upload all'evento Nostr: il tag `x`
- * dell'imeta e' lo stesso hash, quindi chi legge l'evento puo' verificare che
- * il file scaricato sia esattamente quello che l'autore ha pubblicato.
+ * The hash is also what ties the upload to the Nostr event: the imeta's `x`
+ * tag is that same hash, so whoever reads the event can verify that the file
+ * they downloaded is exactly the one the author published.
  */
 
-/** Descrittore restituito dal server dopo un upload riuscito (BUD-02). */
+/** The descriptor the server returns after a successful upload (BUD-02). */
 export interface BlobDescriptor {
   url: string
   sha256: string
@@ -27,7 +26,7 @@ export interface BlobDescriptor {
   uploaded: number
 }
 
-/** Firma un template. La chiave non passa mai da qui. */
+/** Signs a template. The key never passes through here. */
 export type FirmaEvento = (template: EventTemplate) => Promise<NostrEvent> | NostrEvent
 
 export class BlossomError extends Error {
@@ -35,7 +34,7 @@ export class BlossomError extends Error {
     message: string,
     readonly stato: number,
     readonly server: string,
-    /** Contenuto dell'header `X-Reason`, se il server lo ha esposto. */
+    /** The content of the `X-Reason` header, when the server exposed it. */
     readonly ragione?: string,
   ) {
     super(message)
@@ -46,12 +45,12 @@ export class BlossomError extends Error {
 export { sha256Hex }
 
 /**
- * Codifica il token per l'header `Authorization`.
+ * Encodes the token for the `Authorization` header.
  *
- * Base64**url** senza padding, come i JWT: la variante standard usa `+` e `/`,
- * che dentro un header HTTP vanno incontro a proxy e parser troppo zelanti.
- * Il passaggio da TextEncoder e' necessario perche' il `content` del token e'
- * testo leggibile e puo' contenere accenti, che `btoa` da solo non regge.
+ * Base64**url** without padding, like JWTs: the standard variant uses `+` and
+ * `/`, which inside an HTTP header run into over-zealous proxies and parsers.
+ * Going through TextEncoder is necessary because the token's `content` is
+ * readable text and can contain accents, which `btoa` alone cannot take.
  */
 export function encodeAuthHeader(evento: NostrEvent): string {
   const byte = new TextEncoder().encode(JSON.stringify(evento))
@@ -61,7 +60,7 @@ export function encodeAuthHeader(evento: NostrEvent): string {
   return `Nostr ${base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')}`
 }
 
-/** Solo il nome host, che e' cio' che BUD-11 vuole nel tag `server`. */
+/** The host name alone, which is what BUD-11 wants in the `server` tag. */
 export function hostDi(server: string): string {
   try {
     return new URL(server).hostname.toLowerCase()
@@ -79,19 +78,19 @@ export interface OpzioniAutorizzazione {
   verbo: VerboBlossom
   hashes?: string[]
   server?: string
-  /** Validita' del token in secondi. Predefinita: 5 minuti. */
+  /** The token's validity in seconds. The default: 5 minutes. */
   validitaSecondi?: number
-  /** Testo mostrato all'utente al momento della firma. */
+  /** The text shown to the user at signing time. */
   descrizione: string
 }
 
 /**
- * Costruisce e fa firmare un token di autorizzazione Blossom.
+ * Builds a Blossom authorization token and has it signed.
  *
- * La validita' breve e' voluta: un token senza tag `server` e' spendibile su
- * qualunque server Blossom fino alla scadenza, quindi la finestra in cui un
- * token intercettato e' utile va tenuta stretta. Cinque minuti bastano
- * abbondantemente a un upload e non a molto altro.
+ * The short validity is deliberate: a token without a `server` tag can be
+ * spent on any Blossom server at all until it expires, so the window in which
+ * an intercepted token is useful has to be kept narrow. Five minutes is amply
+ * enough for an upload and not for much else.
  */
 export async function creaTokenBlossom(
   firma: FirmaEvento,
@@ -112,15 +111,15 @@ export async function creaTokenBlossom(
   return firma(template)
 }
 
-/** Traduce lo stato HTTP in un messaggio che dica all'utente cosa fare. */
+/** Turns the HTTP status into a message that tells the user what to do. */
 function spiegaStato(stato: number, server: string, ragione: string | undefined): string {
   const coda = ragione ? ` Il server dice: «${ragione}».` : ''
   switch (stato) {
     case 401:
       return `${server} richiede un'autorizzazione firmata e non l'ha accettata.${coda}`
     case 402:
-      // BUD-07. Fuori dalla v0 per decisione di progetto: qui l'unica cosa che
-      // conta e' non far sembrare un guasto quello che e' un listino prezzi.
+      // BUD-07. Out of the v0 by a project decision: the only thing that
+      // counts here is not making a price list look like a fault.
       return `${server} chiede un pagamento per questo caricamento (BUD-07), che questo client non gestisce ancora.${coda}`
     case 403:
       return `${server} non consente questo caricamento.${coda}`
@@ -140,9 +139,9 @@ function spiegaStato(stato: number, server: string, ragione: string | undefined)
 }
 
 async function errore(risposta: Response, server: string): Promise<BlossomError> {
-  // `X-Reason` e' leggibile da JavaScript solo se il server lo espone con
-  // Access-Control-Expose-Headers: quando manca, il messaggio resta generico
-  // e non c'e' modo di fare di meglio dal browser.
+  // `X-Reason` can be read from JavaScript only when the server exposes it
+  // with Access-Control-Expose-Headers: when it is missing the message stays
+  // generic, and there is no way to do better from the browser.
   const ragione = risposta.headers.get('x-reason') ?? undefined
   return new BlossomError(
     spiegaStato(risposta.status, server, ragione),
@@ -153,25 +152,25 @@ async function errore(risposta: Response, server: string): Promise<BlossomError>
 }
 
 export interface OpzioniUpload {
-  /** Firma il token di autorizzazione. Assente: si tenta senza autorizzazione. */
+  /** Signs the authorization token. Absent: the attempt is made without one. */
   firma?: FirmaEvento
   pubkey?: string
-  /** Tipo MIME dichiarato. Predefinito: quello del blob. */
+  /** The declared MIME type. The default: the blob's. */
   mime?: string
   /**
-   * Nome del file originale: serve a scegliere l'estensione nell'URL.
+   * The original file's name: it is for choosing the extension in the URL.
    *
-   * Il server decide l'estensione con cui risponde e la decide a modo suo
-   * (`audio/mpeg` → `.mpga` su yakihonne): BUD-01 lo obbliga ad accettare
-   * qualunque estensione in lettura, quindi la si riscrive qui con quella
-   * che i lettori si aspettano — `.mp3` — preferendo quella del nome
-   * originale quando e' coerente col MIME. Verificato su due server.
+   * The server decides the extension it answers with, and decides it its own
+   * way (`audio/mpeg` → `.mpga` on yakihonne): BUD-01 obliges it to accept any
+   * extension at all when reading, so it is rewritten here with the one
+   * players expect — `.mp3` — preferring the original name's when that is
+   * consistent with the MIME. Verified on two servers.
    */
   nome?: string
   segnale?: AbortSignal
 }
 
-/** Il descrittore com'e' arrivato, ma con l'estensione scelta dal client. */
+/** The descriptor as it arrived, but with the extension the client chose. */
 function conEstensioneScelta(
   descrittore: BlobDescriptor,
   mime: string,
@@ -181,13 +180,13 @@ function conEstensioneScelta(
 }
 
 /**
- * Carica un file su un server Blossom (BUD-02, `PUT /upload`).
+ * Uploads a file to a Blossom server (BUD-02, `PUT /upload`).
  *
- * L'hash viene calcolato **dal client prima dell'invio** e mandato in
- * `X-SHA-256`. Non e' una formalita': il server puo' rifiutare in anticipo
- * senza ricevere i byte, e soprattutto un `409` ci dice che quello che e'
- * arrivato non e' quello che abbiamo mandato — che altrimenti scopriremmo solo
- * quando l'immagine risulta rotta a chi legge il post.
+ * The hash is computed **by the client before sending** and sent in
+ * `X-SHA-256`. It is not a formality: the server can refuse in advance without
+ * receiving the bytes, and above all a `409` tells us that what arrived is not
+ * what we sent — which we would otherwise find out only when the image turns
+ * out broken for whoever reads the post.
  */
 export async function uploadBlob(
   server: string,
@@ -222,8 +221,8 @@ export async function uploadBlob(
       ...(opzioni.segnale ? { signal: opzioni.segnale } : {}),
     })
   } catch (e) {
-    // Da browser un fallimento di rete qui e' quasi sempre CORS: il server ha
-    // risposto, ma senza gli header che permettono alla pagina di leggerlo.
+    // From a browser a network failure here is nearly always CORS: the server
+    // answered, but without the headers that let the page read it.
     throw new BlossomError(
       `Non e' stato possibile contattare ${base}. Da browser la causa piu' frequente e' la mancanza degli header CORS sulla risposta effettiva, non solo sul preflight. Dettaglio: ${e instanceof Error ? e.message : String(e)}`,
       0,
@@ -245,11 +244,12 @@ export async function uploadBlob(
 }
 
 /**
- * Chiede a un secondo server di procurarsi lo stesso blob (BUD-04).
+ * Asks a second server to procure the same blob (BUD-04).
  *
- * Non ricarica i byte: passa l'URL e il server se li va a prendere. E' il modo
- * economico per non dipendere da un solo host — se domani sparisce, l'evento
- * pubblicato continua a puntare a un `url` morto ma con un `fallback` vivo.
+ * It does not re-upload the bytes: it passes the URL and the server goes and
+ * fetches them. It is the cheap way not to depend on a single host — if that
+ * disappears tomorrow, the published event goes on pointing at a dead `url`
+ * but with a live `fallback`.
  */
 export async function mirrorBlob(
   server: string,
@@ -282,14 +282,15 @@ export async function mirrorBlob(
 }
 
 /**
- * Elenca i blob caricati da una pubkey (BUD-12, `GET /list/<pubkey>`).
+ * Lists the blobs a pubkey has uploaded (BUD-12, `GET /list/<pubkey>`).
  *
- * L'autorizzazione e' facoltativa **nella specifica e nella pratica**: su
- * blossom.yakihonne.com la lista e' pubblica, su nostr.download risponde 401.
- * Quindi si prova prima senza: firmare un token costa all'utente un popup
- * dell'estensione, e chiederglielo quando non serve e' il modo di far
- * sembrare invasiva una funzione che non lo e'. Solo se il server rifiuta, e
- * solo se abbiamo di che firmare, si riprova con il token (verbo `list`).
+ * The authorization is optional **in the specification and in practice**: on
+ * blossom.yakihonne.com the list is public, on nostr.download it answers 401.
+ * So it is tried without one first: signing a token costs the user a popup
+ * from the extension, and asking for it when it is not needed is the way to
+ * make a feature look invasive when it is not. Only when the server refuses,
+ * and only when we have something to sign with, is it retried with the token
+ * (verb `list`).
  */
 export async function listBlobs(
   server: string,

@@ -82,7 +82,7 @@ function attributo(blocco: string, tag: string, attr: string): string | null {
   return m ? decodifica(m[1] ?? '') : null
 }
 
-/** Legge un feed RSS e ne restituisce un riassunto con i problemi trovati. */
+/** Reads an RSS feed and returns a summary of it with the problems found. */
 export function riassumiFeedPodcast(xml: string): RiassuntoFeed {
   const problemi: string[] = []
   if (!/<rss\b/i.test(xml)) {

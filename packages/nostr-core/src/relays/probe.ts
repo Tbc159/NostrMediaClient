@@ -1,29 +1,29 @@
 /**
- * Sonde diagnostiche per relay e server Blossom.
+ * Diagnostic probes for relays and Blossom servers.
  *
- * Modulo isomorfico: `WebSocket` e `fetch` sono globali sia in Node 22 sia nel
- * browser, quindi lo stesso codice serve lo script da riga di comando
- * (`pnpm check:endpoints`) e la pagina di diagnostica dell'app.
+ * An isomorphic module: `WebSocket` and `fetch` are globals both in Node 22
+ * and in the browser, so the same code serves the command-line script
+ * (`pnpm check:endpoints`) and the app's diagnostics page.
  *
- * Qui non si stampa nulla: le funzioni restituiscono dati strutturati e la
- * presentazione resta a chi chiama.
+ * Nothing is printed here: the functions return structured data and the
+ * presentation stays with the caller.
  *
- * Nessuna chiave privata e' coinvolta: tutte le verifiche sono anonime.
+ * No private key is involved: every check is anonymous.
  */
 
 const DEFAULT_TIMEOUT_MS = 8000
 
 /**
- * Vero quando il codice gira su Node e non in un browser.
+ * True when the code runs on Node and not in a browser.
  *
- * Si rileva Node invece del browser di proposito: questo modulo deve restare
- * isomorfico, e `window`/`document` sono vietati qui (lo impone anche
- * `no-restricted-globals` in eslint.config.js). Serve solo a qualificare i
- * messaggi d'errore, non a cambiare comportamento.
+ * Node is detected rather than the browser on purpose: this module has to stay
+ * isomorphic, and `window`/`document` are forbidden here (`no-restricted-globals`
+ * in eslint.config.js enforces it too). It serves only to qualify the error
+ * messages, not to change behaviour.
  */
 const inNode = typeof process !== 'undefined' && process.versions?.node !== undefined
 
-/** Sottoinsieme del documento NIP-11 che ci interessa. */
+/** The subset of the NIP-11 document we care about. */
 export interface RelayInfo {
   name?: string
   description?: string
@@ -42,21 +42,21 @@ export interface RelayInfo {
 
 export interface RelayProbeResult {
   url: string
-  /** Vero se il relay ha risposto con dati (EVENT o EOSE). */
+  /** True when the relay answered with data (EVENT or EOSE). */
   reachable: boolean
-  /** Millisecondi fino all'apertura della connessione. */
+  /** Milliseconds until the connection opened. */
   connectMs?: number
-  /** Millisecondi fino al primo dato utile. */
+  /** Milliseconds until the first useful piece of data. */
   firstDataMs?: number
-  /** Il relay ha inviato AUTH: richiede identita' anche solo per leggere. */
+  /** The relay sent AUTH: it asks for an identity even just to read. */
   authRequested: boolean
-  /** Motivo machine-readable di un CLOSED, se ricevuto. */
+  /** The machine-readable reason of a CLOSED, when one was received. */
   closedReason?: string
   notices: string[]
   error?: string
   /**
-   * Il primo tentativo era fallito ed e' stato necessario ritentare.
-   * Segnala un relay instabile o con rate limit per IP.
+   * The first attempt had failed and a retry was necessary.
+   * It points to an unstable relay, or one with a per-IP rate limit.
    */
   retried: boolean
 }
@@ -65,13 +65,13 @@ export interface RelayCheck {
   url: string
   probe: RelayProbeResult
   info?: RelayInfo
-  /** Perche' NIP-11 non e' stato leggibile. Non e' bloccante. */
+  /** Why NIP-11 could not be read. It is not blocking. */
   infoError?: string
 }
 
 export interface ProbeOptions {
   timeoutMs?: number
-  /** Ritenta una volta se il primo tentativo fallisce. Default: true. */
+  /** Retry once when the first attempt fails. Default: true. */
   retry?: boolean
 }
 
@@ -93,17 +93,17 @@ function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promi
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
 
-/** Converte wss:// in https:// per interrogare il documento NIP-11. */
+/** Turns wss:// into https:// to query the NIP-11 document. */
 export function relayHttpUrl(wsUrl: string): string {
   return wsUrl.replace(/^ws:/, 'http:').replace(/^wss:/, 'https:')
 }
 
 /**
- * Legge il documento NIP-11 di un relay.
+ * Reads a relay's NIP-11 document.
  *
- * Dal browser puo' fallire per CORS anche quando il relay e' perfettamente
- * raggiungibile via WebSocket: non e' un errore bloccante e va trattato come
- * informazione mancante, non come relay guasto.
+ * From the browser it can fail on CORS even when the relay is perfectly
+ * reachable over WebSocket: it is not a blocking error and it should be
+ * treated as missing information, not as a broken relay.
  */
 export async function fetchRelayInfo(
   wsUrl: string,
@@ -119,7 +119,7 @@ export async function fetchRelayInfo(
   return (await res.json()) as RelayInfo
 }
 
-/** Un singolo tentativo di connessione: apre, chiede un evento, misura. */
+/** A single connection attempt: it opens, asks for an event, measures. */
 function probeOnce(url: string, timeoutMs: number): Promise<RelayProbeResult> {
   return new Promise((resolve) => {
     const started = Date.now()
@@ -141,7 +141,7 @@ function probeOnce(url: string, timeoutMs: number): Promise<RelayProbeResult> {
       try {
         ws?.close()
       } catch {
-        // La connessione puo' essere gia' chiusa: non e' un problema.
+        // The connection may be closed already: that is no problem.
       }
       resolve({ ...result, ...extra })
     }
@@ -191,11 +191,11 @@ function probeOnce(url: string, timeoutMs: number): Promise<RelayProbeResult> {
 }
 
 /**
- * Sonda un relay, ritentando una volta di default.
+ * Probes a relay, retrying once by default.
  *
- * I relay pubblici rifiutano connessioni in modo intermittente quando sono
- * sotto carico o applicano un rate limit per IP. Dichiararli irraggiungibili
- * al primo tentativo produce diagnosi sbagliate.
+ * Public relays refuse connections intermittently when they are under load or
+ * apply a per-IP rate limit. Declaring them unreachable on the first attempt
+ * produces wrong diagnoses.
  */
 export async function probeRelay(
   url: string,
@@ -212,7 +212,7 @@ export async function probeRelay(
   return { ...secondo, retried: true }
 }
 
-/** Sonda un relay e ne legge il documento NIP-11 in parallelo. */
+/** Probes a relay and reads its NIP-11 document in parallel. */
 export async function checkRelay(url: string, options: ProbeOptions = {}): Promise<RelayCheck> {
   const [probe, info] = await Promise.all([
     probeRelay(url, options),
@@ -231,25 +231,25 @@ export async function checkRelay(url: string, options: ProbeOptions = {}): Promi
 
 export interface BlossomCheck {
   url: string
-  /** Il server risponde. */
+  /** The server answers. */
   reachable: boolean
-  /** Ha risposto 404 a un blob inesistente: si comporta da server Blossom. */
+  /** It answered 404 to a non-existent blob: it behaves like a Blossom server. */
   speaksBlossom: boolean
-  /** Stato di HEAD /upload (BUD-06). */
+  /** The status of HEAD /upload (BUD-06). */
   uploadStatus?: number
-  /** Interpretazione dello stato di upload. */
+  /** The reading of the upload status. */
   uploadHint?: string
   error?: string
 }
 
-/** Un digest che quasi certamente non corrisponde ad alcun blob. */
+/** A digest that almost certainly matches no blob. */
 const SHA_INESISTENTE = 'f'.repeat(64)
 
 /**
- * Verifica un server Blossom senza caricare nulla e senza firmare.
+ * Checks a Blossom server without uploading anything and without signing.
  *
- * La prova di identita' e' BUD-01: `GET /<sha256>` di un blob assente deve
- * rispondere 404. Un server generico risponderebbe altro.
+ * The proof of identity is BUD-01: `GET /<sha256>` of an absent blob must
+ * answer 404. A generic server would answer something else.
  */
 export async function checkBlossomServer(
   url: string,
@@ -260,10 +260,10 @@ export async function checkBlossomServer(
   const result: BlossomCheck = { url: base, reachable: false, speaksBlossom: false }
 
   try {
-    // `redirect: 'follow'` e non 'manual': molti server Blossom rispondono 302
-    // verso una CDN, e nel browser una risposta di tipo opaqueredirect non e'
-    // leggibile. Seguire il redirect e' l'unico comportamento che funziona in
-    // entrambi gli ambienti.
+    // `redirect: 'follow'` and not 'manual': many Blossom servers answer 302
+    // towards a CDN, and in the browser a response of type opaqueredirect
+    // cannot be read. Following the redirect is the only behaviour that works
+    // in both environments.
     const res = await withTimeout(
       fetch(`${base}/${SHA_INESISTENTE}`, { method: 'GET', redirect: 'follow' }),
       timeoutMs,
@@ -275,12 +275,12 @@ export async function checkBlossomServer(
     const msg = err instanceof Error ? err.message : String(err)
     const scaduto = msg.toLowerCase().includes('timeout')
 
-    // La causa va qualificata, non indovinata. Un timeout e' lentezza o
-    // irraggiungibilita'; un errore di rete dal browser, a fronte di un server
-    // che da Node risponde, e' quasi sempre CORS — tipicamente perche' il
-    // server manda Access-Control-Allow-Origin solo sul preflight OPTIONS e
-    // non sulla risposta effettiva. Attribuire un timeout a CORS manda fuori
-    // strada chi legge.
+    // The cause has to be qualified, not guessed. A timeout is slowness or
+    // unreachability; a network error from the browser, against a server that
+    // answers from Node, is nearly always CORS — typically because the server
+    // sends Access-Control-Allow-Origin only on the OPTIONS preflight and not
+    // on the actual response. Blaming CORS for a timeout sends the reader off
+    // in the wrong direction.
     if (scaduto) {
       result.error = `${msg} (oltre ${timeoutMs} ms): server lento o irraggiungibile`
     } else if (inNode) {
@@ -295,8 +295,9 @@ export async function checkBlossomServer(
     return result
   }
 
-  // BUD-06: HEAD /upload anticipa se l'upload verrebbe accettato. Senza evento
-  // di autorizzazione kind 24242 ci aspettiamo 401, che e' l'esito sano.
+  // BUD-06: HEAD /upload says in advance whether the upload would be accepted.
+  // Without a kind 24242 authorization event we expect a 401, which is the
+  // healthy outcome.
   try {
     const res = await withTimeout(
       fetch(`${base}/upload`, {

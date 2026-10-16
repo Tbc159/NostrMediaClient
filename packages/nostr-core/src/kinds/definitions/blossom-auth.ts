@@ -4,25 +4,26 @@ import { defineKind } from '../registry.js'
 import { repeatedTags, tagValue, tagValues } from '../tags.js'
 
 /**
- * Kind 24242 — autorizzazione Blossom (BUD-11).
+ * Kind 24242 — a Blossom authorization (BUD-11).
  *
- * **Non viene mai pubblicato su un relay.** E' un evento firmato che viaggia
- * dentro l'header `Authorization` di una richiesta HTTP verso un server
- * Blossom, e serve a dimostrare che chi carica il file possiede la chiave.
- * Sta nella fascia effimera proprio per questo: non ha senso conservarlo.
+ * **It is never published to a relay.** It is a signed event that travels
+ * inside the `Authorization` header of an HTTP request to a Blossom server,
+ * and it is what proves that whoever uploads the file holds the key. It sits
+ * in the ephemeral range for exactly that reason: there is no point keeping
+ * it.
  *
- * Vincoli della specifica, tutti verificati in costruzione:
+ * The specification's constraints, all checked at build time:
  *
- *  - `t` con il verbo dell'operazione (`upload`, `get`, `list`, `delete`, `media`);
- *  - `expiration` (NIP-40) **nel futuro**: un token senza scadenza resterebbe
- *    valido per sempre, e chi lo intercettasse potrebbe riusarlo;
- *  - `x` con l'hash del blob, obbligatorio per l'upload;
- *  - `content` leggibile: e' quello che l'utente vede quando l'estensione gli
- *    chiede di firmare, e scriverci una stringa vuota significa chiedergli di
- *    autorizzare qualcosa che non puo' capire.
+ *  - `t` with the operation's verb (`upload`, `get`, `list`, `delete`, `media`);
+ *  - `expiration` (NIP-40) **in the future**: a token without an expiry would
+ *    stay valid for ever, and whoever intercepted it could reuse it;
+ *  - `x` with the blob's hash, mandatory for an upload;
+ *  - a readable `content`: it is what the user sees when the extension asks
+ *    them to sign, and writing an empty string there means asking them to
+ *    authorize something they cannot understand.
  *
- * Il tag `server` limita il token a un dominio. Senza, un token intercettato
- * e' spendibile su qualsiasi server Blossom fino alla scadenza.
+ * The `server` tag limits the token to one domain. Without it, an intercepted
+ * token can be spent on any Blossom server at all until it expires.
  */
 
 export const verbiBlossom = ['get', 'upload', 'list', 'delete', 'media'] as const
@@ -40,13 +41,13 @@ export type BlossomAuthParsed = z.infer<typeof blossomAuthSchema>
 
 export interface BlossomAuthInput {
   verb: VerboBlossom
-  /** Scadenza assoluta, secondi unix. */
+  /** The absolute expiry, in unix seconds. */
   expiration: number
-  /** Hash dei blob a cui il token si applica. */
+  /** The hashes of the blobs the token applies to. */
   hashes?: string[]
-  /** Domini a cui limitare il token (solo il nome host, non l'URL). */
+  /** The domains to limit the token to (the host name alone, not the URL). */
   servers?: string[]
-  /** Spiegazione mostrata all'utente al momento della firma. */
+  /** The explanation shown to the user at signing time. */
   content: string
 }
 
@@ -56,7 +57,7 @@ export const blossomAuthDefinition = defineKind<BlossomAuthParsed, BlossomAuthIn
   nip: 'BUD-11',
   class: 'ephemeral',
   editable: false,
-  deletable: false, // effimero: non c'e' niente da cancellare
+  deletable: false, // ephemeral: there is nothing to delete
   schema: blossomAuthSchema,
   feed: { eligible: false },
 
