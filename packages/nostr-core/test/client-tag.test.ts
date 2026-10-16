@@ -11,17 +11,17 @@ import { defineKind } from '../src/kinds/registry.js'
 import type { EventTemplate } from '../src/kinds/types.js'
 
 /**
- * Il tag `client` non e' una decorazione: dice a chi legge con cosa e' stato
- * composto l'evento. Sta dentro `defineKind`, quindi la prova che conta e'
- * che nessun kind possa uscire senza — e che l'unico escluso, il token
- * Blossom, resti escluso.
+ * The `client` tag is not a decoration: it tells the reader what the event was
+ * composed with. It lives inside `defineKind`, so the check that counts is that
+ * no kind can come out without it — and that the only one excluded, the Blossom
+ * token, stays excluded.
  */
 
 const CTX = { pubkey: 'ab'.repeat(32), now: 1_800_000_000 }
 const tagClient = (t: EventTemplate): string[][] => t.tags.filter((x) => x[0] === 'client')
 
-describe('tag client', () => {
-  it('lo porta ogni kind che finisce sui relay', () => {
+describe('the client tag', () => {
+  it('is carried by every kind that ends up on the relays', () => {
     const casi: EventTemplate[] = [
       metadataDefinition.build({ name: 'prova' }, CTX),
       noteDefinition.build({ content: 'ciao' }, CTX),
@@ -37,7 +37,7 @@ describe('tag client', () => {
     for (const t of casi) expect(tagClient(t)).toEqual([['client', NOME_CLIENT]])
   })
 
-  it('non lo mette sul token Blossom, che non e’ un evento pubblicato', () => {
+  it('is not put on the Blossom token, which is not a published event', () => {
     const t = blossomAuthDefinition.build(
       {
         verb: 'upload',
@@ -50,10 +50,10 @@ describe('tag client', () => {
     expect(tagClient(t)).toEqual([])
   })
 
-  it('sovrascrive quello di un altro client invece di affiancarlo', () => {
-    // E' il caso vero: si riapre un evento di Plektos e lo si ripubblica.
-    // L'evento nuovo lo scrive questo programma, e dire il contrario sarebbe
-    // falso; due tag `client` lascerebbero chi legge a indovinare.
+  it("overwrites another client's instead of sitting beside it", () => {
+    // It is the real case: a Plektos event is reopened and republished. The
+    // new event is written by this program, and saying otherwise would be
+    // false; two `client` tags would leave the reader guessing.
     const fuso = conTagClient({
       kind: 31923,
       content: '',
@@ -68,20 +68,20 @@ describe('tag client', () => {
     expect(fuso.tags.filter((t) => t[0] === 'title')).toHaveLength(1)
   })
 
-  it('e’ idempotente: ricostruire due volte non accumula tag', () => {
+  it('is idempotent: building twice does not pile up tags', () => {
     const uno = noteDefinition.build({ content: 'ciao' }, CTX)
     expect(tagClient(conTagClient(uno))).toHaveLength(1)
   })
 
-  it('non muta il template che riceve', () => {
+  it('does not mutate the template it receives', () => {
     const originale: EventTemplate = { kind: 1, content: '', created_at: 1, tags: [['t', 'x']] }
     conTagClient(originale)
     expect(originale.tags).toEqual([['t', 'x']])
   })
 
-  it('vale anche per una definizione registrata dopo, senza toccarla', () => {
-    // La regola sta in defineKind proprio perche' un kind nuovo la erediti
-    // senza che chi lo scrive debba ricordarsene.
+  it('holds for a definition registered later too, without touching it', () => {
+    // The rule lives in defineKind precisely so a new kind inherits it
+    // without whoever writes it having to remember.
     const nuovo = defineKind<{ x: string }, { x: string }>({
       kind: 30078,
       name: 'inventato',

@@ -17,24 +17,24 @@ function evento(p: Partial<NostrEvent> & { id: string }): NostrEvent {
   } as NostrEvent
 }
 
-describe('lettura delle risposte dei relay', () => {
-  it('si fida del booleano, non del prefisso', () => {
-    // NIP-52 a parte, e' l'errore piu' facile da commettere qui: "duplicate:" e
-    // "pow:" compaiono anche sulle risposte positive, e leggere solo il
-    // prefisso farebbe segnalare come fallita una pubblicazione riuscita.
+describe("reading the relays' answers", () => {
+  it('trusts the boolean, not the prefix', () => {
+    // NIP-52 aside, it is the easiest mistake to make here: "duplicate:" and
+    // "pow:" appear on positive answers too, and reading the prefix alone
+    // would report a successful publication as failed.
     expect(spiegaRispostaRelay(true, 'pow: difficulty 25>=24').esito).toBe('accettato')
     expect(spiegaRispostaRelay(false, 'pow: difficulty 26 is less than 30').esito).toBe('rifiutato')
   })
 
-  it('tratta il duplicato come un successo', () => {
-    // Il relay ce l'ha gia': per chi pubblica il risultato e' identico.
+  it('treats a duplicate as a success', () => {
+    // The relay has it already: for the publisher the result is the same.
     const r = spiegaRispostaRelay(true, 'duplicate: already have this event')
     expect(r.esito).toBe('duplicato')
   })
 
-  it('distingue la richiesta di autenticazione dal rifiuto', () => {
-    // Sono due situazioni con rimedi opposti: una si risolve accedendo,
-    // l'altra no.
+  it('tells the request for authentication apart from a refusal', () => {
+    // They are two situations with opposite remedies: one is solved by logging
+    // in, the other is not.
     expect(
       spiegaRispostaRelay(false, 'auth-required: we only accept events from registered users')
         .esito,
@@ -42,31 +42,31 @@ describe('lettura delle risposte dei relay', () => {
     expect(spiegaRispostaRelay(false, 'restricted: not allowed to write.').esito).toBe('rifiutato')
   })
 
-  it('riporta il testo grezzo quando il relay non usa alcun prefisso', () => {
-    // La specifica lo impone, ma non tutti i relay la rispettano.
+  it('reports the raw text when the relay uses no prefix at all', () => {
+    // The specification requires one, but not every relay follows it.
     const r = spiegaRispostaRelay(false, 'no.')
     expect(r.esito).toBe('rifiutato')
     expect(r.motivo).toBe('no.')
   })
 
-  it('non lascia un messaggio vuoto senza spiegazione', () => {
+  it('does not leave an empty message unexplained', () => {
     expect(spiegaRispostaRelay(false, '').motivo).toMatch(/senza motivo/)
     expect(spiegaRispostaRelay(false, undefined).motivo).toMatch(/senza motivo/)
   })
 
-  it('classifica l' + "'errore del relay come irraggiungibilita', non come rifiuto", () => {
-    // "error:" e' un guasto del relay, non un giudizio sull'evento: ritentare
-    // ha senso, correggere l'evento no.
+  it("classifies the relay's error as unreachability, not as a refusal", () => {
+    // "error:" is a fault of the relay's, not a judgement on the event:
+    // retrying makes sense, correcting the event does not.
     expect(spiegaRispostaRelay(false, 'error: could not connect to the database').esito).toBe(
       'irraggiungibile',
     )
   })
 })
 
-describe('elenchi di relay', () => {
-  it('non interroga due volte lo stesso relay scritto in modo diverso', () => {
-    // Stesso URL con slash finale e maiuscole: due connessioni allo stesso
-    // nodo si prendono un rate limit a vicenda.
+describe('lists of relays', () => {
+  it('does not query the same relay twice when it is written differently', () => {
+    // The same URL with a trailing slash and capitals: two connections to the
+    // same node rate-limit each other.
     const uniti = mergeRelayLists(
       ['wss://uno.example/', 'wss://due.example'],
       ['WSS://UNO.EXAMPLE'],
@@ -74,45 +74,45 @@ describe('elenchi di relay', () => {
     expect(uniti).toHaveLength(2)
   })
 
-  it('conserva la forma originale del primo URL incontrato', () => {
-    // Normalizziamo per confrontare, non per riscrivere quello che l'utente ha
-    // configurato.
+  it('keeps the original form of the first URL it meets', () => {
+    // We normalise in order to compare, not to rewrite what the user has
+    // configured.
     expect(mergeRelayLists(['wss://Uno.example'])[0]).toBe('wss://Uno.example')
     expect(normalizeRelayUrl('wss://Uno.example/')).toBe('wss://uno.example')
   })
 })
 
-describe('ricomposizione degli eventi letti', () => {
+describe('recomposing the events read', () => {
   const indirizzabile = (id: string, created_at: number, d = 'x'): NostrEvent =>
     evento({ id, created_at, kind: 31923, tags: [['d', d]] })
 
-  it('tiene una sola versione di un evento sostituibile', () => {
-    // Relay diversi possono avere versioni diverse: senza questo passaggio la
-    // stessa riunione comparirebbe due volte in calendario.
+  it('keeps a single version of a replaceable event', () => {
+    // Different relays can hold different versions: without this step the
+    // same meeting would appear twice in the calendar.
     const risultato = ultimaVersione([indirizzabile('aa', 100), indirizzabile('bb', 200)])
     expect(risultato).toHaveLength(1)
     expect(risultato[0]?.id).toBe('bb')
   })
 
-  it('a parita' + " di istante sceglie l'id minore, come vuole NIP-01", () => {
-    // Non e' estetica: e' cio' che fa convergere client diversi sulla stessa
-    // versione invece di mostrarne una a testa.
+  it('picks the lower id on an equal instant, as NIP-01 wants', () => {
+    // It is not aesthetics: it is what makes different clients converge on the
+    // same version instead of each showing its own.
     const risultato = ultimaVersione([indirizzabile('bb', 100), indirizzabile('aa', 100)])
     expect(risultato[0]?.id).toBe('aa')
   })
 
-  it('non fonde eventi addressable con identificatori diversi', () => {
+  it('does not merge addressable events with different identifiers', () => {
     expect(
       ultimaVersione([indirizzabile('aa', 100, 'uno'), indirizzabile('bb', 100, 'due')]),
     ).toHaveLength(2)
   })
 
-  it('non fonde le note, che sono regolari e tutte distinte', () => {
+  it('does not merge the notes, which are regular and all distinct', () => {
     const note = [evento({ id: 'aa', created_at: 100 }), evento({ id: 'bb', created_at: 100 })]
     expect(ultimaVersione(note)).toHaveLength(2)
   })
 
-  it('ordina dal piu' + ' recente', () => {
+  it('orders from the most recent', () => {
     const ordinati = ordinaPerData([
       evento({ id: 'aa', created_at: 100 }),
       evento({ id: 'bb', created_at: 300 }),
@@ -122,20 +122,20 @@ describe('ricomposizione degli eventi letti', () => {
   })
 })
 
-describe('strategia per kind', () => {
-  it('una nota segue la preferenza dell’utente', () => {
+describe('the strategy per kind', () => {
+  it("has a note follow the user's preference", () => {
     expect(strategiaPerKind(1, 'sequenziale')).toBe('sequenziale')
     expect(strategiaPerKind(1, 'tutti')).toBe('tutti')
   })
 
-  it('un podcast va ovunque anche con la rotazione: un lettore legge dal relay suo', () => {
-    // Una scheda su nos.lol e' invisibile a chi legge relay.damus.io: e'
-    // successo davvero, e la rotazione ne era la causa.
+  it('sends a podcast everywhere even with the rotation: a player reads from a relay of its own', () => {
+    // A card on nos.lol is invisible to whoever reads relay.damus.io: it
+    // really happened, and the rotation was the cause.
     for (const kind of [54, 10154, 10064])
       expect(strategiaPerKind(kind, 'sequenziale')).toBe('tutti')
   })
 
-  it('replaceable e addressable vanno ovunque: devono essere trovati, non solo esistere', () => {
+  it('sends replaceable and addressable everywhere: they have to be found, not merely to exist', () => {
     for (const kind of [0, 3, 10002, 30023, 31923]) {
       expect(strategiaPerKind(kind, 'sequenziale')).toBe('tutti')
     }

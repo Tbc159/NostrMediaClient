@@ -1,4 +1,4 @@
-import { estensioneDelNome, estensionePer } from '../media/estensioni.js'
+import { estensioneDelNome, estensionePer } from '../media/extensions.js'
 import type { MediaItem } from '../mediamanager/types.js'
 
 /**

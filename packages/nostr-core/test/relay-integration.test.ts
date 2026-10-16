@@ -6,15 +6,15 @@ import { noteDefinition } from '../src/kinds/definitions/note.js'
 import { createRelayPool, type RelayPool } from '../src/relays/pool.js'
 import { publishEvent } from '../src/relays/publish.js'
 import { loadTimeline } from '../src/relays/request.js'
-import { avviaRelayFinto, type RelayFinto } from './helpers/relay-finto.js'
+import { avviaRelayFinto, type RelayFinto } from './helpers/fake-relay.js'
 
 /**
- * Integrazione con un relay vero, seppure minimo e in-process.
+ * Integration with a real relay, minimal and in-process though it is.
  *
- * Un mock del pool proverebbe solo che il nostro codice chiama se stesso. Qui
- * il traffico passa da un WebSocket e da messaggi NIP-01 reali, che e' l'unico
- * modo per vedere i casi che contano davvero: rifiuti, silenzi, e la
- * sostituzione degli eventi addressable.
+ * A mock of the pool would only prove that our code calls itself. Here the
+ * traffic goes through a WebSocket and real NIP-01 messages, which is the only
+ * way to see the cases that really count: refusals, silences, and the
+ * replacement of addressable events.
  */
 
 const chiave = generateSecretKey()
@@ -24,7 +24,7 @@ function nota(testo: string) {
   return finalizeEvent(noteDefinition.build({ content: testo }, ctx), chiave)
 }
 
-describe('pubblicazione e rilettura su un relay', () => {
+describe('publishing to a relay and reading back', () => {
   let pool: RelayPool
   let buono: RelayFinto
   let cattivo: RelayFinto
@@ -43,7 +43,7 @@ describe('pubblicazione e rilettura su un relay', () => {
     await Promise.all([buono.chiudi(), cattivo.chiudi()])
   })
 
-  it('consegna l' + "'evento e lo rilegge identico", async () => {
+  it('delivers the event and reads it back identical', async () => {
     const evento = nota('prova di andata e ritorno')
     const esito = await publishEvent(pool, [buono.url], evento)
     expect(esito.riuscita).toBe(true)
@@ -53,9 +53,9 @@ describe('pubblicazione e rilettura su un relay', () => {
     expect(letti[0]?.content).toBe('prova di andata e ritorno')
   })
 
-  it('in parallelo riporta l' + "'esito di ogni relay, anche di quelli che rifiutano", async () => {
-    // E' il caso normale su Nostr: un elenco misto di relay che accettano e
-    // relay che no. Un risultato unico nasconderebbe quale ha fatto cosa.
+  it("reports every relay's outcome in parallel, including the ones that refuse", async () => {
+    // It is the normal case on Nostr: a mixed list of relays that accept and
+    // relays that do not. A single result would hide which did what.
     const esito = await publishEvent(pool, [buono.url, cattivo.url], nota('misto'), {
       strategia: 'tutti',
     })
@@ -69,10 +69,10 @@ describe('pubblicazione e rilettura su un relay', () => {
     expect(rifiuto?.motivo).toMatch(/non ti consente di scrivere/)
   })
 
-  it('a rotazione si ferma al primo relay che prende in carico l' + "'evento", async () => {
-    // Cosi' si apre una connessione per volta: e' il motivo per cui questa e'
-    // la strategia predefinita. Il prezzo e' che l'evento finisce su un solo
-    // relay, e il risultato deve dirlo invece di lasciarlo intuire.
+  it('stops at the first relay that takes the event on, in rotation', async () => {
+    // That way one connection is opened at a time: it is why this is the
+    // default strategy. The price is that the event ends up on a single relay,
+    // and the result has to say so rather than leave it to be guessed.
     const esito = await publishEvent(pool, [buono.url, cattivo.url], nota('rotazione'))
 
     expect(esito.riuscita).toBe(true)
@@ -82,10 +82,10 @@ describe('pubblicazione e rilettura su un relay', () => {
     expect(saltato?.esito).toBe('non tentato')
   })
 
-  it('a rotazione prosegue oltre un relay che rifiuta', async () => {
-    // E' il punto della rotazione: un rifiuto non deve fermare la catena,
-    // altrimenti basterebbe un relay ostile in cima all'elenco per rendere il
-    // client incapace di pubblicare.
+  it('goes on past a relay that refuses, in rotation', async () => {
+    // It is the point of the rotation: a refusal must not stop the chain,
+    // otherwise one hostile relay at the top of the list would be enough to
+    // leave the client unable to publish.
     const tentati: string[] = []
     const esito = await publishEvent(pool, [cattivo.url, buono.url], nota('perseveranza'), {
       onTentativo: (url) => tentati.push(url),
@@ -97,17 +97,17 @@ describe('pubblicazione e rilettura su un relay', () => {
     expect(esito.risultati[0]?.esito).toBe('rifiutato')
   })
 
-  it('a rotazione tenta ogni relay prima di arrendersi', async () => {
+  it('tries every relay before giving up, in rotation', async () => {
     const esito = await publishEvent(pool, [cattivo.url, cattivo.url], nota('nessuno'))
-    // Il secondo URL e' identico al primo e viene deduplicato: resta un solo
-    // tentativo, ma il risultato deve comunque dire che nessuno ha accettato.
+    // The second URL is the same as the first and gets deduplicated: a single
+    // attempt is left, but the result still has to say that nobody accepted.
     expect(esito.riuscita).toBe(false)
     expect(esito.risultati.every((r) => r.esito === 'rifiutato')).toBe(true)
   })
 
-  it('considera riuscita la pubblicazione ripetuta dello stesso evento', async () => {
-    // Il relay risponde `duplicate`: ce l'ha gia', quindi per chi pubblica il
-    // risultato e' identico a un'accettazione.
+  it('counts republishing the same event as a success', async () => {
+    // The relay answers `duplicate`: it has it already, so for the publisher
+    // the result is the same as an acceptance.
     const evento = nota('la stessa, due volte')
     await publishEvent(pool, [buono.url], evento)
     const secondo = await publishEvent(pool, [buono.url], evento)
@@ -116,15 +116,15 @@ describe('pubblicazione e rilettura su un relay', () => {
     expect(secondo.risultati[0]?.esito).toBe('duplicato')
   })
 
-  it('fallisce senza lanciare quando nessun relay accetta', async () => {
+  it('fails without throwing when no relay accepts', async () => {
     const esito = await publishEvent(pool, [cattivo.url], nota('respinta'))
     expect(esito.riuscita).toBe(false)
     expect(esito.accettati).toEqual([])
   })
 
-  it('si arrende entro la scadenza se il relay non risponde', async () => {
-    // Un relay che accetta la connessione e poi tace lascerebbe il pulsante a
-    // girare per sempre: la scadenza e' cio' che rende la UI onesta.
+  it('gives up by the deadline when the relay does not answer', async () => {
+    // A relay that accepts the connection and then falls silent would leave
+    // the button spinning for ever: the deadline is what makes the UI honest.
     const muto = await avviaRelayFinto({ tipo: 'muto' })
     try {
       const inizio = Date.now()
@@ -137,14 +137,14 @@ describe('pubblicazione e rilettura su un relay', () => {
     }
   })
 
-  it('rifiuta di pubblicare senza relay, invece di riuscire nel vuoto', async () => {
+  it('refuses to publish with no relays, instead of succeeding into the void', async () => {
     await expect(publishEvent(pool, [], nota('x'))).rejects.toThrow(/Nessun relay/)
   })
 
-  it('sostituisce un evento addressable invece di affiancarlo', async () => {
-    // E' il senso stesso dei kind addressable: ripubblicare con lo stesso `d`
-    // e' la modifica. Se in lettura ne comparissero due, il calendario
-    // mostrerebbe la riunione col titolo vecchio accanto a quello nuovo.
+  it('replaces an addressable event instead of sitting beside it', async () => {
+    // It is the whole point of the addressable kinds: republishing with the
+    // same `d` *is* the edit. If two came back on reading, the calendar would
+    // show the meeting with the old title next to the new one.
     const d = `prova-${Date.now()}`
     const base = { identifier: d, start: ctx.now + 3600, startTzid: 'Europe/Rome' }
 
@@ -173,9 +173,9 @@ describe('pubblicazione e rilettura su un relay', () => {
     expect(letti[0]?.tags.find((t) => t[0] === 'title')?.[1]).toBe('Titolo corretto')
   })
 
-  it('restituisce una lista vuota quando il relay non e' + ' raggiungibile', async () => {
-    // Un feed che mostra meno note e' utile; uno che va in errore perche' un
-    // relay e' giu' non lo e'.
+  it('returns an empty list when the relay is unreachable', async () => {
+    // A feed showing fewer notes is useful; one that errors out because a
+    // relay is down is not.
     const letti = await loadTimeline(
       pool,
       ['ws://127.0.0.1:1'],

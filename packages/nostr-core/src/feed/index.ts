@@ -1,6 +1,6 @@
 import { npubEncode } from 'nostr-tools/nip19'
 
-import { normalizzaBaseUrl } from '../servizi/http.js'
+import { normalizzaBaseUrl } from '../services/http.js'
 
 /**
  * The podcast's RSS feed: the client does not generate it, it governs it.

@@ -1,2 +1,2 @@
-export * from './categorie.js'
-export * from './piattaforme.js'
+export * from './categories.js'
+export * from './platforms.js'

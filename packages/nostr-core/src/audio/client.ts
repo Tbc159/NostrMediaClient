@@ -3,7 +3,7 @@ import {
   esito as esitoHttp,
   ErroreServizio,
   normalizzaBaseUrl,
-} from '../servizi/http.js'
+} from '../services/http.js'
 import type { MediaItem } from '../mediamanager/types.js'
 import type {
   FormatoAudio,
@@ -13,7 +13,7 @@ import type {
   RiferimentoAudio,
   ServizioAudio,
   StatoLavoro,
-} from './tipi.js'
+} from './types.js'
 
 /**
  * The client for the media-manager's `audio` domain.

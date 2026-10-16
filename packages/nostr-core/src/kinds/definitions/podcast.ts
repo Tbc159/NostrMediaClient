@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import { MAX_CATEGORIE, isCategoriaApple } from '../../podcast/categorie.js'
+import { MAX_CATEGORIE, isCategoriaApple } from '../../podcast/categories.js'
 import { defineKind } from '../registry.js'
 import { optionalTag, repeatedTags, tagValue, tagsNamed } from '../tags.js'
 

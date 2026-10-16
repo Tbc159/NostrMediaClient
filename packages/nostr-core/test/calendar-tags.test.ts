@@ -23,79 +23,79 @@ function evento(p: Partial<NostrEvent>): NostrEvent {
   } as NostrEvent
 }
 
-describe('indice giornaliero (tag D)', () => {
-  it('applica la formula della specifica: floor(secondi / 86400)', () => {
+describe('the daily index (the D tag)', () => {
+  it("applies the specification's formula: floor(seconds / 86400)", () => {
     expect(dayIndex(0)).toBe(0)
     expect(dayIndex(86_399)).toBe(0)
     expect(dayIndex(86_400)).toBe(1)
-    // Valore dell'esempio nella specifica.
+    // The value from the example in the specification.
     expect(dayIndex(82_549 * 86_400)).toBe(82_549)
   })
 
-  it('e ancorato a UTC e non al fuso dell evento', () => {
-    // Conseguenza voluta dalla specifica, che calcola l'indice solo dal
-    // timestamp: un evento serale a Tokyo cade nel giorno UTC precedente.
-    // Introdurre il fuso qui produrrebbe indici incompatibili con quelli
-    // degli altri client.
+  it("is anchored to UTC and not to the event's zone", () => {
+    // A consequence the specification intends, computing the index from the
+    // timestamp alone: an evening event in Tokyo falls on the previous UTC
+    // day. Bringing the zone in here would produce indices incompatible with
+    // the other clients'.
     const seraTokyo = Date.UTC(2026, 8, 1, 14, 0) / 1000 // 23:00 a Tokyo
     expect(dayIndex(seraTokyo)).toBe(dayIndex(Date.UTC(2026, 8, 1, 0, 0) / 1000))
   })
 
-  it('copre un solo giorno se l evento non ha fine', () => {
+  it('covers a single day when the event has no end', () => {
     expect(dayIndexRange(Date.UTC(2026, 8, 1, 10, 0) / 1000)).toHaveLength(1)
   })
 
-  it('copre tutti i giorni compresi, estremi inclusi', () => {
+  it('covers every day in between, both ends included', () => {
     const inizio = Date.UTC(2026, 8, 1, 22, 0) / 1000
     const fine = Date.UTC(2026, 8, 4, 3, 0) / 1000
     const giorni = dayIndexRange(inizio, fine)
     expect(giorni).toHaveLength(4)
     expect(giorni[0]).toBe(dayIndex(inizio))
     expect(giorni[giorni.length - 1]).toBe(dayIndex(fine))
-    // Consecutivi, senza buchi.
+    // Consecutive, with no gaps.
     expect(giorni.every((g, i) => i === 0 || g === (giorni[i - 1] as number) + 1)).toBe(true)
   })
 
-  it('intercetta i timestamp passati per errore in millisecondi', () => {
-    // Il caso reale: con i millisecondi la durata risulta mille volte troppo
-    // grande e si genererebbero milioni di tag.
+  it('catches the timestamps passed in milliseconds by mistake', () => {
+    // The real case: with milliseconds the duration comes out a thousand
+    // times too large and millions of tags would be generated.
     const inizioMs = Date.UTC(2026, 8, 1) // millisecondi, non secondi
     const fineMs = Date.UTC(2026, 8, 2)
     expect(() => dayIndexRange(inizioMs, fineMs)).toThrow(/millisecondi/)
   })
 
-  it('rifiuta una fine precedente all inizio', () => {
+  it('refuses an end earlier than the start', () => {
     expect(() => dayIndexRange(1_800_000_000, 1_700_000_000)).toThrow(/precede/)
   })
 
-  it('produce tag nella forma attesa', () => {
+  it('produces tags in the expected form', () => {
     expect(buildDayTags(82_549 * 86_400)).toEqual([['D', '82549']])
   })
 })
 
-describe('kind 31923 — tag D nell evento', () => {
+describe('kind 31923 — the D tags in the event', () => {
   const base = { identifier: 'x', title: 'Riunione', start: Date.UTC(2026, 8, 1, 9, 0) / 1000 }
 
-  it('include il tag D, che la specifica indica come obbligatorio', () => {
+  it('includes the D tag, which the specification makes mandatory', () => {
     const t = calendarTimeEventDefinition.build(base, CTX)
     expect(tagsCon(t.tags, 'D')).toHaveLength(1)
     expect(valori(t.tags, 'D')[0]).toBe(String(dayIndex(base.start)))
   })
 
-  it('include un tag D per ogni giorno coperto da un evento lungo', () => {
+  it('includes one D tag per day covered by a long event', () => {
     const t = calendarTimeEventDefinition.build({ ...base, end: base.start + 3 * 86_400 }, CTX)
     expect(tagsCon(t.tags, 'D')).toHaveLength(4)
   })
 
-  it('rilegge i tag D presenti nell evento', () => {
+  it('reads back the D tags present in the event', () => {
     const t = calendarTimeEventDefinition.build({ ...base, end: base.start + 86_400 }, CTX)
     const parsed = calendarTimeEventDefinition.parse(evento({ tags: t.tags }))
     expect(parsed.days).toEqual([dayIndex(base.start), dayIndex(base.start) + 1])
   })
 
-  it('ricava i giorni dall istante se i tag D mancano', () => {
-    // Eventi scritti prima che la specifica introducesse il tag: il dato letto
-    // resta completo invece di risultare vuoto.
+  it('derives the days from the instant when the D tags are missing', () => {
+    // Events written before the specification introduced the tag: what is
+    // read stays complete instead of coming out empty.
     const parsed = calendarTimeEventDefinition.parse(
       evento({
         tags: [
@@ -109,8 +109,8 @@ describe('kind 31923 — tag D nell evento', () => {
   })
 })
 
-describe('kind 31922 — nessun tag D', () => {
-  it('non scrive tag D: la specifica non lo prevede per gli eventi su data', () => {
+describe('kind 31922 — no D tag', () => {
+  it('writes no D tag: the specification does not provide for one on date events', () => {
     const t = calendarDateEventDefinition.build(
       { identifier: 'x', title: 'Ferie', start: '2026-08-01', end: '2026-08-08' },
       CTX,
@@ -119,11 +119,11 @@ describe('kind 31922 — nessun tag D', () => {
   })
 })
 
-describe('tag condivisi rivisti sulla specifica', () => {
+describe('the shared tags reviewed against the specification', () => {
   const base = { identifier: 'x', title: 'T', start: '2026-08-01' }
 
-  it('scrive piu tag location, perche la specifica lo definisce ripetibile', () => {
-    // Un incontro puo' avere insieme un indirizzo e un link alla videochiamata.
+  it('writes several location tags, because the specification makes it repeatable', () => {
+    // A meeting can have both an address and a link to the video call.
     const t = calendarDateEventDefinition.build(
       { ...base, location: ['Via Roma 1, Milano', 'https://meet.example/abc'] },
       CTX,
@@ -131,12 +131,12 @@ describe('tag condivisi rivisti sulla specifica', () => {
     expect(valori(t.tags, 'location')).toEqual(['Via Roma 1, Milano', 'https://meet.example/abc'])
   })
 
-  it('accetta ancora un luogo singolo come stringa', () => {
+  it('still accepts a single place as a string', () => {
     const t = calendarDateEventDefinition.build({ ...base, location: 'Milano' }, CTX)
     expect(valori(t.tags, 'location')).toEqual(['Milano'])
   })
 
-  it('scrive relay e ruolo dei partecipanti nelle posizioni previste', () => {
+  it("writes the participants' relay and role in the expected positions", () => {
     const pk = 'cc'.repeat(32)
     const t = calendarDateEventDefinition.build(
       {
@@ -151,12 +151,12 @@ describe('tag condivisi rivisti sulla specifica', () => {
     )
     const p = tagsCon(t.tags, 'p')
     expect(p[0]).toEqual(['p', pk])
-    // Il ruolo sta in quarta posizione: serve il campo relay, anche vuoto.
+    // The role sits in fourth position: the relay field is needed, even empty.
     expect(p[1]).toEqual(['p', 'dd'.repeat(32), '', 'speaker'])
     expect(p[2]).toEqual(['p', 'ee'.repeat(32), 'wss://relay.example', 'host'])
   })
 
-  it('rilegge relay e ruolo dei partecipanti', () => {
+  it("reads back the participants' relay and role", () => {
     const parsed = calendarDateEventDefinition.parse(
       evento({
         kind: 31922,
@@ -175,7 +175,7 @@ describe('tag condivisi rivisti sulla specifica', () => {
     ])
   })
 
-  it('scrive i tag a verso i calendari a cui proporre l evento', () => {
+  it('writes the a tags towards the calendars to offer the event to', () => {
     const coord = `31924:${CTX.pubkey}:mio-calendario`
     const t = calendarDateEventDefinition.build({ ...base, calendars: [coord] }, CTX)
     expect(valori(t.tags, 'a')).toEqual([coord])

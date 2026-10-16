@@ -3,20 +3,21 @@ import { WebSocketServer, type WebSocket } from 'ws'
 import type { NostrEvent } from '../../src/kinds/types.js'
 
 /**
- * Relay NIP-01 minimo, in-process, per i test di integrazione.
+ * A minimal in-process NIP-01 relay, for the integration tests.
  *
- * Serve a provare il percorso completo — WebSocket, EVENT, OK, REQ, EOSE —
- * senza dipendere da un relay pubblico. Un mock del pool proverebbe solo che
- * il nostro codice chiama se stesso; qui passa davvero dalla rete, e con essa
- * dai casi che contano: risposte negative, sostituzione degli addressable,
- * duplicati.
+ * It is there to exercise the whole path — WebSocket, EVENT, OK, REQ, EOSE —
+ * without depending on a public relay. A mock of the pool would only prove
+ * that our code calls itself; here the traffic really goes over the network,
+ * and with it through the cases that count: negative answers, the replacement
+ * of addressables, duplicates.
  *
- * Non e' un relay: non verifica firme, non applica limiti, non persiste.
+ * It is not a relay: it verifies no signatures, applies no limits, persists
+ * nothing.
  */
 export type ModoRelay =
   | { tipo: 'accetta' }
   | { tipo: 'rifiuta'; messaggio: string }
-  /** Non risponde mai all'EVENT: simula un relay che accetta la connessione e tace. */
+  /** Never answers the EVENT: it mimics a relay that accepts the connection and falls silent. */
   | { tipo: 'muto' }
 
 export interface RelayFinto {
@@ -27,20 +28,19 @@ export interface RelayFinto {
 
 export async function avviaRelayFinto(modo: ModoRelay = { tipo: 'accetta' }): Promise<RelayFinto> {
   const eventi: NostrEvent[] = []
-  // Porta 0: il sistema ne assegna una libera, cosi' i test possono girare in
-  // parallelo senza collidere.
+  // Port 0: the system assigns a free one, so the tests can run in parallel
+  // without colliding.
   const wss = new WebSocketServer({ port: 0 })
   await new Promise<void>((risolvi) => wss.once('listening', risolvi))
   const porta = (wss.address() as { port: number }).port
 
   /*
-   * Sottoscrizioni aperte, per consegnare in tempo reale.
+   * The open subscriptions, for delivering in real time.
    *
-   * Un relay che risponde solo con cio' che ha gia' in archivio basta a
-   * provare la pubblicazione, ma non un dialogo: NIP-46 e' fatto di richieste
-   * e risposte che si incrociano su un relay mentre entrambe le parti stanno
-   * ascoltando. Senza consegna immediata il banco di firma non vedrebbe mai
-   * arrivare nulla.
+   * A relay that answers only with what it already has in store is enough to
+   * test publishing, but not a dialogue: NIP-46 is made of requests and
+   * answers crossing on a relay while both parties are listening. Without
+   * immediate delivery the signing desk would never see anything arrive.
    */
   const sottoscrizioni: { ws: WebSocket; id: string; filtri: Filtro[] }[] = []
 
@@ -78,7 +78,7 @@ export async function avviaRelayFinto(modo: ModoRelay = { tipo: 'accetta' }): Pr
         }
         const nota = memorizza(eventi, evento)
         ws.send(JSON.stringify(['OK', evento.id, true, nota]))
-        // Un duplicato non si ridistribuisce: chi ascolta lo ha gia' avuto.
+        // A duplicate is not redistributed: the listeners have had it already.
         if (nota === '') consegna(evento)
         return
       }
@@ -91,8 +91,8 @@ export async function avviaRelayFinto(modo: ModoRelay = { tipo: 'accetta' }): Pr
           .sort((a, b) => b.created_at - a.created_at)
         for (const e of trovati) ws.send(JSON.stringify(['EVENT', id, e]))
         ws.send(JSON.stringify(['EOSE', id]))
-        // Registrata **dopo** l'EOSE: la sottoscrizione resta aperta e ricevera'
-        // quello che arriva da qui in avanti.
+        // Registered **after** the EOSE: the subscription stays open and will
+        // receive whatever arrives from here on.
         sottoscrizioni.push({ ws, id, filtri })
         return
       }
@@ -141,7 +141,7 @@ function corrisponde(evento: NostrEvent, filtro: Filtro): boolean {
   return true
 }
 
-/** Sostituzione di replaceable e addressable, come la applicherebbe un relay. */
+/** The replacement of replaceables and addressables, as a relay would apply it. */
 function memorizza(eventi: NostrEvent[], evento: NostrEvent): string {
   const addressable = evento.kind >= 30000 && evento.kind < 40000
   const replaceable =

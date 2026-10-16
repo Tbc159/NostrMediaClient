@@ -39,13 +39,13 @@ const FEED = `<?xml version="1.0" encoding="UTF-8"?>
 </rss>
 <!-- saltati: 1 senza audio -->`
 
-describe('URL del feed', () => {
-  it('converte la chiave esadecimale in npub e aggiunge /v0/feed', () => {
+describe("the feed's URL", () => {
+  it('turns the hexadecimal key into an npub and adds /v0/feed', () => {
     const url = urlFeedPodcast('https://mm.example/', PUBKEY)
     expect(url).toMatch(/^https:\/\/mm\.example\/v0\/feed\/npub1[a-z0-9]+\.xml$/)
   })
 
-  it('accetta un npub e mette la lingua solo se non e' + "' quella predefinita", () => {
+  it('accepts an npub and adds the language only when it is not the default', () => {
     expect(urlFeedPodcast('https://mm.example', 'npub1abc', 'it')).toBe(
       'https://mm.example/v0/feed/npub1abc.xml',
     )
@@ -55,8 +55,8 @@ describe('URL del feed', () => {
   })
 })
 
-describe('riassunto di un feed', () => {
-  it('legge canale ed episodi, decodificando entita' + "' e CDATA", () => {
+describe("a feed's summary", () => {
+  it('reads the channel and the episodes, decoding entities and CDATA', () => {
     const r = riassumiFeedPodcast(FEED)
     expect(r.titolo).toBe('News & Test')
     expect(r.descrizione).toBe('Uno show <b>di prova</b>')
@@ -69,11 +69,11 @@ describe('riassunto di un feed', () => {
     expect(r.episodi[0]?.byte).toBe(357945)
   })
 
-  it('riporta i relay interrogati dal servizio: un feed vuoto si diagnostica da li' + "'", () => {
+  it('reports the relays the service queried: that is how an empty feed is diagnosed', () => {
     expect(riassumiFeedPodcast(FEED).relays).toEqual(['wss://nos.lol', 'wss://relay.damus.io'])
   })
 
-  it('segnala cio' + "' che un'app di podcast rifiuterebbe", () => {
+  it('flags what a podcast app would refuse', () => {
     const r = riassumiFeedPodcast(FEED)
     expect(r.problemi).toContain(
       '1 episodi con length="0": il servizio non ha potuto misurare il file, alcune app li scartano',
@@ -81,7 +81,7 @@ describe('riassunto di un feed', () => {
     expect(r.problemi).toContain('1 episodi saltati dal servizio perché senza audio')
   })
 
-  it('un canale scarno elenca tutto quello che manca', () => {
+  it('lists everything missing from a bare channel', () => {
     const r = riassumiFeedPodcast('<rss><channel><title>X</title></channel></rss>')
     expect(r.problemi).toEqual([
       'il canale non ha una descrizione',
@@ -94,15 +94,15 @@ describe('riassunto di un feed', () => {
     expect(r.episodi).toEqual([])
   })
 
-  it('rifiuta cio' + "' che non e' RSS, dicendolo", () => {
+  it('refuses what is not RSS, and says so', () => {
     expect(() => riassumiFeedPodcast('<html>404</html>')).toThrow(/Non e’ un feed RSS/)
   })
 })
 
-describe('il feed prodotto dal media-manager', () => {
-  // La fixture e' quella del repository del servizio: quello che il lettore
-  // capisce qui e' quello che arriva davvero.
-  it('si legge per intero', () => {
+describe('the feed the media-manager produces', () => {
+  // The fixture is the one from the service's repository: what the reader
+  // makes of it here is what really arrives.
+  it('is read in full', () => {
     const r = riassumiFeedPodcast(FEED_VERO)
     expect(r.titolo).toBe('Radio Satoshi')
     expect(r.immagine).toBe('https://cdn.example.org/radio-satoshi.png')
@@ -113,8 +113,8 @@ describe('il feed prodotto dal media-manager', () => {
       '33d25dddc45e7ef190ec3c7bda204023651457887b0b055668cd89040539e203',
     )
     expect(r.episodi[0]?.byte).toBe(51200)
-    // Il feed di oggi, prima del Prompt H: e' esattamente cio' che le
-    // piattaforme rifiuterebbero, e il riassunto lo deve dire tutto.
+    // Today's feed, before Prompt H: it is exactly what the platforms would
+    // refuse, and the summary has to say all of it.
     expect(r.problemi).toEqual([
       'manca la categoria (itunes:category): Apple e Amazon la pretendono',
       'manca l’email dell’owner (itunes:email): Spotify, Amazon e YouTube verificano lì',
@@ -127,8 +127,8 @@ describe('il feed prodotto dal media-manager', () => {
     expect(r.explicit).toBe(false)
   })
 
-  it('con categoria, email, explicit e durata il riassunto li riporta e non li segnala', () => {
-    // La forma che il feed avra' dopo il Prompt H.
+  it('reports the category, email, explicit flag and duration without flagging them when they are there', () => {
+    // The shape the feed will have after Prompt H.
     const completo = FEED_VERO.replace(
       '<itunes:explicit>false</itunes:explicit>',
       `<itunes:category text="Society &amp; Culture"><itunes:category text="Documentary"/></itunes:category>
@@ -149,7 +149,7 @@ describe('il feed prodotto dal media-manager', () => {
     expect(r.problemi).toEqual(['1 episodi saltati dal servizio perché senza audio'])
   })
 
-  it('dice quali episodi pubblicati non stanno nel feed', () => {
+  it('says which published episodes are not in the feed', () => {
     const r = riassumiFeedPodcast(FEED_VERO)
     const fuori = episodiFuoriDalFeed(r, [
       { id: '33d25dddc45e7ef190ec3c7bda204023651457887b0b055668cd89040539e203', titolo: 'Ep 2' },
@@ -160,7 +160,7 @@ describe('il feed prodotto dal media-manager', () => {
 })
 
 describe('OPML', () => {
-  it('contiene il feed come outline rss, con titolo e sito', () => {
+  it('holds the feed as an rss outline, with the title and the site', () => {
     const o = opmlPerFeed({
       titolo: 'News & Test',
       urlFeed: 'https://mm.example/v0/feed/npub1abc.xml',
@@ -172,7 +172,7 @@ describe('OPML', () => {
     )
   })
 
-  it('senza titolo non produce un outline vuoto', () => {
+  it('does not produce an empty outline when there is no title', () => {
     expect(opmlPerFeed({ titolo: '  ', urlFeed: 'https://x/f.xml' })).toContain('text="Podcast"')
   })
 })

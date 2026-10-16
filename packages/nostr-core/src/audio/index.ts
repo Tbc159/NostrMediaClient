@@ -1,3 +1,3 @@
-export * from './tipi.js'
+export * from './types.js'
 export * from './client.js'
-export * from './attesa.js'
+export * from './wait.js'

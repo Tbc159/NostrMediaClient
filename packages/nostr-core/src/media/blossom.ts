@@ -1,7 +1,7 @@
 import { blossomAuthDefinition, type VerboBlossom } from '../kinds/definitions/blossom-auth.js'
 import type { EventTemplate, NostrEvent } from '../kinds/types.js'
 import { sha256Hex } from '../utils/hash.js'
-import { urlConEstensione } from './estensioni.js'
+import { urlConEstensione } from './extensions.js'
 
 /**
  * The Blossom client (BUD-01/02/04/11).

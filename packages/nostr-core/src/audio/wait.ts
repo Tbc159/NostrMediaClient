@@ -1,5 +1,5 @@
-import { ErroreServizio } from '../servizi/http.js'
-import type { MediaProdotto, ServizioAudio, StatoLavoro } from './tipi.js'
+import { ErroreServizio } from '../services/http.js'
+import type { MediaProdotto, ServizioAudio, StatoLavoro } from './types.js'
 
 /**
  * Waiting for an asynchronous job, with progress reported to whoever is

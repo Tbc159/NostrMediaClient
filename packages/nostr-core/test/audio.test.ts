@@ -7,24 +7,24 @@ import {
   formatoDaNome,
   type ServizioAudio,
 } from '../src/audio/index.js'
-import { ErroreServizio } from '../src/servizi/http.js'
+import { ErroreServizio } from '../src/services/http.js'
 import {
   CHIAVE_DI_PROVA,
   avviaMediaManagerFinto,
   type MediaManagerFinto,
-} from './helpers/mediamanager-finto.js'
+} from './helpers/fake-mediamanager.js'
 
 /**
- * Elaborazione audio contro un servizio che si comporta come quello vero.
+ * Audio processing against a service that behaves like the real one.
  *
- * Cio' che va provato non e' «la chiamata risponde 200» ma le proprieta' su
- * cui la pagina si appoggia e che prima non c'erano: l'ordine e' libero, i
- * formati sono indifferenti, la sorgente sopravvive alle lavorazioni, e il
- * riferimento e' il `filename` — non il titolo che abbiamo mandato noi.
+ * What has to be checked is not «the call answers 200» but the properties the
+ * page leans on and that were not there before: the order is free, the formats
+ * do not matter, the source survives the processing, and the reference is the
+ * `filename` — not the title we sent.
  */
 
 const SILENZI = { sogliaDb: -40, pausaMinimaS: 1 }
-/** Nei test l'orologio non deve scorrere davvero. */
+/** In the tests the clock must not really run. */
 const SUBITO = { intervalloMs: 1, attendi: () => Promise.resolve() }
 
 let finto: MediaManagerFinto
@@ -48,32 +48,32 @@ afterAll(async () => {
   await finto.chiudi()
 })
 
-describe('formati', () => {
-  it('riconosce il formato dal nome e usa il tipo MIME registrato', () => {
-    // `audio/mp3` non e' un tipo registrato: il servizio lo accetta come alias
-    // ma non c'e' ragione di propagare un nome sbagliato.
+describe('the formats', () => {
+  it('recognises the format from the name and uses the registered MIME type', () => {
+    // `audio/mp3` is not a registered type: the service takes it as an alias,
+    // but there is no reason to propagate a wrong name.
     expect(formatoDaNome('Puntata 12.MP3')).toBe('audio/mpeg')
     expect(formatoDaNome('registrazione.m4a')).toBe('audio/m4a')
     expect(formatoDaNome('grezzo.wav')).toBe('audio/wav')
     expect(formatoDaNome('copertina.png')).toBeNull()
   })
 
-  it('ricava l’estensione dal formato', () => {
+  it('derives the extension from the format', () => {
     expect(estensioneDi('audio/mpeg')).toBe('mp3')
     expect(estensioneDi('audio/wav')).toBe('wav')
   })
 })
 
-describe('caricamento e riferimenti', () => {
-  it('il riferimento e’ il filename generato dal servizio, non il titolo', async () => {
+describe('uploading and references', () => {
+  it("makes the reference the service's generated filename, not the title", async () => {
     const caricato = await servizio.carica(audio(), 'Puntata 12.mp3', 'audio/mpeg')
 
-    // La distinzione non e' teorica: e' il difetto che il client aveva.
+    // The distinction is not theoretical: it is the defect the client had.
     expect(caricato.filename).not.toBe(caricato.title)
     await expect(servizio.avviaSilenzi(caricato.filename, SILENZI)).resolves.toBeTruthy()
   })
 
-  it('riferirsi per titolo fallisce, e l’errore dice come ha cercato', async () => {
+  it('fails when referring by title, and the error says how it searched', async () => {
     const caricato = await servizio.carica(audio(), 'Puntata 13.mp3', 'audio/mpeg')
 
     await expect(servizio.avviaSilenzi(caricato.title, SILENZI)).rejects.toThrow(
@@ -82,11 +82,11 @@ describe('caricamento e riferimenti', () => {
   })
 })
 
-describe('lo stesso file, due volte', () => {
-  it('non e' + "' un errore: si riusa il record che c'e' gia'", async () => {
-    // Rielaborare la stessa registrazione e' normale — un'altra soglia, il
-    // giorno dopo — e il servizio risponde 409. Trattarlo come guasto
-    // fermerebbe il flusso proprio nel caso piu' frequente.
+describe('the same file, twice', () => {
+  it('is not an error: the record that is already there gets reused', async () => {
+    // Reprocessing the same recording is normal — another threshold, the next
+    // day — and the service answers 409. Treating that as a fault would stop
+    // the flow in the most frequent case of all.
     const primo = await servizio.carica(audio(), 'Puntata 12 bis.mp3', 'audio/mpeg')
     const secondo = await servizio.carica(audio(), 'Puntata 12 bis.mp3', 'audio/mpeg')
 
@@ -95,8 +95,8 @@ describe('lo stesso file, due volte', () => {
   })
 })
 
-describe('le lavorazioni', () => {
-  it('accorcia i silenzi passando i parametri che l’utente ha scelto', async () => {
+describe('the processing jobs', () => {
+  it('shortens the silences, passing the parameters the user chose', async () => {
     const caricato = await servizio.carica(audio(), 'Puntata 14.mp3', 'audio/mpeg')
     const lavoro = await servizio.avviaSilenzi(caricato.filename, {
       sogliaDb: -33,
@@ -107,8 +107,8 @@ describe('le lavorazioni', () => {
 
     const inviato = finto.richiesteAudio.at(-1)
     expect(inviato?.percorso).toBe('/v0/audio/silence')
-    // La soglia viaggia come numero: l'unita' la mette il servizio. Prima
-    // andava composta qui, e ometterla voleva dire non tagliare nulla.
+    // The threshold travels as a number: the service adds the unit. It used to
+    // have to be composed here, and leaving it out meant cutting nothing.
     expect(inviato?.corpo).toMatchObject({
       threshold_db: -33,
       min_pause_s: 1.5,
@@ -116,7 +116,7 @@ describe('le lavorazioni', () => {
     })
   })
 
-  it('non distrugge la sorgente: si puo’ ritentare con una soglia diversa', async () => {
+  it('does not destroy the source: it can be retried with a different threshold', async () => {
     const caricato = await servizio.carica(audio(), 'Puntata 15.mp3', 'audio/mpeg')
 
     const primo = await attendiLavoro(
@@ -124,9 +124,9 @@ describe('le lavorazioni', () => {
       await servizio.avviaSilenzi(caricato.filename, { sogliaDb: -50, pausaMinimaS: 1 }),
       SUBITO,
     )
-    // Stessa sorgente, un'altra soglia, senza ricaricare il file: e' l'azione
-    // piu' naturale davanti a un cursore, e col servizio vecchio era
-    // impossibile.
+    // The same source, another threshold, without re-uploading the file: it is
+    // the most natural thing to do in front of a slider, and with the old
+    // service it was impossible.
     const secondo = await attendiLavoro(
       servizio,
       await servizio.avviaSilenzi(caricato.filename, { sogliaDb: -30, pausaMinimaS: 1 }),
@@ -136,7 +136,7 @@ describe('le lavorazioni', () => {
     expect(primo[0]?.id).not.toBe(secondo[0]?.id)
   })
 
-  it('l’ordine e’ libero: livellare per primo non spezza la catena', async () => {
+  it('leaves the order free: levelling first does not break the chain', async () => {
     const caricato = await servizio.carica(audio(), 'Puntata 16.mp3', 'audio/mpeg')
 
     const livellato = await attendiLavoro(
@@ -153,17 +153,17 @@ describe('le lavorazioni', () => {
     expect(poiSilenzi[0]?.id).toBeGreaterThan(0)
   })
 
-  it('i formati sono indifferenti: anche un wav passa dai silenzi', async () => {
+  it('does not mind the formats: a wav goes through the silences too', async () => {
     const caricato = await servizio.carica(audio('audio/wav'), 'Grezzo.wav', 'audio/wav')
 
-    // Col servizio vecchio l'operazione era semplicemente indisponibile per i
-    // wav, e la pagina doveva disattivarla.
+    // With the old service the operation was simply unavailable for wavs, and
+    // the page had to disable it.
     await expect(
       attendiLavoro(servizio, await servizio.avviaSilenzi(caricato.filename, SILENZI), SUBITO),
     ).resolves.toHaveLength(1)
   })
 
-  it('converte in un altro formato', async () => {
+  it('converts to another format', async () => {
     const caricato = await servizio.carica(audio('audio/m4a'), 'Ospite.m4a', 'audio/m4a')
     const prodotti = await attendiLavoro(
       servizio,
@@ -175,8 +175,8 @@ describe('le lavorazioni', () => {
   })
 })
 
-describe('attesa del lavoro', () => {
-  it('segue gli stati fino alla fine e riporta l’avanzamento', async () => {
+describe('waiting for the job', () => {
+  it('follows the states to the end and reports the progress', async () => {
     finto.giriPrimaDelFine = 3
     const caricato = await servizio.carica(audio(), 'Puntata 17.mp3', 'audio/mpeg')
 
@@ -192,7 +192,7 @@ describe('attesa del lavoro', () => {
     expect(prodotti[0]?.id).toBeGreaterThan(0)
   })
 
-  it('un lavoro fallito diventa un errore leggibile, non un’attesa infinita', async () => {
+  it('turns a failed job into a readable error, not an endless wait', async () => {
     finto.faiFallire = true
     const caricato = await servizio.carica(audio(), 'Puntata 18.mp3', 'audio/mpeg')
 
@@ -201,7 +201,7 @@ describe('attesa del lavoro', () => {
     ).rejects.toThrow(/ffmpeg/)
   })
 
-  it('si puo’ smettere di aspettare senza fermare il lavoro sul servizio', async () => {
+  it('lets you stop waiting without stopping the job on the service', async () => {
     finto.giriPrimaDelFine = 99
     const caricato = await servizio.carica(audio(), 'Puntata 19.mp3', 'audio/mpeg')
     const lavoro = await servizio.avviaSilenzi(caricato.filename, SILENZI)
@@ -211,11 +211,11 @@ describe('attesa del lavoro', () => {
     stop.abort()
     await expect(attesa).rejects.toThrow(/interrotta/)
 
-    // Il lavoro resta interrogabile: e' persistente, e riprenderlo e' lecito.
+    // The job stays queryable: it is persistent, and picking it up again is fine.
     await expect(servizio.stato(lavoro)).resolves.toMatchObject({ stato: 'in-corso' })
   })
 
-  it('smette di aspettare a scadenza, senza promettere di aver annullato', async () => {
+  it('stops waiting at the deadline, without promising it cancelled anything', async () => {
     finto.giriPrimaDelFine = 99
     const caricato = await servizio.carica(audio(), 'Puntata 20.mp3', 'audio/mpeg')
 
@@ -231,13 +231,13 @@ describe('attesa del lavoro', () => {
     ).rejects.toThrow(/ancora in corso/)
   })
 
-  it('un lavoro che il servizio non conosce non e’ «in corso»', async () => {
+  it('does not call a job the service does not know «in progress»', async () => {
     await expect(servizio.stato('inventato-1')).rejects.toThrow(/non conosce/)
   })
 })
 
-describe('quando il servizio non c’e’', () => {
-  it('lo dice invece di restare in attesa', async () => {
+describe('when the service is not there', () => {
+  it('says so instead of waiting', async () => {
     const spento = creaServizioAudio({ baseUrl: 'http://127.0.0.1:1', timeoutMs: 2000 })
     await expect(spento.disponibile()).resolves.toBe(false)
     await expect(spento.carica(audio(), 'x.mp3', 'audio/mpeg')).rejects.toBeInstanceOf(

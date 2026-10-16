@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
-import { scaricaImmagine, titoloPerUrl } from '../src/media/scarica.js'
+import { scaricaImmagine, titoloPerUrl } from '../src/media/download.js'
 
 /**
- * Le due strade per leggere un'immagine da un URL: la diretta, e il servizio
- * quando il server dell'immagine non consente la lettura da pagina. Il
- * `fetch` finto riproduce il browser: un server senza CORS non risponde con
- * un errore HTTP, *lancia* — e' quel caso che va coperto.
+ * The two roads to reading an image from a URL: the direct one, and the service
+ * when the image's server does not allow reading from a page. The fake `fetch`
+ * reproduces the browser: a server without CORS does not answer with an HTTP
+ * error, it *throws* — and that is the case to be covered.
  */
 
 const PNG = new Blob([new Uint8Array([137, 80, 78, 71])], { type: 'image/png' })
@@ -39,7 +39,7 @@ function servizioFinto(esito: 'ok' | 'rifiuta') {
 }
 
 describe('scaricaImmagine', () => {
-  it('con CORS legge direttamente e non tocca il servizio', async () => {
+  it('reads directly with CORS and does not touch the service', async () => {
     const servizio = servizioFinto('ok')
     const r = await scaricaImmagine('https://blossom.esempio/abc.png', {
       fetch: fetchConCors,
@@ -50,7 +50,7 @@ describe('scaricaImmagine', () => {
     expect(servizio.chiamate).toEqual([])
   })
 
-  it('senza CORS passa dal servizio, con un titolo stabile per riusare il 409', async () => {
+  it('goes through the service without CORS, with a stable title so the 409 can be reused', async () => {
     const servizio = servizioFinto('ok')
     const r = await scaricaImmagine('https://sito.esempio/foto.jpg', {
       fetch: fetchSenzaCors,
@@ -65,13 +65,13 @@ describe('scaricaImmagine', () => {
     ])
   })
 
-  it('senza CORS e senza servizio dice che manca il servizio', async () => {
+  it('says the service is missing when there is no CORS and no service', async () => {
     await expect(
       scaricaImmagine('https://sito.esempio/foto.jpg', { fetch: fetchSenzaCors }),
     ).rejects.toThrow(/non c'e' un servizio configurato/)
   })
 
-  it('se fallisce anche il servizio, l’errore porta entrambe le cause', async () => {
+  it('carries both causes in the error when the service fails too', async () => {
     await expect(
       scaricaImmagine('https://sito.esempio/foto.jpg', {
         fetch: fetchSenzaCors,
@@ -80,7 +80,7 @@ describe('scaricaImmagine', () => {
     ).rejects.toThrow(/NetworkError.*nemmeno il servizio.*host privato/)
   })
 
-  it('un 404 diretto non e’ un problema di CORS ma si tenta comunque il servizio', async () => {
+  it('tries the service anyway on a direct 404, which is not a CORS problem', async () => {
     const servizio = servizioFinto('ok')
     const r = await scaricaImmagine('https://sito.esempio/sparita.jpg', {
       fetch: async () => new Response('no', { status: 404 }),
@@ -89,7 +89,7 @@ describe('scaricaImmagine', () => {
     expect(r.via).toBe('servizio')
   })
 
-  it('una risposta che non e’ un’immagine viene rifiutata', async () => {
+  it('refuses a response that is not an image', async () => {
     await expect(
       scaricaImmagine('https://sito.esempio/pagina', {
         fetch: async () =>

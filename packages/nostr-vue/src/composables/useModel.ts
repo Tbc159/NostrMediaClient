@@ -4,35 +4,35 @@ import { type Ref, shallowRef } from 'vue'
 
 export interface UseModelOptions<T> {
   /**
-   * Valore restituito finche' l'observable non ha emesso, e in SSR.
-   * Senza, il consumatore riceve `undefined` al primo render.
+   * The value returned until the observable has emitted, and in SSR.
+   * Without it the consumer receives `undefined` on the first render.
    */
   initial?: T
 
   /**
-   * Forza la sottoscrizione anche lato server.
+   * Forces the subscription on the server side too.
    *
-   * Di norma **non va usato**. Vedi la sezione 4 del piano: lo stato Nostr
-   * vive solo nel client, perche' il payload SSR di Nuxt finisce serializzato
-   * nell'HTML e un singleton creato su Node e' condiviso fra tutte le
-   * richieste di tutti gli utenti. Una sottoscrizione aperta lato server
-   * inoltre non verrebbe mai chiusa dal ciclo di vita del componente.
+   * As a rule it **should not be used**. See section 4 of the plan: Nostr state
+   * lives in the client alone, because Nuxt's SSR payload ends up serialised in
+   * the HTML and a singleton created on Node is shared between every request of
+   * every user. A subscription opened on the server side would, besides, never
+   * be closed by the component's lifecycle.
    */
   subscribeOnServer?: boolean
 }
 
-/** Vero quando il codice sta girando su Node e non in un browser. */
+/** True when the code is running on Node and not in a browser. */
 const isServer = typeof window === 'undefined'
 
 /**
- * Converte un observable RxJS in un ref Vue.
+ * Turns an RxJS observable into a Vue ref.
  *
- * E' il ponte fra applesauce, che espone il proprio EventStore come
- * observable, e la reattivita' di Vue: da qui in poi un dato Nostr si consuma
- * come qualunque altro stato dell'applicazione.
+ * It is the bridge between applesauce, which exposes its EventStore as an
+ * observable, and Vue's reactivity: from here on a piece of Nostr data is
+ * consumed like any other state in the application.
  *
- * La sottoscrizione e' legata allo scope effetti del componente chiamante e
- * viene chiusa allo smontaggio da `useObservable`.
+ * The subscription is tied to the calling component's effect scope and is
+ * closed on unmount by `useObservable`.
  *
  * @example
  * ```ts
@@ -45,8 +45,8 @@ export function useModel<T>(
 ): Readonly<Ref<T | undefined>> {
   const { initial, subscribeOnServer = false } = options
 
-  // In SSR restituiamo un ref inerte: nessuna sottoscrizione aperta, nessuno
-  // stato di sessione che possa finire nel payload serializzato.
+  // In SSR we return an inert ref: no subscription opened, no session state
+  // that could end up in the serialised payload.
   if (isServer && !subscribeOnServer) {
     return shallowRef<T | undefined>(initial) as Readonly<Ref<T | undefined>>
   }

@@ -1,4 +1,4 @@
-import type { CategoriaPodcast } from './categorie.js'
+import type { CategoriaPodcast } from './categories.js'
 
 /**
  * The podcast platforms, as data, and their checklist.

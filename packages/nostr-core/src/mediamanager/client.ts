@@ -3,7 +3,7 @@ import {
   esito as esitoHttp,
   ErroreServizio,
   normalizzaBaseUrl,
-} from '../servizi/http.js'
+} from '../services/http.js'
 import type { ElencoMedia, MediaItem } from './types.js'
 
 /**
@@ -97,7 +97,7 @@ export function creaClientMediaManager(opzioni: OpzioniClientMediaManager): Clie
 
   // The translation of errors — HTTP statuses, the timeout, and the network
   // failure that in the browser is nearly always CORS or mixed content — lives
-  // in `servizi/http.ts`, shared with the audio client. Here only the version
+  // in `services/http.ts`, shared with the audio client. Here only the version
   // prefix is added, and the error is relabelled with the service's name.
   const chiama = (percorso: string, init: RequestInit = {}): Promise<Response> =>
     chiamaHttp(`${radice}/${VERSIONE_API}${percorso}`, init, rete).catch(rietichetta)

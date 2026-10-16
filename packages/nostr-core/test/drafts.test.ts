@@ -41,8 +41,8 @@ const ARTICOLO = {
   created_at: CTX.now,
 }
 
-describe('bozze cifrate (NIP-37)', () => {
-  it('sopravvive al giro cifra → decifra conservando l' + "'evento", async () => {
+describe('encrypted drafts (NIP-37)', () => {
+  it('survives the encrypt → decrypt round trip keeping the event', async () => {
     const input = await wrapDraft(cifrario, 'bozza-1', ARTICOLO, { now: CTX.now })
     const template = draftWrapDefinition.build(input, CTX)
     const riletto = draftWrapDefinition.parse(
@@ -52,9 +52,9 @@ describe('bozze cifrate (NIP-37)', () => {
     expect(await unwrapDraft(cifrario, riletto)).toEqual(ARTICOLO)
   })
 
-  it('non lascia il contenuto in chiaro nell' + "'evento", async () => {
-    // E' l'unica ragione per cui NIP-37 esiste: il kind 30024 che sostituisce
-    // finiva sul relay leggibile da chiunque vi accedesse.
+  it('does not leave the content in the clear in the event', async () => {
+    // It is the only reason NIP-37 exists: the kind 30024 it replaces ended up
+    // on the relay readable by anyone with access to it.
     const input = await wrapDraft(cifrario, 'bozza-1', ARTICOLO, { now: CTX.now })
     const template = draftWrapDefinition.build(input, CTX)
 
@@ -63,15 +63,15 @@ describe('bozze cifrate (NIP-37)', () => {
     expect(JSON.stringify(template.tags)).not.toContain('Titolo provvisorio')
   })
 
-  it('dichiara nel tag k il kind della bozza, non il proprio', async () => {
-    // Serve a chi legge per sapere quale form aprire senza dover prima
-    // decifrare tutto.
+  it("declares the draft's kind in the k tag, not its own", async () => {
+    // The reader needs it to know which form to open without having to
+    // decrypt everything first.
     const input = await wrapDraft(cifrario, 'bozza-1', ARTICOLO, { now: CTX.now })
     const template = draftWrapDefinition.build(input, CTX)
     expect(template.tags).toContainEqual(['k', '30023'])
   })
 
-  it('rifiuta una bozza di bozza', async () => {
+  it('refuses a draft of a draft', async () => {
     await expect(
       wrapDraft(cifrario, 'x', { ...ARTICOLO, kind: 31234 }, { now: CTX.now }).then((i) =>
         draftWrapDefinition.build(i, CTX),
@@ -79,14 +79,14 @@ describe('bozze cifrate (NIP-37)', () => {
     ).rejects.toThrow(/non 31234/)
   })
 
-  it('mette una scadenza di novanta giorni, come raccomanda la specifica', async () => {
+  it('sets a ninety-day expiry, as the specification recommends', async () => {
     const input = await wrapDraft(cifrario, 'bozza-1', ARTICOLO, { now: CTX.now })
     expect(input.expiration).toBe(CTX.now + SCADENZA_BOZZA_PREDEFINITA)
   })
 
-  it('permette di non metterne nessuna', async () => {
-    // La scadenza NIP-40 autorizza il relay a cancellare: chi tiene una bozza
-    // per piu' di tre mesi deve poter rinunciare a quel comportamento.
+  it('allows setting none at all', async () => {
+    // The NIP-40 expiry authorises the relay to delete: whoever keeps a draft
+    // for more than three months has to be able to opt out of that.
     const input = await wrapDraft(cifrario, 'bozza-1', ARTICOLO, { now: CTX.now, expiration: null })
     expect(input.expiration).toBeUndefined()
     expect(draftWrapDefinition.build(input, CTX).tags.some((t) => t[0] === 'expiration')).toBe(
@@ -94,9 +94,9 @@ describe('bozze cifrate (NIP-37)', () => {
     )
   })
 
-  it('legge un content vuoto come bozza cancellata, non come bozza vuota', async () => {
-    // Lo dice la specifica, ed e' l'unico modo per cancellarne una senza
-    // sperare che il relay onori una richiesta kind 5.
+  it('reads an empty content as a deleted draft, not an empty one', async () => {
+    // The specification says so, and it is the only way to delete one without
+    // hoping the relay honours a kind 5 request.
     const input = await wrapDraft(cifrario, 'bozza-1', ARTICOLO, { now: CTX.now })
     const template = draftWrapDefinition.build(
       cancellaBozza(
@@ -112,9 +112,9 @@ describe('bozze cifrate (NIP-37)', () => {
     expect(await unwrapDraft(cifrario, riletto)).toBeNull()
   })
 
-  it('rifiuta di aprire una bozza scritta con un' + "'altra chiave", async () => {
-    // Proseguire mostrerebbe dati inventati: meglio dire chiaramente che la
-    // chiave non e' quella giusta.
+  it('refuses to open a draft written with another key', async () => {
+    // Going on would show invented data: better to say plainly that the key
+    // is not the right one.
     const altro = selfCipher(generateSecretKey())
     const input = await wrapDraft(cifrario, 'bozza-1', ARTICOLO, { now: CTX.now })
     const riletto = draftWrapDefinition.parse(
@@ -124,61 +124,61 @@ describe('bozze cifrate (NIP-37)', () => {
     await expect(unwrapDraft(altro, riletto)).rejects.toThrow(/altra identita/)
   })
 
-  it('rifiuta in lettura un evento senza il tag k, che NIP-37 richiede', () => {
+  it('refuses to read an event without the k tag, which NIP-37 requires', () => {
     expect(() => draftWrapDefinition.parse(evento({ tags: [['d', 'x']], content: 'abc' }))).toThrow(
       /"k"/,
     )
   })
 })
 
-describe('relay privati (kind 10013)', () => {
-  it('tiene gli indirizzi nel content cifrato, non nei tag', async () => {
-    // I tag sono pubblici: sapere su quali relay una persona tiene le bozze e'
-    // gia' un'informazione.
+describe('private relays (kind 10013)', () => {
+  it('keeps the addresses in the encrypted content, not in the tags', async () => {
+    // The tags are public: knowing which relays a person keeps their drafts
+    // on is already a piece of information.
     const ciphertext = await wrapPrivateRelays(cifrario, ['wss://privato.example'])
     const template = privateRelaysDefinition.build({ ciphertext }, CTX)
 
-    // Unico tag: quello del client, che non dice nulla su dove sono le bozze.
+    // The only tag: the client's, which says nothing about where the drafts are.
     expect(template.tags).toEqual([['client', 'NostrMediaClient']])
     expect(template.content).not.toContain('privato.example')
   })
 
-  it('sopravvive al giro cifra → decifra', async () => {
+  it('survives the encrypt → decrypt round trip', async () => {
     const relays = ['wss://uno.example', 'wss://due.example']
     const ciphertext = await wrapPrivateRelays(cifrario, relays)
     expect(await unwrapPrivateRelays(cifrario, ciphertext)).toEqual(relays)
   })
 
-  it('usa la forma dei tag privati e non un semplice elenco di stringhe', async () => {
+  it('uses the private-tag form and not a plain list of strings', async () => {
     const ciphertext = await wrapPrivateRelays(cifrario, ['wss://uno.example'])
     const dentro = JSON.parse(await cifrario.decrypt(ciphertext))
     expect(dentro).toEqual([['relay', 'wss://uno.example']])
   })
 
-  it('restituisce un elenco vuoto invece di lanciare, se non si legge', async () => {
-    // Un elenco illeggibile non deve impedire di salvare bozze: si ripiega
-    // sulla configurazione locale.
+  it('returns an empty list instead of throwing when it cannot be read', async () => {
+    // An unreadable list must not stop drafts being saved: it falls back on
+    // the local configuration.
     expect(await unwrapPrivateRelays(cifrario, '')).toEqual([])
     expect(await unwrapPrivateRelays(cifrario, 'non-cifrato')).toEqual([])
   })
 })
 
-describe('identificatore pubblico dell' + "'involucro", () => {
-  it('non rivela nulla del contenuto', async () => {
-    // Il tag `d` non e' cifrato: e' l'unico modo che il relay ha di sapere
-    // quale versione sostituire. Derivarlo dal titolo vanificherebbe meta' del
-    // lavoro — il contenuto resterebbe illeggibile, ma chi accede al relay
-    // saprebbe di cosa stai scrivendo.
+describe("the wrapper's public identifier", () => {
+  it('reveals nothing of the content', async () => {
+    // The `d` tag is not encrypted: it is the only way the relay has of
+    // knowing which version to replace. Deriving it from the title would undo
+    // half the work — the content would stay unreadable, but whoever has
+    // access to the relay would know what you are writing about.
     const id = await draftIdentifier('perche-nostr-e-interessante')
     expect(id).not.toContain('nostr')
     expect(id).toMatch(/^[0-9a-f]{16}$/)
   })
 
-  it('e' + "' deterministico, cosi' risalvare sostituisce invece di duplicare", async () => {
+  it('is deterministic, so saving again replaces instead of duplicating', async () => {
     expect(await draftIdentifier('articolo-x')).toBe(await draftIdentifier('articolo-x'))
   })
 
-  it('distingue bozze diverse', async () => {
+  it('tells different drafts apart', async () => {
     expect(await draftIdentifier('uno')).not.toBe(await draftIdentifier('due'))
   })
 })
