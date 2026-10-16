@@ -2,12 +2,13 @@ import { displayName, getKindDefinition, type Profile } from '@nmc/nostr-core'
 import { defineStore } from 'pinia'
 
 /**
- * Il profilo (kind 0) dell'identita' attiva, per il nome nel menu.
+ * The active identity's profile (kind 0), for the name in the menu.
  *
- * Si legge una volta per chiave e si tiene in memoria: il menu e' su ogni
- * pagina, e interrogare i relay a ogni cambio di rotta per un nome che non
- * cambia sarebbe rumore. Se il profilo non c'e' o non arriva, resta l'npub
- * accorciato — che e' comunque un'identita' leggibile, non un errore.
+ * It is read once per key and kept in memory: the menu is on every page, and
+ * querying the relays on every change of route for a name that does not change
+ * would be noise. When the profile is not there or does not arrive, the
+ * shortened npub remains — which is a readable identity all the same, not an
+ * error.
  */
 export const useProfiloProprio = defineStore('profilo-proprio', () => {
   const identita = useIdentity()
@@ -20,7 +21,7 @@ export const useProfiloProprio = defineStore('profilo-proprio', () => {
     return displayName(profilo.value ?? undefined, identita.pubkey)
   })
 
-  /** Vero se il nome mostrato viene dal profilo e non dalla chiave. */
+  /** True when the name shown comes from the profile and not from the key. */
   const daProfilo = computed(() =>
     Boolean(profilo.value?.display_name?.trim() || profilo.value?.name?.trim()),
   )
@@ -42,7 +43,7 @@ export const useProfiloProprio = defineStore('profilo-proprio', () => {
     }
   }
 
-  // Cambiando identita' — accesso, uscita — il nome segue la chiave nuova.
+  // When the identity changes — logging in, logging out — the name follows the new key.
   watch(
     () => identita.pubkey,
     (pubkey) => {

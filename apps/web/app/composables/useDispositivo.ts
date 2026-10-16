@@ -1,16 +1,17 @@
 import type { PiattaformaClient } from '@nmc/nostr-core'
 
 /**
- * Scrivania o telefono, per scegliere quale client esterno aprire.
+ * A desk or a phone, for choosing which external client to open.
  *
- * Non si guarda lo user agent, che e' notoriamente inaffidabile e che i
- * browser stanno congelando: si guarda **come si interagisce**. Un dispositivo
- * senza puntatore fine e senza passaggio del mouse e' un touch, e su quello ha
- * senso aprire un'app; una finestra stretta su un portatile resta una
- * scrivania, e aprirci un'app che non c'e' non aiuterebbe nessuno.
+ * The user agent is not consulted, being notoriously unreliable and in the
+ * process of being frozen by the browsers: what is consulted is **how you
+ * interact**. A device without a fine pointer and without hover is a touch
+ * device, and opening an app makes sense on one of those; a narrow window on a
+ * laptop is still a desk, and opening an app that is not there would help
+ * nobody.
  *
- * `matchMedia` e' reattivo: un tablet con tastiera agganciata o staccata
- * cambia risposta, e il pulsante deve seguirlo senza ricaricare la pagina.
+ * `matchMedia` is reactive: a tablet with its keyboard attached or detached
+ * changes the answer, and the button has to follow without reloading the page.
  */
 export function useDispositivo() {
   const piattaforma = ref<PiattaformaClient>('desktop')

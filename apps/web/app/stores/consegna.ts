@@ -1,14 +1,14 @@
 import { defineStore } from 'pinia'
 
 /**
- * Passamano di un file fra due pagine.
+ * Handing a file from one page to another.
  *
- * L'audio elaborato deve arrivare a «Carica su Blossom» senza essere
- * scaricato e riscelto. Un `Blob` non passa da una query string e non deve
- * finire in `localStorage` — pesa decine di megabyte e non e' serializzabile.
- * Quindi sta in memoria, in questo store, per il tempo di una navigazione: chi
- * lo ritira lo svuota, e un ricaricamento della pagina lo perde. E' voluto:
- * il file originale ce l'ha ancora l'utente.
+ * The processed audio has to reach «Upload to Blossom» without being
+ * downloaded and chosen again. A `Blob` does not travel in a query string and
+ * must not end up in `localStorage` — it weighs tens of megabytes and is not
+ * serialisable. So it sits in memory, in this store, for the length of one
+ * navigation: whoever collects it empties it, and a page reload loses it. That
+ * is deliberate: the user still has the original file.
  */
 export const useConsegna = defineStore('consegna', () => {
   const file = shallowRef<File | null>(null)
@@ -19,7 +19,7 @@ export const useConsegna = defineStore('consegna', () => {
     origine.value = da
   }
 
-  /** Restituisce il file e svuota: si consegna una volta sola. */
+  /** Returns the file and empties: it is handed over once only. */
   function ritira(): { file: File; origine: 'audio' } | null {
     if (!file.value || !origine.value) return null
     const esito = { file: file.value, origine: origine.value }

@@ -11,29 +11,29 @@ import {
 import { defineStore } from 'pinia'
 
 /**
- * Banco di firma: questo client come firmatario per altri (NIP-46).
+ * The signing desk: this client as a signer for others (NIP-46).
  *
- * Chi possiede la chiave del podcast tiene aperta questa pagina; chi prepara
- * gli episodi chiede da lontano, e ogni richiesta passa da un'approvazione a
- * mano. La chiave non lascia mai questo dispositivo.
+ * Whoever holds the podcast's key keeps this page open; whoever prepares the
+ * episodes asks from afar, and every request goes through an approval by hand.
+ * The key never leaves this device.
  *
- * **Il banco vive quanto la scheda del browser.** Non e' un servizio: chiudere
- * la pagina lo spegne, e chi sta chiedendo una firma in quel momento riceve un
- * errore. E' il prezzo del non affidare la chiave a nessuno, ed e' detto in
- * interfaccia invece di essere scoperto sul campo.
+ * **The desk lives as long as the browser tab.** It is not a service: closing
+ * the page switches it off, and whoever is asking for a signature at that
+ * moment gets an error. It is the price of entrusting the key to nobody, and
+ * it is said in the interface instead of being discovered in the field.
  */
 
 const CHIAVE_STORAGE = 'nmc.banco'
 
 /**
- * Dopo quanto una richiesta senza risposta si intende rifiutata.
+ * How long before a request with no answer counts as refused.
  *
- * Serve a chi chiede, non a chi approva: senza, un richiedente resterebbe in
- * attesa per sempre davanti a un banco che nessuno guarda.
+ * It is for whoever asks, not whoever approves: without it a requester would
+ * wait for ever in front of a desk nobody is watching.
  */
 const SCADENZA_RICHIESTA = 3 * 60 * 1000
 
-/** I kind che ha senso far firmare a qualcun altro, con il rischio di ciascuno. */
+/** The kinds it makes sense to have somebody else sign, with the risk of each. */
 export const kindDelegabili = [
   { kind: 54, etichetta: 'Episodio di podcast', nota: 'NIP-F4. È il caso per cui serve.' },
   {
@@ -60,16 +60,16 @@ interface Persistito {
 }
 
 /**
- * Il banco vivo e i verdetti in sospeso, fuori dallo stato reattivo.
+ * The live desk and the pending verdicts, outside the reactive state.
  *
- * Stessa ragione della chiave privata nello store dell'identita': qui dentro
- * ci sono funzioni e connessioni, che non sono serializzabili e non hanno
- * nulla da fare nel payload SSR.
+ * The same reason as the private key in the identity's store: in here are
+ * functions and connections, which are not serialisable and have no business
+ * in the SSR payload.
  */
 let bancoVivo: Banco | null = null
 const verdetti = new Map<string, (ok: boolean) => void>()
 
-/** Una richiesta in attesa di giudizio, nella forma che l'interfaccia mostra. */
+/** A request awaiting judgement, in the form the interface shows. */
 export interface RichiestaInAttesa {
   id: string
   cliente: string
@@ -100,8 +100,8 @@ function scriviPersistito(dati: Persistito | null): void {
     if (dati) localStorage.setItem(CHIAVE_STORAGE, JSON.stringify(dati))
     else localStorage.removeItem(CHIAVE_STORAGE)
   } catch {
-    // Storage non disponibile: il banco funziona lo stesso, ma il suo
-    // indirizzo cambiera' alla prossima sessione.
+    // Storage unavailable: the desk works all the same, but its address will
+    // change next session.
   }
 }
 
@@ -121,11 +121,11 @@ export const useBanco = defineStore('banco', () => {
   const richieste = ref<RichiestaInAttesa[]>([])
   const storico = ref<VoceStorico[]>([])
 
-  /** Materiale dell'indirizzo. Resta in memoria: serve a ogni riavvio del banco. */
+  /** The address's material. It stays in memory: every restart of the desk needs it. */
   let chiaveTrasporto = ''
   let segreto = ''
 
-  /** Carica o crea il materiale del banco. Da chiamare all'apertura della pagina. */
+  /** Loads or creates the desk's material. To be called when the page opens. */
   function prepara(relayPredefinito: string): void {
     if (!import.meta.client) return
 
@@ -157,11 +157,11 @@ export const useBanco = defineStore('banco', () => {
   }
 
   /**
-   * Cambia indirizzo, invalidando ogni delega concessa.
+   * Changes address, invalidating every delegation granted.
    *
-   * E' la sola revoca possibile: NIP-46 non prevede di ritirare il permesso a
-   * un singolo richiedente, quindi si sposta il banco e si riconsegna il nuovo
-   * indirizzo a chi si vuole ancora autorizzare.
+   * It is the only revocation possible: NIP-46 has no way to withdraw the
+   * permission from a single requester, so the desk is moved and the new
+   * address handed again to whoever is still to be authorized.
    */
   async function rigeneraIndirizzo(): Promise<void> {
     await ferma()
@@ -225,8 +225,8 @@ export const useBanco = defineStore('banco', () => {
   }
 
   async function ferma(): Promise<void> {
-    // Le richieste in sospeso non restano appese: chi sta aspettando riceve un
-    // rifiuto, che e' un esito, invece di un silenzio.
+    // The pending requests are not left hanging: whoever is waiting gets a
+    // refusal, which is an outcome, instead of silence.
     for (const r of richieste.value) verdetti.get(r.id)?.(false)
     verdetti.clear()
     richieste.value = []
@@ -238,7 +238,7 @@ export const useBanco = defineStore('banco', () => {
     cliente.value = null
   }
 
-  /** Mette una richiesta in coda e resta in attesa del verdetto umano. */
+  /** Puts a request in the queue and waits for the human verdict. */
   function accoda(richiesta: RichiestaFirma): Promise<boolean> {
     const id = `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`
 
@@ -270,7 +270,7 @@ export const useBanco = defineStore('banco', () => {
     })
   }
 
-  /** Approva o rifiuta una richiesta in coda. */
+  /** Approves or refuses a queued request. */
   function decidi(id: string, approvata: boolean): void {
     verdetti.get(id)?.(approvata)
   }

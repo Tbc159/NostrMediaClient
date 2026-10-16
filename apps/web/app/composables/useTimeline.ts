@@ -9,12 +9,12 @@ export interface OpzioniTimeline {
 }
 
 /**
- * Legge una timeline dai relay.
+ * Reads a timeline from the relays.
  *
- * Non usa `useAsyncData`: quel meccanismo serializza il risultato nel payload
- * SSR, e qui gli eventi arrivano da WebSocket che esistono solo nel browser.
- * Il caricamento parte quindi al montaggio, e la pagina resta renderizzabile
- * lato server anche senza dati.
+ * It does not use `useAsyncData`: that mechanism serialises the result into
+ * the SSR payload, and here the events come from WebSockets that exist only in
+ * the browser. The loading therefore starts on mount, and the page stays
+ * renderable on the server side even without data.
  */
 export function useTimeline(
   filtri: Filtro | Filtro[] | (() => Filtro | Filtro[]),
@@ -26,7 +26,7 @@ export function useTimeline(
   const eventi = ref<NostrEvent[]>([])
   const caricamento = ref(false)
   const errore = ref<string | null>(null)
-  /** Istante dell'ultimo caricamento riuscito: senza, non si distingue una timeline vuota da una mai caricata. */
+  /** The instant of the last successful load: without it an empty timeline cannot be told from one never loaded. */
   const ultimaLettura = ref<Date | null>(null)
 
   const destinazioni = computed(() => opzioni.relays ?? config.value.readRelays)
@@ -50,7 +50,7 @@ export function useTimeline(
 
   if (opzioni.immediato !== false) onMounted(carica)
 
-  /** Inserisce in cima un evento appena pubblicato, senza rileggere dai relay. */
+  /** Puts a just-published event at the top, without re-reading from the relays. */
   function anteponi(evento: NostrEvent): void {
     if (eventi.value.some((e) => e.id === evento.id)) return
     eventi.value = [evento, ...eventi.value]

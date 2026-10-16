@@ -3,23 +3,23 @@ import type { Filtro, NostrEvent } from '@nmc/nostr-core'
 export interface OpzioniEventiPropri {
   limite?: number
   timeoutMs?: number
-  /** Filtro aggiuntivo, unito a quello per autore. */
+  /** An extra filter, merged with the one by author. */
   extra?: Partial<Filtro>
 }
 
 /**
- * Legge dai relay i soli eventi pubblicati dall'identita' attiva.
+ * Reads from the relays the events published by the active identity alone.
  *
- * Tutte le sezioni che mostrano eventi passano di qui. La scelta e' netta e va
- * detta: senza la lista dei follow (kind 3) e senza il modello outbox
- * (NIP-65), un elenco "di tutti" sarebbe in realta' *quello che passa dai relay
- * configurati* — cioe' una fetta arbitraria della rete, diversa a ogni
- * ricarica. Mostrare solo i propri eventi e' un insieme che l'utente riconosce
- * e sa spiegarsi.
+ * Every section that shows events goes through here. The choice is a firm one
+ * and worth stating: without the follow list (kind 3) and without the outbox
+ * model (NIP-65), a list "of everyone" would really be *whatever passes
+ * through the configured relays* — that is, an arbitrary slice of the network,
+ * different on every reload. Showing your own events alone is a set the user
+ * recognises and can explain to themselves.
  *
- * Senza identita' non si interroga affatto: un filtro con `authors: []` viene
- * interpretato da molti relay come "nessun autore", quindi restituirebbe il
- * vuoto dopo aver aperto le connessioni per niente.
+ * Without an identity nothing is queried at all: a filter with `authors: []`
+ * is read by many relays as "no author", so it would return nothing after
+ * opening the connections for no reason.
  */
 export function useEventiPropri(kinds: number[], opzioni: OpzioniEventiPropri = {}) {
   const identita = useIdentity()
@@ -46,7 +46,7 @@ export function useEventiPropri(kinds: number[], opzioni: OpzioniEventiPropri = 
   }
 
   onMounted(carica)
-  // Cambiando identita' l'elenco deve seguire, non restare quello di prima.
+  // When the identity changes the list has to follow, not stay as it was.
   watch(() => identita.pubkey, carica)
 
   const eventi = computed<NostrEvent[]>(() => timeline.eventi.value)

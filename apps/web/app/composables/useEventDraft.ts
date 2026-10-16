@@ -8,13 +8,13 @@ import {
 } from '@nmc/nostr-core'
 
 /**
- * Ciclo di vita di un evento in composizione: costruzione, firma, invio.
+ * The lifecycle of an event being composed: building, signing, sending.
  *
- * I tre passaggi restano distinti perche' falliscono per ragioni diverse e si
- * rimediano in modi diversi: un errore di costruzione si corregge nel form, uno
- * di firma sbloccando la chiave, uno di invio cambiando relay. Fonderli in un
- * unico pulsante "pubblica" nasconderebbe all'utente quale dei tre e' andato
- * storto.
+ * The three steps stay separate because they fail for different reasons and
+ * are remedied in different ways: a building error is corrected in the form, a
+ * signing one by unlocking the key, a sending one by changing relay. Merging
+ * them into a single "publish" button would hide from the user which of the
+ * three went wrong.
  */
 export function useEventDraft() {
   const identita = useIdentity()
@@ -26,13 +26,13 @@ export function useEventDraft() {
   const inCorso = ref(false)
 
   /**
-   * Vero quando l'evento in mano e' stato accettato da almeno un relay.
+   * True when the event in hand has been accepted by at least one relay.
    *
-   * E' il momento in cui il pulsante «Pubblica» deve sparire: rifarlo
-   * comparire dopo un esito positivo lascia pensare che qualcosa manchi.
-   * Chi vuole spingere l'evento anche sui relay che non l'hanno preso lo fa
-   * dall'esito, relay per relay; chi vuole cambiarlo ricompone, e la
-   * ricomposizione azzera l'esito.
+   * It is the moment the «Publish» button has to disappear: bringing it back
+   * after a positive outcome suggests something is missing. Whoever wants to
+   * push the event to the relays that did not take it does so from the
+   * outcome, relay by relay; whoever wants to change it rebuilds, and
+   * rebuilding clears the outcome.
    */
   const pubblicato = computed(() => invio.esito.value?.riuscita === true)
 
@@ -44,15 +44,15 @@ export function useEventDraft() {
   }
 
   /**
-   * Costruisce il template passando dalla definizione del kind.
+   * Builds the template by going through the kind's definition.
    *
-   * Gli errori di validazione arrivano da qui e sono quelli veri del dominio,
-   * non controlli duplicati nel form: se il kind rifiuta un input, lo rifiuta
-   * allo stesso modo ovunque venga usato.
+   * The validation errors come from there and are the real domain ones, not
+   * checks duplicated in the form: if the kind refuses an input, it refuses it
+   * the same way wherever it is used.
    *
-   * `aggiuntivi` sono i tag che questo client non governa: si ricavano
-   * all'apertura di un evento gia' pubblicato con `tagAggiuntivi()`, oppure
-   * li aggiunge l'utente dalla sezione «Tag» del form.
+   * `aggiuntivi` are the tags this client does not govern: they are derived
+   * when an already published event is opened, with `tagAggiuntivi()`, or
+   * added by the user from the form's «Tag» section.
    */
   function costruisci(
     definizione: AnyKindDefinition,
@@ -61,17 +61,17 @@ export function useEventDraft() {
   ): boolean {
     errore.value = null
     firmato.value = null
-    // Un template nuovo e' una pubblicazione nuova: l'esito di prima non la riguarda.
+    // A new template is a new publication: the earlier outcome does not apply.
     invio.azzera()
     try {
       const costruito = definizione.build(input, {
         pubkey: identita.pubkey ?? '00'.repeat(32),
         now: Math.floor(Date.now() / 1000),
       })
-      // I tag che il kind non scrive — quelli letti dall'evento originale e
-      // quelli aggiunti a mano — vanno in coda. Senza, modificare un evento
-      // altrui significherebbe cancellargli tutto cio' che il nostro form non
-      // sa rappresentare.
+      // The tags the kind does not write — the ones read from the original
+      // event and the ones added by hand — are appended. Without that, editing
+      // somebody else's event would mean deleting everything our form cannot
+      // represent.
       template.value = opzioni.aggiuntivi?.length
         ? { ...costruito, tags: fondiTag(costruito.tags, opzioni.aggiuntivi) }
         : costruito
@@ -84,13 +84,14 @@ export function useEventDraft() {
   }
 
   /**
-   * Firma il template.
+   * Signs the template.
    *
-   * Senza argomenti firma l'identita' attiva. Passando un `firmatario` — una
-   * delega NIP-46 — l'evento esce con la `pubkey` di **quell'altra** identita':
-   * non e' una variante della stessa azione, e' pubblicare a nome di un altro.
-   * Per questo il firmatario si passa a ogni chiamata invece di essere uno
-   * stato del composable: nessuno deve poterlo dimenticare acceso.
+   * Without arguments it signs with the active identity. Passing a
+   * `firmatario` — a NIP-46 delegation — the event comes out with **that
+   * other** identity's `pubkey`: it is not a variant of the same action, it is
+   * publishing in someone else's name. That is why the signer is passed on
+   * every call instead of being state of the composable: nobody must be able
+   * to forget it switched on.
    */
   async function firma(firmatario?: Firmatario): Promise<boolean> {
     if (!template.value) {
@@ -113,11 +114,11 @@ export function useEventDraft() {
   }
 
   /**
-   * Firma e invia in un colpo solo, per il pulsante principale dei form.
+   * Signs and sends in one go, for the forms' main button.
    *
-   * Se l'evento e' gia' firmato non lo rifirma: rifirmare cambierebbe la firma
-   * a parita' di contenuto e, con NIP-07, farebbe ricomparire il popup
-   * dell'estensione a ogni tentativo di reinvio.
+   * When the event is signed already it does not re-sign it: re-signing would
+   * change the signature for identical content and, with NIP-07, would bring
+   * the extension's popup back on every attempt to resend.
    */
   async function firmaEPubblica(firmatario?: Firmatario): Promise<boolean> {
     if (!firmato.value && !(await firma(firmatario))) return false
@@ -135,8 +136,8 @@ export function useEventDraft() {
     firma,
     azzera,
     firmaEPubblica,
-    // Stato dell'invio, esposto cosi' com'e': le pagine mostrano l'esito per
-    // relay, non un riassunto.
+    // The state of the sending, exposed as it is: the pages show the outcome
+    // per relay, not a summary.
     invio,
   }
 }

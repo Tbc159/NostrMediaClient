@@ -1,15 +1,15 @@
 @import 'tailwindcss';
 
-/* Tailwind 4: il tema si configura qui, non in tailwind.config.js. */
+/* Tailwind 4: the theme is configured here, not in tailwind.config.js. */
 @theme {
   --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --font-mono: ui-monospace, 'JetBrains Mono', 'Fira Code', monospace;
 }
 
 /*
- * Colori semantici come variabili CSS, non come classi Tailwind fisse.
- * Il tema scuro ridefinisce solo queste, quindi i componenti restano identici
- * e non si riempiono di coppie `bg-white dark:bg-neutral-900`.
+ * Semantic colours as CSS variables, not as fixed Tailwind classes.
+ * The dark theme redefines these alone, so the components stay identical and
+ * do not fill up with `bg-white dark:bg-neutral-900` pairs.
  */
 @layer base {
   :root {
@@ -52,9 +52,9 @@
   }
 
   /*
-   * Anello di focus visibile ovunque. È il requisito di accessibilità che si
-   * perde più facilmente scrivendo componenti a mano: senza, chi naviga da
-   * tastiera non sa dove si trova.
+   * A visible focus ring everywhere. It is the accessibility requirement most
+   * easily lost when writing components by hand: without it, whoever navigates
+   * by keyboard does not know where they are.
    */
   :focus-visible {
     outline: 2px solid var(--accento);
@@ -69,13 +69,13 @@
 }
 
 /*
- * `prose-nmc`: come si vede un testo lungo, scritto o riletto.
+ * `prose-nmc`: how a long text looks, written or read back.
  *
- * Serve perche' il reset di Tailwind azzera i margini dei titoli e i pallini
- * degli elenchi: senza queste regole un `<h2>` e' indistinguibile da un
- * paragrafo e un `<ul>` non ha punti. Vale sia dove l'articolo si rilegge sia
- * dentro l'editor, che e' lo stesso HTML — e scrivere vedendo il risultato ha
- * senso solo se il risultato si vede davvero.
+ * It is needed because Tailwind's reset zeroes the headings' margins and the
+ * lists' bullets: without these rules an `<h2>` is indistinguishable from a
+ * paragraph and a `<ul>` has no markers. It holds both where the article is
+ * read back and inside the editor, which is the same HTML — and writing while
+ * seeing the result only makes sense if the result is really seen.
  */
 @utility prose-nmc {
   & > * + * {
@@ -127,7 +127,7 @@
   & li + li {
     margin-top: 0.3em;
   }
-  /* Elenchi annidati: il secondo livello si distingue dal primo. */
+  /* Nested lists: the second level is told apart from the first. */
   & ul ul {
     list-style: circle;
   }
@@ -159,7 +159,7 @@
     padding: 0.8em 1em;
     overflow-x: auto;
   }
-  /* Dentro un blocco il fondo lo mette il <pre>: raddoppiarlo si vede. */
+  /* Inside a block the <pre> provides the background: doubling it shows. */
   & pre code {
     background: none;
     padding: 0;

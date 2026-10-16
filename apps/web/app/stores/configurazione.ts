@@ -12,22 +12,23 @@ import {
 import { defineStore } from 'pinia'
 
 /**
- * Endpoint effettivi del client: default d'ambiente piu' le scelte dell'utente.
+ * The client's effective endpoints: the environment's defaults plus the user's
+ * choices.
  *
- * I valori del `.env` restano quello che il piano dice che sono — **default di
- * primo avvio, mai dipendenze**. Qui sopra si sovrappone cio' che l'utente
- * decide dalle impostazioni, che vive nel suo browser e non nel repository.
+ * The `.env` values stay what the plan says they are — **first-run defaults,
+ * never dependencies**. On top of them is laid what the user decides from the
+ * settings, which lives in their browser and not in the repository.
  *
- * La sovrapposizione avviene sulla forma *grezza* (le stringhe separate da
- * virgola dell'ambiente) e non sull'oggetto gia' validato: cosi' la
- * validazione resta quella sola di `resolveClientConfig`, condivisa fra app,
- * SSR e script da riga di comando, invece di essere riscritta qui in una
- * variante che col tempo divergerebbe.
+ * The overlaying happens on the *raw* form (the environment's comma-separated
+ * strings) and not on the already validated object: that way the validation
+ * stays the single one in `resolveClientConfig`, shared between the app, SSR
+ * and the command-line scripts, instead of being rewritten here in a variant
+ * that would diverge over time.
  */
 
 const CHIAVE_STORAGE = 'nmc.endpoint'
 
-/** Campi sovrascrivibili dall'utente, nella forma dell'ambiente. */
+/** The fields the user can override, in the environment's form. */
 export type OverrideEndpoint = Pick<
   RawEnv,
   | 'NUXT_PUBLIC_DEFAULT_READ_RELAYS'
@@ -40,13 +41,13 @@ export type OverrideEndpoint = Pick<
 interface Persistito {
   override: OverrideEndpoint
   strategia?: StrategiaPubblicazione
-  /** Client esterno scelto per ciascuna piattaforma. */
+  /** The external client chosen for each platform. */
   visualizzatori?: Partial<Record<PiattaformaClient, string>>
   /** Client aggiunti a mano dall'utente. */
   visualizzatoriPersonali?: ClientEsterno[]
 }
 
-/** Campi mostrati in interfaccia, con la spiegazione di cosa cambiano. */
+/** The fields shown in the interface, with an explanation of what they change. */
 export interface CampoEndpoint {
   chiave: keyof OverrideEndpoint
   etichetta: string
@@ -107,29 +108,29 @@ function leggiPersistito(): Persistito | null {
 }
 
 export const useConfigurazione = defineStore('configurazione', () => {
-  /** Valori del `.env`, iniettati dal runtimeConfig di Nuxt. */
+  /** The `.env` values, injected by Nuxt's runtimeConfig. */
   const daAmbiente = ref<RawEnv>({})
   const override = ref<OverrideEndpoint>({})
   const strategia = ref<StrategiaPubblicazione>('sequenziale')
 
   /**
-   * Client esterni con cui aprire un evento gia' pubblicato.
+   * The external clients to open an already published event with.
    *
-   * Due scelte distinte e non una sola, perche' il client giusto cambia con il
-   * dispositivo: sulla scrivania si apre una scheda del browser, sul telefono
-   * ha senso l'app installata. La preferenza viene applicata in base a come si
-   * sta interagendo, non a un'impostazione da ricordare.
+   * Two distinct choices and not one, because the right client changes with
+   * the device: on the desk a browser tab opens, on the phone the installed
+   * app makes sense. The preference is applied according to how you are
+   * interacting, not to a setting you have to remember.
    */
   const visualizzatori = ref<Partial<Record<PiattaformaClient, string>>>({})
   const visualizzatoriPersonali = ref<ClientEsterno[]>([])
 
-  /** Preset piu' quelli aggiunti a mano. */
+  /** The presets plus the ones added by hand. */
   const visualizzatoriDisponibili = computed<ClientEsterno[]>(() => [
     ...clientEsterniPredefiniti,
     ...visualizzatoriPersonali.value,
   ])
 
-  /** Client in vigore per una piattaforma, con ripiego sul predefinito. */
+  /** The client in force for a platform, falling back on the default. */
   function visualizzatorePer(piattaforma: PiattaformaClient): ClientEsterno {
     return risolviClient(
       visualizzatori.value[piattaforma],
@@ -144,10 +145,10 @@ export const useConfigurazione = defineStore('configurazione', () => {
   }
 
   /**
-   * Aggiunge o sostituisce un client scritto a mano.
+   * Adds or replaces a hand-written client.
    *
-   * Il modello viene validato prima di entrare: finisce dentro un `href`, e
-   * uno schema eseguibile diventerebbe codice cliccabile in pagina.
+   * The template is validated before it goes in: it ends up inside an `href`,
+   * and an executable scheme would become clickable code in the page.
    */
   function aggiungiVisualizzatore(
     nome: string,
@@ -177,8 +178,8 @@ export const useConfigurazione = defineStore('configurazione', () => {
 
   function rimuoviVisualizzatore(id: string): void {
     visualizzatoriPersonali.value = visualizzatoriPersonali.value.filter((c) => c.id !== id)
-    // Una piattaforma che puntava a questo client torna al predefinito, invece
-    // di restare con un pulsante che non apre nulla.
+    // A platform that pointed at this client goes back to the default,
+    // instead of being left with a button that opens nothing.
     const ripulito = { ...visualizzatori.value }
     for (const [p, scelto] of Object.entries(ripulito)) {
       if (scelto === id) delete ripulito[p as PiattaformaClient]
@@ -187,7 +188,7 @@ export const useConfigurazione = defineStore('configurazione', () => {
     salva()
   }
 
-  /** Vero se l'utente ha sostituito almeno un endpoint. */
+  /** True when the user has replaced at least one endpoint. */
   const personalizzata = computed(() =>
     Object.values(override.value).some((v) => v !== undefined && v !== null),
   )
@@ -234,23 +235,23 @@ export const useConfigurazione = defineStore('configurazione', () => {
         } satisfies Persistito),
       )
     } catch {
-      // Storage pieno o negato: la scelta resta valida per questa sessione.
+      // Storage full or denied: the choice holds for this session.
     }
   }
 
   /**
-   * Applica un insieme di modifiche solo se il risultato e' valido.
+   * Applies a set of changes only when the result is valid.
    *
-   * Tutto o niente: accettare le modifiche valide e scartare le altre
-   * lascerebbe l'utente con una configurazione a meta', diversa da quella che
-   * ha appena scritto e senza che nulla glielo dica.
+   * All or nothing: accepting the valid changes and discarding the others
+   * would leave the user with half a configuration, different from the one
+   * they have just written and with nothing to tell them so.
    */
   function applica(modifiche: OverrideEndpoint): { ok: true } | { ok: false; errore: string } {
     const precedente = { ...override.value }
     const candidato: OverrideEndpoint = { ...override.value }
     for (const [k, v] of Object.entries(modifiche)) {
-      // Stringa vuota su un campo multiplo significherebbe "nessun relay", che
-      // la validazione rifiuta: si interpreta come "torna al default".
+      // An empty string on a multiple field would mean "no relays", which the
+      // validation refuses: it is read as "go back to the default".
       if (v === undefined || (v.trim() === '' && k !== 'NUXT_PUBLIC_DRAFT_RELAY')) {
         delete candidato[k as keyof OverrideEndpoint]
       } else {
@@ -268,7 +269,7 @@ export const useConfigurazione = defineStore('configurazione', () => {
     return { ok: true }
   }
 
-  /** Torna ai valori del `.env` per tutti i campi. */
+  /** Goes back to the `.env` values for every field. */
   function ripristinaDefault(): void {
     override.value = {}
     salva()
@@ -279,12 +280,12 @@ export const useConfigurazione = defineStore('configurazione', () => {
     salva()
   }
 
-  /** Valore attualmente in vigore per un campo, comunque ci si sia arrivati. */
+  /** The value currently in force for a field, however it was arrived at. */
   function valoreDi(chiave: keyof OverrideEndpoint): string {
     return (grezza.value[chiave] ?? '').toString()
   }
 
-  /** Se il campo e' stato sostituito dall'utente o viene ancora dall'ambiente. */
+  /** Whether the field was replaced by the user or still comes from the environment. */
   function sovrascritto(chiave: keyof OverrideEndpoint): boolean {
     return override.value[chiave] !== undefined
   }

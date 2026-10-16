@@ -13,29 +13,29 @@ import {
 } from '@nmc/nostr-core'
 
 /**
- * Bozze cifrate sui relay (NIP-37).
+ * Encrypted drafts on the relays (NIP-37).
  *
- * Differenza con `useBozzeLocali`, che resta: queste seguono su un altro
- * dispositivo, quelle no. In cambio queste richiedono una chiave capace di
- * cifrare — la sola lettura non basta — e finiscono comunque su un relay,
- * seppure illeggibili.
+ * The difference from `useBozzeLocali`, which stays: these follow you to
+ * another device, those do not. In exchange these require a key able to
+ * encrypt — read-only is not enough — and end up on a relay all the same,
+ * unreadable though they are.
  */
 
 export interface BozzaRemota {
-  /** Identificatore pubblico dell'involucro: un hash, non dice nulla. */
+  /** The wrapper's public identifier: a hash, it says nothing. */
   involucro: string
   /**
-   * Identificatore vero dell'evento in bozza, che sta **dentro** il contenuto
-   * cifrato. Assente se la bozza non si e' potuta decifrare.
+   * The real identifier of the drafted event, which sits **inside** the
+   * encrypted content. Absent when the draft could not be decrypted.
    */
   identificatore: string | null
-  /** Titolo leggibile, ricavato decifrando: serve a mostrare qualcosa di utile. */
+  /** A readable title, obtained by decrypting: it is there to show something useful. */
   titolo: string
-  /** Kind dell'evento contenuto, dal tag `k`: si sa senza decifrare. */
+  /** The contained event's kind, from the `k` tag: known without decrypting. */
   kindBozza: number
   aggiornataAl: number
   scadenza: number | null
-  /** Contenuto decifrato, gia' pronto per il form. */
+  /** The decrypted content, ready for the form. */
   template: EventTemplate | null
   grezza: DraftWrapParsed
   evento: NostrEvent
@@ -54,12 +54,12 @@ export function useBozzeRemote() {
   const disponibili = computed(() => identita.cifrario !== null)
 
   /**
-   * Relay su cui tenere le bozze.
+   * The relays to keep the drafts on.
    *
-   * L'ordine e' quello della specifica: prima l'elenco privato del kind 10013,
-   * poi il relay per bozze configurato. **Non** si ripiega mai sui relay di
-   * scrittura pubblici: una bozza e' cifrata, ma metterla dove finisce tutto
-   * il resto ne rivela comunque l'esistenza e la cadenza.
+   * The order is the specification's: the kind 10013 private list first, then
+   * the configured draft relay. It **never** falls back on the public write
+   * relays: a draft is encrypted, but putting it where everything else ends up
+   * still reveals its existence and its rhythm.
    */
   const relayPrivati = ref<string[]>([])
   const destinazioni = computed(() => {
@@ -70,7 +70,7 @@ export function useBozzeRemote() {
 
   const senzaDestinazione = computed(() => destinazioni.value.length === 0)
 
-  /** Legge il kind 10013, se c'e'. */
+  /** Reads the kind 10013, when there is one. */
   async function caricaRelayPrivati(): Promise<void> {
     if (!pool || !identita.pubkey || !identita.cifrario) return
     const sorgenti = [...config.value.readRelays, ...config.value.writeRelays]
@@ -86,7 +86,7 @@ export function useBozzeRemote() {
       const { ciphertext } = privateRelaysDefinition.parse(primo)
       relayPrivati.value = await unwrapPrivateRelays(identita.cifrario, ciphertext)
     } catch {
-      // Elenco illeggibile: si resta sulla configurazione locale.
+      // An unreadable list: we stay on the local configuration.
       relayPrivati.value = []
     }
   }
@@ -116,19 +116,19 @@ export function useBozzeRemote() {
       for (const e of eventi) {
         try {
           const grezza = draftWrapDefinition.parse(e)
-          // Una bozza cancellata resta sul relay come involucro vuoto: non va
-          // mostrata, ma nemmeno trattata come un errore.
+          // A deleted draft stays on the relay as an empty wrapper: it is not
+          // to be shown, but not to be treated as an error either.
           if (grezza.cancellata) continue
 
-          // Si decifra subito: l'identificatore pubblico e' un hash e non dice
-          // nulla, quindi senza aprire il contenuto l'elenco mostrerebbe una
-          // fila di stringhe esadecimali.
+          // It is decrypted straight away: the public identifier is a hash and
+          // says nothing, so without opening the content the list would show a
+          // row of hexadecimal strings.
           let template: EventTemplate | null = null
           try {
             template = await unwrapDraft(identita.cifrario, grezza)
           } catch {
-            // Bozza scritta con un'altra identita': si elenca comunque, con
-            // quel poco che i tag pubblici dicono.
+            // A draft written with another identity: it is listed all the
+            // same, with what little the public tags say.
           }
 
           const tag = (nome: string): string | undefined =>
@@ -146,7 +146,7 @@ export function useBozzeRemote() {
             evento: e,
           })
         } catch {
-          // Un involucro malformato non deve nascondere le altre bozze.
+          // A malformed wrapper must not hide the other drafts.
         }
       }
       bozze.value = lette
@@ -157,7 +157,7 @@ export function useBozzeRemote() {
     }
   }
 
-  /** Evento non firmato contenuto nella bozza, gia' decifrato al caricamento. */
+  /** The unsigned event the draft contains, decrypted when it was loaded. */
   function apri(bozza: BozzaRemota): EventTemplate | null {
     if (!bozza.template) {
       errore.value =
@@ -169,11 +169,11 @@ export function useBozzeRemote() {
   }
 
   /**
-   * Cifra, firma e pubblica una bozza.
+   * Encrypts, signs and publishes a draft.
    *
-   * L'evento contenuto **non** viene firmato: e' un lavoro in corso, e firmarlo
-   * produrrebbe un id definitivo per un contenuto che cambiera' ancora. La
-   * firma la porta l'involucro.
+   * The contained event is **not** signed: it is work in progress, and signing
+   * it would produce a definitive id for content that will change again. The
+   * wrapper is what carries the signature.
    */
   async function salva(
     identificatore: string,
@@ -192,9 +192,9 @@ export function useBozzeRemote() {
 
     errore.value = null
     try {
-      // L'identificatore pubblico e' un hash di quello vero: deterministico,
-      // cosi' risalvare sostituisce, e opaco, cosi' il relay non impara il
-      // titolo dal tag `d`, che non e' cifrato.
+      // The public identifier is a hash of the real one: deterministic, so
+      // saving again replaces, and opaque, so the relay does not learn the
+      // title from the `d` tag, which is not encrypted.
       const involucro_ = await draftIdentifier(identificatore)
       const input = await wrapDraft(identita.cifrario, involucro_, template, {
         ...(opzioni.conScadenza === false ? { expiration: null } : {}),
@@ -213,7 +213,7 @@ export function useBozzeRemote() {
     }
   }
 
-  /** Cancella una bozza svuotandone il contenuto, come vuole la specifica. */
+  /** Deletes a draft by emptying its content, as the specification wants. */
   async function elimina(bozza: BozzaRemota): Promise<boolean> {
     errore.value = null
     try {
@@ -232,12 +232,12 @@ export function useBozzeRemote() {
   }
 
   /**
-   * Si risolve dopo il primo caricamento.
+   * Resolves after the first load.
    *
-   * Serve a chi apre una bozza da un link: il caricamento parte in un
-   * `onMounted` e chi cerca la bozza gira in un altro, senza garanzia
-   * sull'ordine. Senza questa attesa la bozza risulterebbe inesistente proprio
-   * mentre sta arrivando.
+   * Whoever opens a draft from a link needs it: the loading starts in one
+   * `onMounted` and whoever looks for the draft runs in another, with no
+   * guarantee about the order. Without this wait the draft would come out
+   * non-existent exactly while it is arriving.
    */
   let risolviPronte: () => void = () => {}
   const pronte = new Promise<void>((r) => {

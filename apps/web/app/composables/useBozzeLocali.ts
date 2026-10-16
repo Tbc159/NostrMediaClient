@@ -1,15 +1,15 @@
 /**
- * Bozze di articolo, salvate nel browser.
+ * Article drafts, saved in the browser.
  *
- * Perche' locali e non su un relay: NIP-23 **dichiara deprecato il kind 30024**
- * e rimanda a NIP-37, che cifra la bozza con NIP-44 verso se stessi. Il 30024
- * andrebbe invece sul relay *in chiaro*, e chiamarlo "bozza" e' fuorviante —
- * e' un articolo pubblicato in un posto poco frequentato, leggibile da
- * chiunque abbia accesso a quel relay.
+ * Why local and not on a relay: NIP-23 **declares kind 30024 deprecated** and
+ * points to NIP-37, which encrypts the draft with NIP-44 to yourself. The
+ * 30024 would instead go onto the relay *in the clear*, and calling it a
+ * "draft" is misleading — it is an article published in a quiet place,
+ * readable by anyone with access to that relay.
  *
- * Finche' NIP-37 non e' implementato, il browser e' l'unico posto dove una
- * bozza resta davvero privata. Il prezzo, che va detto, e' che non segue
- * l'utente su un altro dispositivo.
+ * Until NIP-37 is implemented, the browser is the only place where a draft
+ * really stays private. The price, which is worth saying, is that it does not
+ * follow the user to another device.
  */
 
 const CHIAVE = 'nmc.bozze-articolo'
@@ -21,7 +21,7 @@ export interface BozzaArticolo {
   image: string
   hashtag: string
   content: string
-  /** Prima pubblicazione, se l'articolo era gia' uscito. */
+  /** The first publication, when the article had already been out. */
   publishedAt?: number
   salvataAlle: number
 }
@@ -49,12 +49,12 @@ export function useBozzeLocali() {
     try {
       localStorage.setItem(CHIAVE, JSON.stringify(tutte))
     } catch {
-      // Storage pieno: la bozza resta comunque nel form aperto.
+      // Storage full: the draft stays in the open form all the same.
     }
     bozze.value = tutte.sort((a, b) => b.salvataAlle - a.salvataAlle)
   }
 
-  /** Salva sostituendo la bozza con lo stesso identificatore. */
+  /** Saves, replacing the draft with the same identifier. */
   function salva(bozza: Omit<BozzaArticolo, 'salvataAlle'>): void {
     const altre = leggiTutte().filter((b) => b.identifier !== bozza.identifier)
     scrivi([...altre, { ...bozza, salvataAlle: Date.now() }])

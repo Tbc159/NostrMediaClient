@@ -2,12 +2,12 @@ import { useConfigurazione } from '~/stores/configurazione'
 import { useMediaManager } from '~/stores/mediamanager'
 
 /**
- * Carica gli endpoint scelti dall'utente prima che le pagine li leggano.
+ * Loads the endpoints the user chose before the pages read them.
  *
- * Deve girare qui e non in un `onMounted`: i composable che pubblicano e
- * leggono risolvono i relay al momento del setup, e se lo storage venisse
- * letto dopo, la prima operazione di ogni sessione partirebbe con i default
- * dell'ambiente invece che con la configurazione dell'utente.
+ * It has to run here and not in an `onMounted`: the composables that publish
+ * and read resolve the relays at setup time, and if the storage were read
+ * afterwards, the first operation of every session would start with the
+ * environment's defaults instead of the user's configuration.
  */
 export default defineNuxtPlugin(() => {
   const { public: pub } = useRuntimeConfig()
@@ -22,11 +22,11 @@ export default defineNuxtPlugin(() => {
   })
 
   /*
-   * Stessa ragione per il servizio di elaborazione, e una in piu': la pagina
-   * Audio non chiede indirizzo e chiave: se leggesse lo storage da sola in un
-   * `onMounted`, il primo rendering partirebbe come non configurato e
-   * mostrerebbe l'avviso «configura il servizio» a chi il servizio ce l'ha
-   * gia'.
+   * The same reason for the processing service, and one more: the Audio page
+   * does not ask for an address and a key — if it read the storage by itself
+   * in an `onMounted`, the first render would start as though unconfigured and
+   * would show the «configure the service» notice to whoever has the service
+   * already.
    */
   useMediaManager().inizializza({
     baseUrl: String(pub.mediaManagerUrl ?? ''),

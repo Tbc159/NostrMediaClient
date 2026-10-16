@@ -1,9 +1,9 @@
 /**
- * Distanza da adesso, in italiano.
+ * The distance from now, in Italian.
  *
- * `Intl.RelativeTimeFormat` fa il lavoro di traduzione; qui si sceglie solo
- * l'unita' piu' leggibile. Sopra la settimana si passa alla data assoluta:
- * "37 giorni fa" costringe chi legge a fare i conti.
+ * `Intl.RelativeTimeFormat` does the translating; here only the most readable
+ * unit is chosen. Above a week it switches to the absolute date: "37 days ago"
+ * forces the reader to do the arithmetic.
  */
 export function tempoRelativo(data: Date, adesso: Date = new Date()): string {
   const secondi = Math.round((data.getTime() - adesso.getTime()) / 1000)
