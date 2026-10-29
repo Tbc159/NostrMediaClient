@@ -106,6 +106,43 @@ watch(
   },
 )
 
+/*
+ * The platforms where the show already is.
+ *
+ * A show imported from another host keeps its listeners on those platforms
+ * through the redirect: submitting it again would create a second show next to
+ * the first. YouTube is the exception — it ingests the feed into videos, and
+ * relinking it re-imports from a date you choose, so the date is proposed:
+ * the newest episode that came with the import.
+ */
+const ultimoImportato = computed<number | null>(() => {
+  let ultimo: number | null = null
+  for (const e of episodi.eventi.value) {
+    if (!e.tags.some((t) => t[0] === 'i' && t[1]?.startsWith('podcast:item:guid:'))) continue
+    const data = Number(e.tags.find((t) => t[0] === 'published_at')?.[1])
+    if (Number.isFinite(data) && (ultimo === null || data > ultimo)) ultimo = data
+  }
+  return ultimo
+})
+const dataYoutube = ref('')
+watch(
+  ultimoImportato,
+  (ultimo) => {
+    if (ultimo && !dataYoutube.value) {
+      dataYoutube.value = new Date(ultimo * 1000).toISOString().slice(0, 10)
+    }
+  },
+  { immediate: true },
+)
+const dataYoutubeLeggibile = computed(() =>
+  dataYoutube.value
+    ? new Date(`${dataYoutube.value}T00:00:00Z`).toLocaleDateString('it-IT', {
+        dateStyle: 'long',
+        timeZone: 'UTC',
+      })
+    : null,
+)
+
 /** A short label for a satisfied requirement. */
 const NOMI_REQUISITI: Record<string, string> = {
   'copertina-quadrata': 'copertina quadrata 1400–3000',
@@ -164,12 +201,43 @@ const nomeRequisito = (r: string): string => NOMI_REQUISITI[r] ?? r
           >
             <div class="flex flex-wrap items-center gap-2">
               <strong class="text-sm">{{ piattaforma.nome }}</strong>
+              <BaseBadge v-if="esito.urlShow" tono="accento">già distribuito</BaseBadge>
               <BaseBadge :tono="esito.pronta ? 'successo' : 'avviso'">
                 {{
                   esito.pronta ? 'pronta' : `${esito.voci.filter((v) => !v.ok).length} da sistemare`
                 }}
               </BaseBadge>
             </div>
+
+            <template v-if="esito.urlShow">
+              <div v-if="piattaforma.id === 'youtube'" class="flex flex-col gap-1 text-xs">
+                <p>
+                  In YouTube Studio scollega il vecchio feed e collega quello nuovo. Come punto di
+                  partenza scegli gli episodi pubblicati
+                  <strong v-if="dataYoutubeLeggibile">dopo il {{ dataYoutubeLeggibile }}:</strong>
+                  <template v-else>dopo l’ultimo che YouTube ha già:</template>
+                  quelli prima sono già video, e importarli di nuovo li raddoppierebbe.
+                </p>
+                <label class="flex items-center gap-2">
+                  Data di partenza
+                  <input
+                    v-model="dataYoutube"
+                    type="date"
+                    class="superficie rounded-md border px-2 py-1"
+                  />
+                </label>
+                <p class="text-[var(--testo-tenue)]">
+                  Proposta dall’episodio importato più recente: cambiala se su YouTube lo show era
+                  rimasto indietro. NMC non ha accesso a Studio, questa è una guida.
+                </p>
+              </div>
+              <p v-else class="text-xs">
+                Segue il redirect dal vecchio host:
+                <strong>non risottomettere,</strong>
+                avresti lo show due volte. Dopo il trasloco, apri lo show e controlla che ci siano
+                tutti gli episodi.
+              </p>
+            </template>
 
             <p v-if="piattaforma.nota" class="text-xs text-[var(--testo-tenue)]">
               {{ piattaforma.nota }}
@@ -203,7 +271,7 @@ const nomeRequisito = (r: string): string => NOMI_REQUISITI[r] ?? r
 
             <div class="mt-auto flex flex-wrap gap-2 pt-1">
               <BaseButton
-                v-if="stabile.pronto.value"
+                v-if="stabile.pronto.value && !esito.urlShow"
                 size="sm"
                 :to="piattaforma.sottoponiSu"
                 target="_blank"

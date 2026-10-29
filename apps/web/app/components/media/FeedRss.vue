@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import {
   chiama,
+  confrontaFeed,
   episodiFuoriDalFeed,
   opmlPerFeed,
   getKindDefinition,
   riassumiFeedPodcast,
   spiegaStato,
   urlFeedPodcast,
+  type EsitoConfronto,
   type RiassuntoFeed,
 } from '@nmc/nostr-core'
 import { useMediaManager } from '~/stores/mediamanager'
@@ -223,6 +225,56 @@ async function scaricaOpml(): Promise<void> {
   URL.revokeObjectURL(href)
 }
 
+/*
+ * Parity with the old host, before the redirect.
+ *
+ * The check to run before touching the old host's settings: once the redirect
+ * is on, every app follows it, and an episode missing here, or another show
+ * identity, is lost for good. It reads both feeds from the browser; most hosts
+ * (Anchor included) allow it.
+ */
+const urlVecchio = ref('')
+const confronto = ref<EsitoConfronto | null>(null)
+const erroreConfronto = ref<string | null>(null)
+const inConfronto = ref(false)
+
+async function confronta(): Promise<void> {
+  if (!url.value || !urlVecchio.value.trim()) return
+  confronto.value = null
+  erroreConfronto.value = null
+  inConfronto.value = true
+  try {
+    let vecchio: string
+    try {
+      const r = await fetch(urlVecchio.value.trim(), { cache: 'no-store' })
+      if (!r.ok) throw new Error(`Il vecchio host risponde ${r.status}.`)
+      vecchio = await r.text()
+    } catch (e) {
+      throw e instanceof TypeError
+        ? new Error(
+            'Il browser non può leggere il vecchio feed: il suo server non lo permette da un’altra pagina (CORS).',
+          )
+        : e
+    }
+    // NMC's feed is read from the technical address: same content as the
+    // stable one, and readable even before the stable one is set.
+    const nuovo = await chiama(url.value, {
+      headers: { accept: 'application/rss+xml' },
+      cache: 'no-store',
+    })
+    if (!nuovo.ok) throw new Error(`Il servizio risponde ${nuovo.status} per il feed di NMC.`)
+    confronto.value = await confrontaFeed(
+      riassumiFeedPodcast(vecchio),
+      riassumiFeedPodcast(await nuovo.text()),
+      { urlVecchio: urlVecchio.value.trim() },
+    )
+  } catch (e) {
+    erroreConfronto.value = e instanceof Error ? e.message : String(e)
+  } finally {
+    inConfronto.value = false
+  }
+}
+
 const ultimo = computed(() => riassunto.value?.episodi[0] ?? null)
 const copiaLeggibile = computed(() => {
   const s = copiaServizioS.value
@@ -379,6 +431,69 @@ const dataLeggibile = (d: Date | null): string =>
             dalla scheda qui sopra.
           </BaseAlert>
         </template>
+
+        <details class="superficie rounded-md border p-3">
+          <summary class="cursor-pointer text-sm font-medium">
+            Arrivi da un altro host? Confronta prima del redirect
+          </summary>
+          <div class="mt-3 flex flex-col gap-3 text-sm">
+            <p class="text-xs text-[var(--testo-tenue)]">
+              Prima di attivare il redirect sul vecchio host, controlla che il feed di NMC abbia
+              tutto: stessa identità dello show, tutti gli episodi con i loro GUID e le loro date.
+              Dopo il redirect le app seguono il nuovo feed, e quello che manca è perso.
+            </p>
+            <form class="flex flex-wrap items-end gap-2" @submit.prevent="confronta">
+              <BaseField v-slot="{ id }" label="Feed del vecchio host" class="min-w-0 flex-1">
+                <BaseInput
+                  :id="id"
+                  v-model="urlVecchio"
+                  placeholder="https://anchor.fm/s/…/podcast/rss"
+                />
+              </BaseField>
+              <BaseButton
+                type="submit"
+                variant="primario"
+                :loading="inConfronto"
+                :disabled="!urlVecchio.trim()"
+              >
+                Confronta
+              </BaseButton>
+            </form>
+            <BaseAlert v-if="erroreConfronto" tono="pericolo">{{ erroreConfronto }}</BaseAlert>
+            <template v-if="confronto">
+              <BaseAlert v-if="confronto.sicuro && urlPubblico" tono="successo">
+                <strong>Il redirect è sicuro.</strong>
+                Sul vecchio host reindirizza il feed a
+                <code class="break-all">{{ urlPubblico }}</code>
+                e tieni l’account aperto: il redirect deve restare attivo almeno quattro settimane,
+                meglio per sempre.
+              </BaseAlert>
+              <BaseAlert v-else-if="confronto.sicuro" tono="avviso">
+                Nessun episodio si perde, ma il redirect deve puntare all’indirizzo stabile, e il
+                feed non ne ha ancora uno verificato: impostalo prima.
+              </BaseAlert>
+              <BaseAlert v-else tono="pericolo">
+                <strong>Non fare ancora il redirect:</strong>
+                qualcosa si perderebbe.
+              </BaseAlert>
+              <ul v-if="confronto.differenze.length" class="flex flex-col gap-1">
+                <li
+                  v-for="(d, i) in confronto.differenze"
+                  :key="i"
+                  class="flex items-start gap-2 text-xs"
+                >
+                  <BaseBadge :tono="d.gravita === 'blocca' ? 'avviso' : 'neutro'">
+                    {{ d.gravita === 'blocca' ? 'blocca' : 'da guardare' }}
+                  </BaseBadge>
+                  <span>{{ d.testo }}</span>
+                </li>
+              </ul>
+              <p v-else class="text-xs">
+                Nessuna differenza: stessi episodi, stesse date, stesso show.
+              </p>
+            </template>
+          </div>
+        </details>
 
         <details v-if="urlPubblico" class="superficie rounded-md border p-3">
           <summary class="cursor-pointer text-sm font-medium">Dove sottoporlo</summary>

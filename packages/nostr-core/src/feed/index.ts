@@ -289,7 +289,9 @@ const normalizza = (t: string): string => testoDaHtml(t).replace(/\s+/g, ' ').tr
  *
  * @param opzioni.urlVecchio the old feed's address. An old feed that declares
  *        no `podcast:guid` still has one — the one computed from its address,
- *        which is how Podcast Index knows it — and this is how it is found.
+ *        which is how Podcast Index knows it. The address the feed declares
+ *        for itself comes first, as in the import: a copy downloaded from
+ *        elsewhere is still the show at its own address.
  */
 export async function confrontaFeed(
   vecchio: RiassuntoFeed,
@@ -298,8 +300,9 @@ export async function confrontaFeed(
 ): Promise<EsitoConfronto> {
   const differenze: DifferenzaFeed[] = []
 
+  const indirizzoVecchio = vecchio.selfUrl ?? opzioni.urlVecchio
   const identitaVecchia =
-    vecchio.podcastGuid ?? (opzioni.urlVecchio ? await podcastGuidPerUrl(opzioni.urlVecchio) : null)
+    vecchio.podcastGuid ?? (indirizzoVecchio ? await podcastGuidPerUrl(indirizzoVecchio) : null)
   if (identitaVecchia && nuovo.podcastGuid !== identitaVecchia) {
     differenze.push({
       campo: 'podcast:guid',

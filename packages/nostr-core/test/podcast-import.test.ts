@@ -256,6 +256,14 @@ describe('confrontaFeed — the parity check before the redirect', () => {
     expect(esito).toEqual({ sicuro: true, differenze: [] })
   })
 
+  it('takes the old show’s identity from the address its feed declares, as the import does', async () => {
+    // The same Anchor feed, read from a copy elsewhere: still the Anchor show.
+    const esito = await confrontaFeed(vecchio, riassumiFeedPodcast(feedNmc()), {
+      urlVecchio: 'http://localhost:7450/anchor.xml',
+    })
+    expect(esito.sicuro).toBe(true)
+  })
+
   it('blocks when the new feed has another identity', async () => {
     const esito = await confrontaFeed(
       vecchio,
