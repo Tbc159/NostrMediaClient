@@ -715,6 +715,97 @@ TESTS
     (the ETag is of the body, not of the cache).
 ```
 
+### Prompt K — The feed carries the podcast's identity, not the service's
+
+Moving a podcast to NMC from another host (Spotify for Creators, Anchor,
+Buzzsprout…) must not look like a new podcast to the apps. Today it would: the
+feed's `<guid>` is the event id, so every app sees the old episodes as removed
+and new ones as added; `<pubDate>` is `created_at`, so every imported episode
+is dated the day of the import; `<podcast:guid>` is computed from the
+service's own URL, so Podcast Index (and Fountain, which reads from it) sees
+another show. Analysed on 29 October 2026 on the real test feed
+`https://anchor.fm/s/117e26658/podcast/rss`. The client now writes the data
+the feed needs into the events; this prompt has the service read it. Every
+rule falls back to today's behaviour when the tag is absent, so existing feeds
+do not change. Only the block.
+
+```
+Repository: microservice-media-manager, feed domain, branch develop.
+A delta on Prompts F, H and J. Every new tag is optional: when it is absent the
+output is exactly today's (same body, same ETag).
+
+KIND 54 (episode) — NEW TAGS
+  ["i", "podcast:item:guid:<guid>"] + ["k", "podcast:item:guid"]   NIP-73
+  ["published_at", "<unix seconds>"]
+  ["season", "<n>"]  ["episode", "<n>"]  ["episode-type", "full|trailer|bonus"]
+  ["transcript", "<url>", "<mime>"]                 zero or more
+  ["chapters", "<url>", "application/json+chapters"]  at most one
+  ["person", "<name>", "<role>", "<group>", "<img>", "<href>"]  trailing empties dropped
+  ["value", "<type>", "<method>", "<suggested>"]
+  ["value-recipient", "<name>", "<type>", "<address>", "<split>",
+                      "<customKey>", "<customValue>", "<fee: true|''>"]
+
+KIND 10154 (show) — NEW TAGS
+  ["i", "podcast:guid:<uuid>"] + ["k", "podcast:guid"]   NIP-73
+  ["feed", "<https url>"]        the feed's stable public address
+  ["author", "<name>"]
+  ["type", "episodic|serial"]
+  ["value", …] ["value-recipient", …] ["person", …]   as in the 54
+  ["funding", "<url>", "<text>"]
+
+MAPPING
+  item
+    <guid isPermaLink="false">  the i tag's podcast:item:guid: value if present,
+                                otherwise the event id (as today)
+    <pubDate>                   published_at if present, otherwise created_at
+    ORDER                       by that same date, newest first
+    <itunes:season> <podcast:season>     season
+    <itunes:episode> <podcast:episode>   episode
+    <itunes:episodeType>        episode-type
+    <podcast:transcript url type>        one per transcript tag
+    <podcast:chapters url type>          chapters
+    <podcast:person role group img href>name</podcast:person>
+    <podcast:value>             with its <podcast:valueRecipient>s, from the 54's
+                                value/value-recipient tags
+  channel
+    <podcast:guid>              the 10154's i tag podcast:guid: value if present,
+                                otherwise today's UUIDv5
+    <atom:link rel="self">      the 10154's feed tag if present, otherwise the
+    <itunes:new-feed-url>       request URL. BOTH from the feed tag: behind the
+                                creator's reverse proxy the service sees its own
+                                host, not the public one, so the true address
+                                can only come from the card. new-feed-url is
+                                what Apple asks for in the new feed of a move.
+    <itunes:author>             the author tag if present, otherwise the kind 0
+    <itunes:owner><itunes:name> the same name (the email rule of Prompt H stays)
+    <itunes:type>               type
+    <podcast:value>             from the 10154's value tags
+    <podcast:person>            from the 10154's person tags
+    <podcast:funding url>text</podcast:funding>
+
+  With type=serial the feed's order stays newest first: it is Apple that
+  shows a serial oldest first, not the feed.
+
+NOT TO DO
+  - Do not validate the GUIDs' shape: an old host may use URLs or any string.
+    Escape them, nothing more.
+  - Do not compute podcast:guid from the feed tag: when the i tag is absent,
+    keep today's computation. An identity must not change because an address
+    was added.
+  - CORS * and the ETag behaviour stay as they are: the creator's proxy
+    forwards them, and NMC's address check runs from the browser.
+
+TESTS
+  - a fixture with every new tag on a 10154 and two 54s, against the expected
+    feed (ignoring whitespace); the same fixture without the new tags gives
+    today's feed byte for byte, and the same ETag.
+  - two 54s whose published_at order is the opposite of their created_at order:
+    the feed follows published_at.
+  - a 54 with a non-UUID GUID (a URL with & in it): escaped, not rejected.
+  - the feed tag set: atom:link self and itunes:new-feed-url both equal it,
+    whatever the Host header of the request.
+```
+
 ## 4. From the old repository: what is worth porting
 
 `microservices-media` (branch `dev`, service `ffmpeg`) exposes today:

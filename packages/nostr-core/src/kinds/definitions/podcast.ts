@@ -1,8 +1,87 @@
 import { z } from 'zod'
 
 import { MAX_CATEGORIE, isCategoriaApple } from '../../podcast/categories.js'
+import {
+  leggiPersone,
+  leggiValore,
+  personaSchema,
+  tagPersone,
+  tagValore,
+  valoreSchema,
+  type Persona,
+  type Valore,
+} from '../podcast-extra.js'
 import { defineKind } from '../registry.js'
-import { optionalTag, repeatedTags, tagValue, tagsNamed } from '../tags.js'
+import { optionalTag, repeatedTags, tagValue, tagsNamed, type Tag } from '../tags.js'
+import type { NostrEvent } from '../types.js'
+
+/*
+ * NIP-73 identifiers.
+ *
+ * An episode imported from another host keeps the GUID it had there, and a
+ * show keeps its `podcast:guid`: every podcast app recognises episodes and
+ * shows by those, so changing them would turn a move into a new podcast. NIP-73
+ * already defines how a Nostr event names external content — an `i` tag with
+ * the identifier and a `k` tag with its type — and Fountain uses the same
+ * convention to tie Nostr comments and boosts to episodes. The feed service
+ * reads them back as the RSS `<guid>` and `<podcast:guid>`.
+ */
+const PREFISSO_GUID_EPISODIO = 'podcast:item:guid:'
+const PREFISSO_GUID_PODCAST = 'podcast:guid:'
+
+function leggiIdentificatore(event: NostrEvent, prefisso: string): string | undefined {
+  const tag = tagsNamed(event, 'i').find((t) => t[1]?.startsWith(prefisso))
+  const valore = tag?.[1]?.slice(prefisso.length)
+  return valore ? valore : undefined
+}
+
+function tagIdentificatore(prefisso: string, valore: string | undefined, tipo: string): Tag[] {
+  if (valore === undefined) return []
+  const pulito = valore.trim()
+  if (pulito === '' || /\s/.test(pulito)) {
+    throw new Error(`Un identificatore ${tipo} non può essere vuoto né contenere spazi.`)
+  }
+  return [
+    ['i', `${prefisso}${pulito}`],
+    ['k', prefisso.slice(0, -1)],
+  ]
+}
+
+/** A positive whole number from a tag, or `undefined`. */
+function intero(valore: string | undefined): number | undefined {
+  if (valore === undefined) return undefined
+  const n = Number(valore)
+  return Number.isInteger(n) && n > 0 ? n : undefined
+}
+
+function richiediIntero(valore: number | undefined, nome: string): void {
+  if (valore !== undefined && (!Number.isInteger(valore) || valore <= 0)) {
+    throw new Error(`${nome} deve essere un numero intero positivo: ricevuto ${valore}.`)
+  }
+}
+
+export const TIPI_EPISODIO = ['full', 'trailer', 'bonus'] as const
+export type TipoEpisodio = (typeof TIPI_EPISODIO)[number]
+
+export const TIPI_PODCAST = ['episodic', 'serial'] as const
+export type TipoPodcast = (typeof TIPI_PODCAST)[number]
+
+const fileSchema = z.object({ url: z.string(), mime: z.string().optional() })
+export type FileAllegato = z.infer<typeof fileSchema>
+
+function leggiFile(event: NostrEvent, nome: string): FileAllegato[] {
+  return tagsNamed(event, nome)
+    .filter((t) => typeof t[1] === 'string' && t[1] !== '')
+    .map((t) => ({ url: t[1] as string, ...(t[2] ? { mime: t[2] } : {}) }))
+}
+
+function tagFile(nome: string, file: readonly FileAllegato[]): Tag[] {
+  return file
+    .filter((f) => f.url.trim() !== '')
+    .map((f) => (f.mime ? [nome, f.url.trim(), f.mime] : [nome, f.url.trim()]))
+}
+
+const MIME_CAPITOLI = 'application/json+chapters'
 
 /*
  * Beyond NIP-F4.
@@ -59,6 +138,17 @@ export const podcastEpisodeSchema = z.object({
   duration: z.number().optional(),
   /** Explicit content (NIP-36): the reason, when there is one. */
   contentWarning: z.string().optional(),
+  /** The GUID the episode had on another host, from the NIP-73 `i` tag. */
+  guidOriginale: z.string().optional(),
+  /** The first publication, in unix seconds, when it predates the event. */
+  publishedAt: z.number().int().positive().optional(),
+  stagione: z.number().int().positive().optional(),
+  numero: z.number().int().positive().optional(),
+  tipoEpisodio: z.enum(TIPI_EPISODIO).optional(),
+  trascrizioni: z.array(fileSchema),
+  capitoli: fileSchema.optional(),
+  persone: z.array(personaSchema),
+  valore: valoreSchema.optional(),
 })
 
 export type PodcastEpisodeParsed = z.infer<typeof podcastEpisodeSchema>
@@ -73,6 +163,17 @@ export interface PodcastEpisodeInput {
   duration?: number
   /** Present (even empty) = an explicit episode. */
   contentWarning?: string
+  /** The GUID on the old host. Absent for an episode born on NMC: its id is its GUID. */
+  guidOriginale?: string
+  /** The original publication date, in unix seconds. It cannot be in the future. */
+  publishedAt?: number
+  stagione?: number
+  numero?: number
+  tipoEpisodio?: TipoEpisodio
+  trascrizioni?: FileAllegato[]
+  capitoli?: FileAllegato
+  persone?: Persona[]
+  valore?: Valore
 }
 
 export const podcastEpisodeDefinition = defineKind<PodcastEpisodeParsed, PodcastEpisodeInput>({
@@ -96,6 +197,13 @@ export const podcastEpisodeDefinition = defineKind<PodcastEpisodeParsed, Podcast
     const image = tagValue(event, 'image')
     const durata = Number(tagValue(event, 'duration'))
     const avviso = tagsNamed(event, 'content-warning')[0]
+    const guidOriginale = leggiIdentificatore(event, PREFISSO_GUID_EPISODIO)
+    const publishedAt = intero(tagValue(event, 'published_at'))
+    const stagione = intero(tagValue(event, 'season'))
+    const numero = intero(tagValue(event, 'episode'))
+    const tipo = tagValue(event, 'episode-type')
+    const capitoli = leggiFile(event, 'chapters')[0]
+    const valore = leggiValore(event)
 
     return podcastEpisodeSchema.parse({
       content: event.content,
@@ -110,12 +218,36 @@ export const podcastEpisodeDefinition = defineKind<PodcastEpisodeParsed, Podcast
         })),
       ...(Number.isFinite(durata) && durata > 0 ? { duration: durata } : {}),
       ...(avviso ? { contentWarning: avviso[1] ?? '' } : {}),
+      ...(guidOriginale ? { guidOriginale } : {}),
+      ...(publishedAt ? { publishedAt } : {}),
+      ...(stagione ? { stagione } : {}),
+      ...(numero ? { numero } : {}),
+      // Tolerant like the rest of parse: an unknown type from another client
+      // is dropped, not an error.
+      ...(tipo && (TIPI_EPISODIO as readonly string[]).includes(tipo)
+        ? { tipoEpisodio: tipo as TipoEpisodio }
+        : {}),
+      trascrizioni: leggiFile(event, 'transcript'),
+      ...(capitoli ? { capitoli } : {}),
+      persone: leggiPersone(event),
+      ...(valore ? { valore } : {}),
     })
   },
 
   build(input, ctx) {
     if (input.title.trim() === '') {
       throw new Error('Un episodio ha bisogno di un titolo: e’ come lo si trova in un lettore.')
+    }
+    if (input.publishedAt !== undefined) {
+      richiediIntero(input.publishedAt, 'La data di prima pubblicazione')
+      if (input.publishedAt > ctx.now) {
+        throw new Error('La data di prima pubblicazione non può essere nel futuro.')
+      }
+    }
+    richiediIntero(input.stagione, 'La stagione')
+    richiediIntero(input.numero, 'Il numero dell’episodio')
+    if (input.tipoEpisodio !== undefined && !TIPI_EPISODIO.includes(input.tipoEpisodio)) {
+      throw new Error(`Tipo di episodio non ammesso: «${input.tipoEpisodio}».`)
     }
     // Mandatory under NIP-F4. The `parse` accepts it missing — other people's
     // events — but what gets published from here has to conform.
@@ -144,6 +276,17 @@ export const podcastEpisodeDefinition = defineKind<PodcastEpisodeParsed, Podcast
           ? [['duration', String(Math.round(input.duration))]]
           : []),
         ...(input.contentWarning !== undefined ? [['content-warning', input.contentWarning]] : []),
+        ...tagIdentificatore(PREFISSO_GUID_EPISODIO, input.guidOriginale, 'di episodio'),
+        // The date the episode first went out. `created_at` stays the true
+        // moment of signing: the event does not lie about when it was born.
+        ...(input.publishedAt !== undefined ? [['published_at', String(input.publishedAt)]] : []),
+        ...(input.stagione !== undefined ? [['season', String(input.stagione)]] : []),
+        ...(input.numero !== undefined ? [['episode', String(input.numero)]] : []),
+        ...optionalTag('episode-type', input.tipoEpisodio),
+        ...tagFile('transcript', input.trascrizioni ?? []),
+        ...tagFile('chapters', input.capitoli ? [{ mime: MIME_CAPITOLI, ...input.capitoli }] : []),
+        ...tagPersone(input.persone),
+        ...tagValore(input.valore),
       ],
       created_at: ctx.now,
     }
@@ -169,6 +312,16 @@ export const podcastMetadataSchema = z.object({
   language: z.string().optional(),
   email: z.string().optional(),
   contentWarning: z.string().optional(),
+  /** The show's identity (`podcast:guid`), from the NIP-73 `i` tag: written once, never recomputed. */
+  podcastGuid: z.string().optional(),
+  /** The feed's stable public address (tag `feed`). */
+  feedUrl: z.string().optional(),
+  /** The name the feed signs as (`itunes:author`), when it differs from the profile's. */
+  autore: z.string().optional(),
+  tipo: z.enum(TIPI_PODCAST).optional(),
+  valore: valoreSchema.optional(),
+  persone: z.array(personaSchema),
+  finanziamenti: z.array(z.object({ url: z.string(), testo: z.string().optional() })),
 })
 
 export type PodcastMetadataParsed = z.infer<typeof podcastMetadataSchema>
@@ -184,6 +337,23 @@ export interface PodcastMetadataInput {
   email?: string
   /** Present (even empty) = an explicit podcast. */
   contentWarning?: string
+  podcastGuid?: string
+  feedUrl?: string
+  autore?: string
+  tipo?: TipoPodcast
+  valore?: Valore
+  persone?: Persona[]
+  finanziamenti?: { url: string; testo?: string }[]
+}
+
+/** True for an absolute http(s) URL. */
+function httpUrl(valore: string, soloHttps = false): boolean {
+  try {
+    const u = new URL(valore)
+    return soloHttps ? u.protocol === 'https:' : u.protocol === 'https:' || u.protocol === 'http:'
+  } catch {
+    return false
+  }
 }
 
 export const podcastMetadataDefinition = defineKind<PodcastMetadataParsed, PodcastMetadataInput>({
@@ -208,6 +378,11 @@ export const podcastMetadataDefinition = defineKind<PodcastMetadataParsed, Podca
     const language = tagValue(event, 'language')
     const email = tagValue(event, 'email')
     const avviso = tagsNamed(event, 'content-warning')[0]
+    const podcastGuid = leggiIdentificatore(event, PREFISSO_GUID_PODCAST)
+    const feedUrl = tagValue(event, 'feed')
+    const autore = tagValue(event, 'author')
+    const tipo = tagValue(event, 'type')
+    const valore = leggiValore(event)
 
     return podcastMetadataSchema.parse({
       title,
@@ -227,6 +402,17 @@ export const podcastMetadataDefinition = defineKind<PodcastMetadataParsed, Podca
       ...(language ? { language } : {}),
       ...(email ? { email } : {}),
       ...(avviso ? { contentWarning: avviso[1] ?? '' } : {}),
+      ...(podcastGuid ? { podcastGuid } : {}),
+      ...(feedUrl ? { feedUrl } : {}),
+      ...(autore ? { autore } : {}),
+      ...(tipo && (TIPI_PODCAST as readonly string[]).includes(tipo)
+        ? { tipo: tipo as TipoPodcast }
+        : {}),
+      ...(valore ? { valore } : {}),
+      persone: leggiPersone(event),
+      finanziamenti: tagsNamed(event, 'funding')
+        .filter((t) => typeof t[1] === 'string' && t[1] !== '')
+        .map((t) => ({ url: t[1] as string, ...(t[2] ? { testo: t[2] } : {}) })),
     })
   },
 
@@ -262,6 +448,19 @@ export const podcastMetadataDefinition = defineKind<PodcastMetadataParsed, Podca
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       throw new Error('L’email non sembra un indirizzo valido.')
     }
+    const feedUrl = input.feedUrl?.trim()
+    if (feedUrl && !httpUrl(feedUrl, true)) {
+      throw new Error('L’indirizzo stabile del feed deve essere un URL https completo.')
+    }
+    if (input.tipo !== undefined && !TIPI_PODCAST.includes(input.tipo)) {
+      throw new Error(`Tipo di podcast non ammesso: «${input.tipo}».`)
+    }
+    const finanziamenti = (input.finanziamenti ?? []).filter((f) => f.url.trim() !== '')
+    for (const f of finanziamenti) {
+      if (!httpUrl(f.url.trim())) {
+        throw new Error(`Il link di sostegno «${f.url}» non è un indirizzo web valido.`)
+      }
+    }
 
     return {
       kind: 10154,
@@ -281,6 +480,15 @@ export const podcastMetadataDefinition = defineKind<PodcastMetadataParsed, Podca
         // to be cross-checked against the kind 10064 published by the author
         // themselves, because a podcast can claim anyone at all.
         ...(input.authors ?? []).map((a) => (a.role ? ['p', a.pubkey, a.role] : ['p', a.pubkey])),
+        ...tagIdentificatore(PREFISSO_GUID_PODCAST, input.podcastGuid, 'di podcast'),
+        ...optionalTag('feed', feedUrl),
+        ...optionalTag('author', input.autore),
+        ...optionalTag('type', input.tipo),
+        ...tagValore(input.valore),
+        ...tagPersone(input.persone),
+        ...finanziamenti.map((f) =>
+          f.testo?.trim() ? ['funding', f.url.trim(), f.testo.trim()] : ['funding', f.url.trim()],
+        ),
       ],
       created_at: ctx.now,
     }

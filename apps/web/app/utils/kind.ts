@@ -18,6 +18,7 @@ const etichette: Record<number, string> = {
   21: 'video',
   22: 'video corti',
   1063: 'schede file',
+  10002: 'liste di relay',
   10154: 'descrizione podcast',
   30023: 'articoli',
   30024: 'bozze legacy',

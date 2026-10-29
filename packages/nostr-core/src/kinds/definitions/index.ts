@@ -14,6 +14,7 @@ import {
   podcastMetadataDefinition,
 } from './podcast.js'
 import { pictureDefinition } from './picture.js'
+import { relayListDefinition } from './relay-list.js'
 import { shortVideoDefinition, videoDefinition } from './video.js'
 
 export * from './article.js'
@@ -28,12 +29,14 @@ export * from './metadata.js'
 export * from './note.js'
 export * from './podcast.js'
 export * from './picture.js'
+export * from './relay-list.js'
 export * from './video.js'
 
 /** Every known definition. Adding a kind = adding it here. */
 export const kindDefinitions = [
   metadataDefinition,
   noteDefinition,
+  relayListDefinition,
   pictureDefinition,
   videoDefinition,
   shortVideoDefinition,
