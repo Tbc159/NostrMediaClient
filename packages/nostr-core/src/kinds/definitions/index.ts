@@ -6,6 +6,7 @@ import { calendarRsvpDefinition } from './calendar-rsvp.js'
 import { calendarTimeEventDefinition } from './calendar-time.js'
 import { draftWrapDefinition, privateRelaysDefinition } from './draft.js'
 import { fileMetadataDefinition } from './file-metadata.js'
+import { httpAuthDefinition } from './http-auth.js'
 import { metadataDefinition } from './metadata.js'
 import { noteDefinition } from './note.js'
 import {
@@ -25,6 +26,7 @@ export * from './calendar-date.js'
 export * from './calendar-rsvp.js'
 export * from './calendar-time.js'
 export * from './file-metadata.js'
+export * from './http-auth.js'
 export * from './metadata.js'
 export * from './note.js'
 export * from './podcast.js'
@@ -45,6 +47,7 @@ export const kindDefinitions = [
   podcastMetadataDefinition,
   authoredPodcastsDefinition,
   blossomAuthDefinition,
+  httpAuthDefinition,
   articleDefinition,
   articleDraftDefinition,
   draftWrapDefinition,

@@ -5,16 +5,22 @@ import {
   PIATTAFORME,
   getKindDefinition,
   parsePublicKeyInput,
+  podcastGuidPerUrl,
   toNpub,
   type CategoriaPodcast,
   type Firmatario,
+  type Persona,
+  type TipoPodcast,
+  type Valore,
 } from '@nmc/nostr-core'
 import type { SceltaChiave } from '~/composables/useChiaveDedicata'
 import { useDeleghe } from '~/stores/deleghe'
+import { useProfiloProprio } from '~/stores/profiloProprio'
 
 useHead({ title: 'Profilo · NostrMediaClient' })
 
 const identita = useIdentity()
+const profiloProprio = useProfiloProprio()
 const bozza = useEventDraft()
 const esistente = useEventoEsistente()
 
@@ -277,6 +283,23 @@ const haPodcast = ref(false)
 const mostraPodcast = ref(false)
 
 /*
+ * The feed: its stable address and identity, and what NIP-F4 does not cover.
+ *
+ * `podcast:guid` is written once and never recomputed: an imported show
+ * inherits the old host's, a new one gets it from its stable address at the
+ * first publication that has both. Recomputing it would make the show another
+ * podcast for Podcast Index and for Fountain.
+ */
+const podcastFeedUrl = ref('')
+const podcastFeedSalvato = ref<string | null>(null)
+const podcastGuid = ref<string | null>(null)
+const podcastAutoreFeed = ref('')
+const podcastTipo = ref<TipoPodcast>('episodic')
+const podcastValore = ref<Valore | undefined>(undefined)
+const podcastFinanziamenti = ref<{ url: string; testo?: string }[]>([])
+const podcastPersone = ref<Persona[]>([])
+
+/*
  * Beyond NIP-F4: what the platforms demand in the feed.
  *
  * The category (Apple, Amazon), the language, the email for the ownership
@@ -451,6 +474,14 @@ function svuotaPodcast(): void {
   podcastLingua.value = 'it'
   podcastEmail.value = ''
   podcastEsplicito.value = false
+  podcastFeedUrl.value = ''
+  podcastFeedSalvato.value = null
+  podcastGuid.value = null
+  podcastAutoreFeed.value = ''
+  podcastTipo.value = 'episodic'
+  podcastValore.value = undefined
+  podcastFinanziamenti.value = []
+  podcastPersone.value = []
   conservatiPodcast.azzera()
   haPodcast.value = false
 }
@@ -485,6 +516,16 @@ async function caricaPodcast(): Promise<void> {
     podcastLingua.value = dati.language ?? 'it'
     podcastEmail.value = dati.email ?? ''
     podcastEsplicito.value = dati.contentWarning !== undefined
+    podcastFeedSalvato.value = dati.feedUrl ?? null
+    podcastFeedUrl.value = dati.feedUrl ?? ''
+    podcastGuid.value = dati.podcastGuid ?? null
+    podcastAutoreFeed.value = dati.autore ?? ''
+    podcastTipo.value = dati.tipo ?? 'episodic'
+    podcastValore.value = dati.valore
+    podcastFinanziamenti.value = dati.finanziamenti.map((f: { url: string; testo?: string }) => ({
+      ...f,
+    }))
+    podcastPersone.value = dati.persone.map((p: Persona) => ({ ...p }))
     conservatiPodcast.fotografa(definizione, trovato, {
       title: dati.title,
       description: dati.description ?? '',
@@ -495,6 +536,13 @@ async function caricaPodcast(): Promise<void> {
       ...(dati.language ? { language: dati.language } : {}),
       ...(dati.email ? { email: dati.email } : {}),
       ...(dati.contentWarning !== undefined ? { contentWarning: dati.contentWarning } : {}),
+      ...(dati.podcastGuid ? { podcastGuid: dati.podcastGuid } : {}),
+      ...(dati.feedUrl ? { feedUrl: dati.feedUrl } : {}),
+      ...(dati.autore ? { autore: dati.autore } : {}),
+      ...(dati.tipo ? { tipo: dati.tipo } : {}),
+      ...(dati.valore ? { valore: dati.valore } : {}),
+      persone: dati.persone,
+      finanziamenti: dati.finanziamenti,
     })
     haPodcast.value = true
     mostraPodcast.value = true
@@ -503,12 +551,15 @@ async function caricaPodcast(): Promise<void> {
   }
 }
 
-function componiPodcast(): void {
+async function componiPodcast(): Promise<void> {
   const definizione = getKindDefinition(10154)
   if (!definizione) {
     bozzaPodcast.errore.value = 'Kind 10154 non registrato.'
     return
   }
+  const feedUrl = podcastFeedUrl.value.trim()
+  // Once, from the stable address, when the card has no identity yet.
+  if (!podcastGuid.value && feedUrl) podcastGuid.value = await podcastGuidPerUrl(feedUrl)
   // NIP-F4 wants the description and the image: the `build` refuses them
   // empty, and the form asks for them first instead of letting the error arrive.
   bozzaPodcast.costruisci(
@@ -523,6 +574,13 @@ function componiPodcast(): void {
       ...(podcastLingua.value.trim() ? { language: podcastLingua.value.trim() } : {}),
       ...(podcastEmail.value.trim() ? { email: podcastEmail.value.trim() } : {}),
       ...(podcastEsplicito.value ? { contentWarning: '' } : {}),
+      ...(podcastGuid.value ? { podcastGuid: podcastGuid.value } : {}),
+      ...(feedUrl ? { feedUrl } : {}),
+      ...(podcastAutoreFeed.value.trim() ? { autore: podcastAutoreFeed.value.trim() } : {}),
+      tipo: podcastTipo.value,
+      ...(podcastValore.value ? { valore: podcastValore.value } : {}),
+      persone: podcastPersone.value.filter((p) => p.nome.trim() !== ''),
+      finanziamenti: podcastFinanziamenti.value.filter((f) => f.url.trim() !== ''),
     },
     { aggiuntivi: tagExtraPodcast.value },
   )
@@ -922,6 +980,31 @@ const valori = { nome, nomeVisualizzato, immagine, copertina, sito, nip05, lud16
                   {{ erroreAutorePodcast }}
                 </BaseAlert>
               </div>
+
+              <MediaSchedaFeed
+                v-model:autore="podcastAutoreFeed"
+                v-model:tipo="podcastTipo"
+                v-model:valore="podcastValore"
+                v-model:finanziamenti="podcastFinanziamenti"
+                v-model:persone="podcastPersone"
+                :nome-profilo="profiloProprio.nome"
+              />
+
+              <MediaIndirizzoStabile
+                v-model="podcastFeedUrl"
+                :salvato="podcastFeedSalvato"
+                :pubkey="firmaPodcastCon || identita.pubkey"
+              />
+              <p class="text-xs text-[var(--testo-tenue)]">
+                Identità del podcast (
+                <code>podcast:guid</code>
+                ):
+                <code v-if="podcastGuid">{{ podcastGuid }}</code>
+                <template v-else>
+                  verrà calcolata dall’indirizzo stabile alla prima pubblicazione, e poi resterà
+                  fissa.
+                </template>
+              </p>
 
               <EventTagAggiuntivi
                 v-model="tagExtraPodcast"

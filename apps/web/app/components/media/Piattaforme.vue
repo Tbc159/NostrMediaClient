@@ -26,6 +26,8 @@ import {
 const identita = useIdentity()
 const esistente = useEventoEsistente()
 const episodi = useEventiPropri([54], { limite: 200 })
+/** Submitting means handing out the feed's address: only the stable one, checked. */
+const stabile = useIndirizzoStabile()
 
 const scheda = ref<PodcastMetadataParsed | null>(null)
 const copertina = ref<MisureCopertina | null>(null)
@@ -92,8 +94,17 @@ const esiti = computed(() =>
   })),
 )
 
-onMounted(carica)
-watch(() => identita.pubkey, carica)
+onMounted(() => {
+  void carica()
+  void stabile.caricaDallaScheda()
+})
+watch(
+  () => identita.pubkey,
+  () => {
+    void carica()
+    void stabile.caricaDallaScheda()
+  },
+)
 
 /** A short label for a satisfied requirement. */
 const NOMI_REQUISITI: Record<string, string> = {
@@ -131,10 +142,18 @@ const nomeRequisito = (r: string): string => NOMI_REQUISITI[r] ?? r
           </BaseButton>
         </div>
 
+        <BaseAlert
+          v-if="cercata && scheda && !stabile.pronto.value && stabile.stato.value !== 'in-verifica'"
+          tono="avviso"
+        >
+          Prima di sottoporre il feed serve il suo indirizzo stabile, verificato: è quello che le
+          piattaforme ricorderanno per sempre.
+          <NuxtLink to="/profilo" class="underline">Impostalo dal profilo</NuxtLink>
+        </BaseAlert>
+
         <BaseAlert v-if="cercata && !scheda" tono="avviso">
           Senza la scheda del podcast (kind 10154) nessuna piattaforma ha un canale da mostrare.
-          <NuxtLink to="/profilo" class="underline">Compilala dal profilo</NuxtLink>
-          .
+          <NuxtLink to="/profilo" class="underline">Compilala dal profilo.</NuxtLink>
         </BaseAlert>
 
         <ul class="grid gap-3 sm:grid-cols-2">
@@ -183,7 +202,12 @@ const nomeRequisito = (r: string): string => NOMI_REQUISITI[r] ?? r
             </p>
 
             <div class="mt-auto flex flex-wrap gap-2 pt-1">
-              <BaseButton size="sm" :to="piattaforma.sottoponiSu" target="_blank">
+              <BaseButton
+                v-if="stabile.pronto.value"
+                size="sm"
+                :to="piattaforma.sottoponiSu"
+                target="_blank"
+              >
                 Sottoponi su {{ piattaforma.nome }}
               </BaseButton>
               <BaseButton

@@ -771,11 +771,17 @@ MAPPING
     <podcast:guid>              the 10154's i tag podcast:guid: value if present,
                                 otherwise today's UUIDv5
     <atom:link rel="self">      the 10154's feed tag if present, otherwise the
-    <itunes:new-feed-url>       request URL. BOTH from the feed tag: behind the
-                                creator's reverse proxy the service sees its own
-                                host, not the public one, so the true address
-                                can only come from the card. new-feed-url is
-                                what Apple asks for in the new feed of a move.
+                                request URL (as today). Behind the creator's
+                                reverse proxy the service sees its own host, not
+                                the public one, so the true address can only
+                                come from the card.
+    <itunes:new-feed-url>       the 10154's feed tag, and ONLY when it is
+                                present; otherwise not emitted (as today).
+                                Apple moves a show to whatever new-feed-url
+                                says: filled from the request URL, it would move
+                                a proxied show to the service's technical
+                                address, the very thing the stable address is
+                                there to avoid.
     <itunes:author>             the author tag if present, otherwise the kind 0
     <itunes:owner><itunes:name> the same name (the email rule of Prompt H stays)
     <itunes:type>               type
@@ -804,6 +810,7 @@ TESTS
   - a 54 with a non-UUID GUID (a URL with & in it): escaped, not rejected.
   - the feed tag set: atom:link self and itunes:new-feed-url both equal it,
     whatever the Host header of the request.
+  - the feed tag absent: no itunes:new-feed-url at all, whatever the request.
 ```
 
 ## 4. From the old repository: what is worth porting

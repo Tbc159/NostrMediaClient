@@ -25,6 +25,22 @@ import { useMediaManager } from '~/stores/mediamanager'
 const identita = useIdentity()
 const servizio = useMediaManager()
 
+/*
+ * The address the apps get: the stable one in the card, once it is checked.
+ *
+ * The technical address below is what NMC reads the feed from, never what it
+ * hands out: an app subscribed to it would follow the service, not the
+ * podcast. Without a stable address that serves this feed and calls itself by
+ * that name, there is no URL to copy, no OPML and no submission.
+ */
+const stabile = useIndirizzoStabile()
+const urlPubblico = computed(() => (stabile.pronto.value ? stabile.indirizzo.value : null))
+onMounted(() => void stabile.caricaDallaScheda())
+watch(
+  () => identita.pubkey,
+  () => void stabile.caricaDallaScheda(),
+)
+
 const url = computed(() => {
   if (!identita.pubkey || !servizio.configurato) return null
   try {
@@ -120,6 +136,7 @@ const copiaServizioS = ref<number | null>(null)
 
 async function verifica(): Promise<void> {
   if (!url.value) return
+  void stabile.caricaDallaScheda()
   verificaInCorso.value = true
   errore.value = null
   riassunto.value = null
@@ -165,9 +182,9 @@ async function verifica(): Promise<void> {
 }
 
 async function copia(): Promise<void> {
-  if (!url.value) return
+  if (!urlPubblico.value) return
   try {
-    await navigator.clipboard.writeText(url.value)
+    await navigator.clipboard.writeText(urlPubblico.value)
     copiato.value = true
     setTimeout(() => (copiato.value = false), 2000)
   } catch {
@@ -187,7 +204,7 @@ async function copia(): Promise<void> {
 const erroreOpml = ref<string | null>(null)
 
 async function scaricaOpml(): Promise<void> {
-  if (!url.value) return
+  if (!urlPubblico.value) return
   erroreOpml.value = null
   if (!riassunto.value) await verifica()
   const titolo = riassunto.value?.titolo.trim()
@@ -196,7 +213,7 @@ async function scaricaOpml(): Promise<void> {
       'Prima serve un feed verificato con un titolo: senza, l’OPML porterebbe un nome generico e le app iscriverebbero a show sbagliati.'
     return
   }
-  const opml = opmlPerFeed({ titolo, urlFeed: url.value })
+  const opml = opmlPerFeed({ titolo, urlFeed: urlPubblico.value })
   const blob = new Blob([opml], { type: 'text/x-opml' })
   const href = URL.createObjectURL(blob)
   const a = document.createElement('a')
@@ -231,19 +248,43 @@ const dataLeggibile = (d: Date | null): string =>
       </BaseAlert>
 
       <template v-else-if="url">
-        <div class="flex flex-wrap items-center gap-2">
+        <div v-if="urlPubblico" class="flex flex-wrap items-center gap-2">
           <input
             readonly
-            :value="url"
+            :value="urlPubblico"
+            aria-label="Indirizzo del feed"
             class="superficie min-w-0 flex-1 rounded-md border px-3 py-2 font-mono text-xs"
             @focus="($event.target as HTMLInputElement).select()"
           />
           <BaseButton size="sm" @click="copia">{{ copiato ? 'Copiato' : 'Copia' }}</BaseButton>
-          <BaseButton size="sm" variant="primario" :loading="verificaInCorso" @click="verifica">
-            Verifica
-          </BaseButton>
           <BaseButton size="sm" :loading="verificaInCorso" @click="scaricaOpml">
             Scarica OPML
+          </BaseButton>
+        </div>
+        <BaseAlert v-else-if="stabile.stato.value === 'assente'" tono="avviso">
+          <strong>Il feed non ha ancora un indirizzo stabile.</strong>
+          L’indirizzo a cui le app si iscrivono resta il podcast per sempre: dev’essere un nome tuo,
+          non quello tecnico del servizio. Impostalo nella scheda del podcast, qui sopra, in
+          «Indirizzo stabile del feed». Fino ad allora NMC non mostra l’URL, non genera l’OPML e non
+          propone dove sottoporlo.
+        </BaseAlert>
+        <BaseAlert
+          v-else-if="stabile.stato.value === 'in-verifica' || stabile.stato.value === 'da-leggere'"
+          tono="info"
+        >
+          Controllo l’indirizzo stabile…
+        </BaseAlert>
+        <BaseAlert v-else tono="pericolo">
+          <strong>L’indirizzo stabile {{ stabile.indirizzo.value }} non è ancora pronto.</strong>
+          <template v-if="stabile.errore.value">{{ stabile.errore.value }}</template>
+          <ul v-else class="mt-1 list-disc pl-5">
+            <li v-for="p in stabile.esito.value?.problemi ?? []" :key="p">{{ p }}</li>
+          </ul>
+        </BaseAlert>
+
+        <div class="flex flex-wrap items-center gap-2">
+          <BaseButton size="sm" variant="primario" :loading="verificaInCorso" @click="verifica">
+            Verifica il feed
           </BaseButton>
           <BaseButton
             size="sm"
@@ -339,7 +380,7 @@ const dataLeggibile = (d: Date | null): string =>
           </BaseAlert>
         </template>
 
-        <details class="superficie rounded-md border p-3">
+        <details v-if="urlPubblico" class="superficie rounded-md border p-3">
           <summary class="cursor-pointer text-sm font-medium">Dove sottoporlo</summary>
           <ol class="mt-2 list-inside list-decimal space-y-1 text-sm">
             <li>
@@ -389,8 +430,8 @@ const dataLeggibile = (d: Date | null): string =>
             </li>
           </ol>
           <p class="mt-2 text-xs text-[var(--testo-tenue)]">
-            L’URL è legato alla tua chiave e al servizio: se cambi servizio, cambia il feed, e le
-            app che lo seguono vanno avvisate.
+            L’indirizzo è tuo: se un giorno cambi servizio, basta che il tuo dominio porti al nuovo,
+            e le app non se ne accorgono.
           </p>
         </details>
       </template>

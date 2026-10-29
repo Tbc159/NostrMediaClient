@@ -90,8 +90,8 @@ export function registerKinds(defs: readonly AnyKindDefinition[]): void {
  * composing an event gets around this point, not even importing the
  * definition directly instead of asking the registry for it.
  *
- * `ephemeral` kinds stay out: the only one is Blossom's 24242, which is not a
- * published event but an authorisation inside an HTTP header. NIP-89 says not
+ * `ephemeral` kinds stay out: Blossom's 24242 and NIP-98's 27235, which are not
+ * published events but authorisations inside an HTTP header. NIP-89 says not
  * to mark what is not a publication, and an extra tag in an authentication
  * token is just noise the server has to ignore.
  */

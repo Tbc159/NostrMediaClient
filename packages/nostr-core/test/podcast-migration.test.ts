@@ -239,6 +239,12 @@ describe('the show card keeps the show’s identity and voice', () => {
     expect(() =>
       podcastMetadataDefinition.build({ ...SCHEDA, feedUrl: 'http://feed.esempio.it/x.xml' }, CTX),
     ).toThrow(/https/)
+    // Plain http on the local machine only, for development.
+    const locale = podcastMetadataDefinition.build(
+      { ...SCHEDA, feedUrl: 'http://localhost:7451/feed.xml' },
+      CTX,
+    )
+    expect(locale.tags).toContainEqual(['feed', 'http://localhost:7451/feed.xml'])
     expect(() =>
       podcastMetadataDefinition.build({ ...SCHEDA, finanziamenti: [{ url: 'sostienimi' }] }, CTX),
     ).toThrow(/non è un indirizzo web/)

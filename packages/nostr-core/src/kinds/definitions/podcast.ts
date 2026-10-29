@@ -11,6 +11,7 @@ import {
   type Persona,
   type Valore,
 } from '../podcast-extra.js'
+import { indirizzoFeedAmmesso } from '../../feed/indirizzo.js'
 import { defineKind } from '../registry.js'
 import { optionalTag, repeatedTags, tagValue, tagsNamed, type Tag } from '../tags.js'
 import type { NostrEvent } from '../types.js'
@@ -347,10 +348,10 @@ export interface PodcastMetadataInput {
 }
 
 /** True for an absolute http(s) URL. */
-function httpUrl(valore: string, soloHttps = false): boolean {
+function httpUrl(valore: string): boolean {
   try {
     const u = new URL(valore)
-    return soloHttps ? u.protocol === 'https:' : u.protocol === 'https:' || u.protocol === 'http:'
+    return u.protocol === 'https:' || u.protocol === 'http:'
   } catch {
     return false
   }
@@ -449,7 +450,7 @@ export const podcastMetadataDefinition = defineKind<PodcastMetadataParsed, Podca
       throw new Error('L’email non sembra un indirizzo valido.')
     }
     const feedUrl = input.feedUrl?.trim()
-    if (feedUrl && !httpUrl(feedUrl, true)) {
+    if (feedUrl && !indirizzoFeedAmmesso(feedUrl)) {
       throw new Error('L’indirizzo stabile del feed deve essere un URL https completo.')
     }
     if (input.tipo !== undefined && !TIPI_PODCAST.includes(input.tipo)) {

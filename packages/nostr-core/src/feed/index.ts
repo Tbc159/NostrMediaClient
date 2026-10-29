@@ -3,6 +3,8 @@ import { npubEncode } from 'nostr-tools/nip19'
 import { normalizzaBaseUrl } from '../services/http.js'
 import { podcastGuidPerUrl } from '../utils/uuid.js'
 
+export * from './indirizzo.js'
+
 /**
  * The podcast's RSS feed: the client does not generate it, it governs it.
  *

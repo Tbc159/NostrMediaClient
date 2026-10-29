@@ -114,6 +114,18 @@ export default defineNuxtConfig({
        */
       mediaManagerUrl: 'https://mediamanager-dev.duckdns.org',
       mediaManagerApiKey: '',
+
+      /*
+       * The feed's stable address on a domain NMC manages: the CNAME mode and
+       * the managed subdomains. Both wait for the NMC domain, so they are off:
+       * the interface shows them as «coming soon» and lets them be tried in a
+       * simulation that calls nothing, signs nothing and saves nothing. The
+       * operator turns them on after buying the domain — and even then they
+       * work only if the service declares them in its capabilities.
+       */
+      feedDominiGestiti: false,
+      /** Where the managed subdomains live: `<name>.<suffix>`. A placeholder until the NMC domain. */
+      feedSubdomainSuffix: 'duckdns.org',
     },
   },
 })
