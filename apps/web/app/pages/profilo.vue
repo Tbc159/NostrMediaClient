@@ -9,6 +9,7 @@ import {
   type CategoriaPodcast,
   type Firmatario,
 } from '@nmc/nostr-core'
+import type { SceltaChiave } from '~/composables/useChiaveDedicata'
 import { useDeleghe } from '~/stores/deleghe'
 
 useHead({ title: 'Profilo · NostrMediaClient' })
@@ -105,9 +106,16 @@ onMounted(() => {
     void caricaAutore()
   }
 })
+// Another identity, another profile, card and author list: the switch between
+// saved identities lands here too, not only a fresh login.
 watch(
   () => identita.pubkey,
-  () => identita.pubkey && carica(),
+  (pubkey) => {
+    if (!pubkey) return
+    void carica()
+    void caricaPodcast()
+    void caricaAutore()
+  },
 )
 
 function componi(): void {
@@ -395,6 +403,38 @@ const firmatarioPodcast = computed<Firmatario | undefined>(() => {
   }
 })
 
+/*
+ * Which key the podcast lives on, asked before the first card on this key.
+ *
+ * Asked first because the answer can change the key: filling in the card and
+ * then moving to a dedicated key would empty the form under the user's eyes.
+ */
+const sceltaChiavePodcast = ref<SceltaChiave | null>(null)
+const dedicataProfilo = ref<{ pubkey: string; autore: string; titolo: string } | null>(null)
+const serveSceltaChiave = computed(
+  () =>
+    !haPodcast.value &&
+    !firmaPodcastCon.value &&
+    sceltaChiavePodcast.value !== 'questa' &&
+    dedicataProfilo.value?.pubkey !== identita.pubkey,
+)
+
+/** A new dedicated key starts its card with the show's name and the personal key as host. */
+function applicaDedicata(): void {
+  const d = dedicataProfilo.value
+  if (!d || d.pubkey !== identita.pubkey || haPodcast.value) return
+  if (!podcastTitolo.value) podcastTitolo.value = d.titolo
+  if (!podcastAutori.value.some((a) => a.pubkey === d.autore)) {
+    podcastAutori.value = [...podcastAutori.value, { pubkey: d.autore, role: 'host' }]
+  }
+  mostraPodcast.value = true
+}
+
+function chiaveDedicataCreata(dati: { pubkey: string; autore: string; titolo: string }): void {
+  dedicataProfilo.value = dati
+  applicaDedicata()
+}
+
 watch(firmaPodcastCon, () => {
   bozzaPodcast.firmato.value = null
   bozzaPodcast.template.value = null
@@ -422,7 +462,10 @@ async function caricaPodcast(): Promise<void> {
     undefined,
     firmaPodcastCon.value || undefined,
   )
-  if (!trovato) return
+  if (!trovato) {
+    applicaDedicata()
+    return
+  }
   const definizione = getKindDefinition(10154)
   if (!definizione) return
   try {
@@ -642,14 +685,39 @@ const valori = { nome, nomeVisualizzato, immagine, copertina, sito, nip05, lud16
               }}
             </summary>
 
-            <form class="mt-4 flex flex-col gap-4" @submit.prevent="componiPodcast">
+            <div class="mt-4 flex flex-col gap-4">
+              <!-- ── Who signs ── -->
+              <BaseField
+                v-if="deleghe.elenco.length"
+                v-slot="{ id }"
+                label="Chi firma"
+                hint="La scheda sta sulla chiave del podcast. Con una delega la firma chi tiene quella chiave, e il form mostra la sua scheda, non la tua."
+              >
+                <BaseSelect :id="id" v-model="firmaPodcastCon" :options="scelteFirmaPodcast" />
+              </BaseField>
+              <BaseAlert v-if="delegaPodcast" tono="avviso">
+                La scheda risulterà pubblicata da
+                <strong>{{ delegaPodcast.etichetta }}:</strong>
+                sostituisce la sua, non la tua. Dall’altra parte qualcuno deve approvarla.
+              </BaseAlert>
+
+              <MediaChiavePodcast
+                v-if="serveSceltaChiave || dedicataProfilo"
+                v-model="sceltaChiavePodcast"
+                @creata="chiaveDedicataCreata"
+              />
+            </div>
+
+            <form
+              v-if="!serveSceltaChiave"
+              class="mt-4 flex flex-col gap-4"
+              @submit.prevent="componiPodcast"
+            >
               <BaseAlert tono="avviso">
-                Per NIP-F4
-                <strong>il podcast è la chiave stessa</strong>
-                : questa scheda dice che
+                <strong>Per NIP-F4 il podcast è la chiave stessa:</strong>
+                questa scheda dice che
                 <em>questa identità</em>
-                è un podcast. Se preferisci tenerlo separato dalla tua identità personale, crea una
-                chiave dedicata e usa quella.
+                è un podcast.
               </BaseAlert>
 
               <BaseField v-slot="{ id, describedBy }" label="Titolo del podcast" required>
@@ -854,21 +922,6 @@ const valori = { nome, nomeVisualizzato, immagine, copertina, sito, nip05, lud16
                   {{ erroreAutorePodcast }}
                 </BaseAlert>
               </div>
-
-              <!-- ── Who signs ── -->
-              <BaseField
-                v-if="deleghe.elenco.length"
-                v-slot="{ id }"
-                label="Chi firma"
-                hint="La scheda sta sulla chiave del podcast. Con una delega la firma chi tiene quella chiave, e il form mostra la sua scheda, non la tua."
-              >
-                <BaseSelect :id="id" v-model="firmaPodcastCon" :options="scelteFirmaPodcast" />
-              </BaseField>
-              <BaseAlert v-if="delegaPodcast" tono="avviso">
-                La scheda risulterà pubblicata da
-                <strong>{{ delegaPodcast.etichetta }}</strong>
-                : sostituisce la sua, non la tua. Dall’altra parte qualcuno deve approvarla.
-              </BaseAlert>
 
               <EventTagAggiuntivi
                 v-model="tagExtraPodcast"

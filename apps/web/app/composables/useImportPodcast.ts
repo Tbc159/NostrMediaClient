@@ -21,6 +21,7 @@ import {
   type Valore,
 } from '@nmc/nostr-core'
 
+import type { SceltaChiave } from '~/composables/useChiaveDedicata'
 import { useConfigurazione } from '~/stores/configurazione'
 import { useMediaManager } from '~/stores/mediamanager'
 
@@ -269,6 +270,53 @@ export function useImportPodcast() {
       (segniDistribuzione.value.length > 0 || rispostaDistribuita.value !== 'no'),
   )
 
+  /** Why the active key cannot take this podcast, for the key's question. */
+  const bloccoQuesta = computed<string | null>(() => {
+    if (!schedaProtetta.value) return null
+    const titolo = datiEsistenti.value?.title ?? 'senza titolo'
+    if (segniDistribuzione.value.length > 0) {
+      return `Ha già la scheda «${titolo}», distribuita: un secondo podcast non ci sta.`
+    }
+    if (rispostaDistribuita.value === 'si') {
+      return `Ha già la scheda «${titolo}», pubblicata su qualche piattaforma: un secondo podcast non ci sta.`
+    }
+    return `Ha già la scheda «${titolo}»: rispondi prima alla domanda qui sopra.`
+  })
+
+  // ── 3b. which key ──────────────────────────────────────────────────────
+
+  /** The answer to «which key does the podcast live on». */
+  const sceltaChiave = ref<SceltaChiave | null>(null)
+  /** When a dedicated key was created: the key, and the personal one to name as host. */
+  const dedicata = ref<{ pubkey: string; autore: string } | null>(null)
+
+  const chiavePronta = computed(
+    () =>
+      sceltaChiave.value === 'questa' ||
+      (!!dedicata.value && dedicata.value.pubkey === identita.pubkey),
+  )
+
+  function chiaveDedicataCreata(dati: { pubkey: string; autore: string }): void {
+    dedicata.value = dati
+  }
+
+  // Another key, another card: what was read and published for the previous
+  // one does not hold for this one.
+  watch(
+    () => identita.pubkey,
+    (pubkey) => {
+      scheda.azzera()
+      noteScheda.value = []
+      avanzamento.value = {}
+      rispostaDistribuita.value = null
+      if (dedicata.value?.pubkey !== pubkey) {
+        dedicata.value = null
+        sceltaChiave.value = null
+      }
+      if (aperto.value) void controllaScheda()
+    },
+  )
+
   /** The kind 54s already on this key, parsed once. */
   const episodiPropri = computed(() =>
     propri.eventi.value.flatMap((e) => {
@@ -316,12 +364,22 @@ export function useImportPodcast() {
       ...Object.values(giaDistribuito.value).map((u) => u.trim()),
     ].filter((u, i, tutti) => u !== '' && tutti.indexOf(u) === i)
 
+    // On a dedicated key the personal one is the host: the half of the link the
+    // card writes, the other half being the 10064 it published.
+    const host = dedicata.value?.pubkey === identita.pubkey ? dedicata.value.autore : null
+    const autori = [
+      ...(prima?.authors ?? []),
+      ...(host && !prima?.authors.some((a) => a.pubkey === host)
+        ? [{ pubkey: host, role: 'host' }]
+        : []),
+    ]
+
     return {
       title: campi.titolo,
       description: campi.descrizione,
       image: campi.immagine,
       websites: siti,
-      ...(prima?.authors.length ? { authors: prima.authors } : {}),
+      ...(autori.length ? { authors: autori } : {}),
       ...(campi.categoria ? { categories: [campi.categoria] } : {}),
       ...(campi.lingua ? { language: campi.lingua } : {}),
       ...(campi.email ? { email: campi.email } : {}),
@@ -355,7 +413,33 @@ export function useImportPodcast() {
     }
   }
 
+  /**
+   * Copies the show's cover to Blossom, when the files are being copied.
+   *
+   * Left on the old host, the cover would break the day that account is
+   * closed. Called before the card is built, and before a dedicated key's
+   * profile is published so that it gets the copy too.
+   */
+  async function copiaCopertina(): Promise<{ immagine: string }> {
+    const giaSuBlossom = blossom.server.value.some((s) => campi.immagine.startsWith(s))
+    if (modoFile.value === 'copia' && campi.immagine && !giaSuBlossom) {
+      noteScheda.value = []
+      try {
+        campi.immagine = (
+          await sistemaFile(campi.immagine, 'immagine', { copia: true }, noteScheda.value)
+        ).url
+      } finally {
+        fase.value = null
+      }
+    }
+    return { immagine: campi.immagine }
+  }
+
   async function preparaEPubblicaScheda(): Promise<boolean> {
+    if (!chiavePronta.value) {
+      scheda.errore.value = 'Scegli prima su quale chiave vive il podcast.'
+      return false
+    }
     if (segniDistribuzione.value.length > 0) {
       scheda.errore.value =
         'La scheda già presente risulta distribuita: due podcast non stanno su una chiave. Importa su una chiave dedicata.'
@@ -366,19 +450,7 @@ export function useImportPodcast() {
         'Questa chiave ha già una scheda podcast: conferma che non è pubblicata su nessuna piattaforma, oppure importa su una chiave dedicata. Sostituire un podcast distribuito lo trasformerebbe in un altro.'
       return false
     }
-    // The cover follows the files' choice too: left on the old host, it would
-    // break the day that account is closed.
-    noteScheda.value = []
-    const giaSuBlossom = blossom.server.value.some((s) => campi.immagine.startsWith(s))
-    if (modoFile.value === 'copia' && campi.immagine && !giaSuBlossom) {
-      try {
-        campi.immagine = (
-          await sistemaFile(campi.immagine, 'immagine', { copia: true }, noteScheda.value)
-        ).url
-      } finally {
-        fase.value = null
-      }
-    }
+    await copiaCopertina()
     if (
       !scheda.costruisci(podcastMetadataDefinition, inputScheda(), {
         aggiuntivi: conservati.tags.value,
@@ -594,6 +666,13 @@ export function useImportPodcast() {
     caricamentoPropri: propri.caricamento,
     controllaScheda,
     giaPresente,
+    bloccoQuesta,
+    // which key
+    sceltaChiave,
+    dedicata,
+    chiavePronta,
+    chiaveDedicataCreata,
+    copiaCopertina,
     // publishing
     scheda,
     noteScheda,

@@ -179,6 +179,60 @@ const etichettaStato: Record<string, string> = {
       </BaseAlert>
 
       <template v-if="imp.aperto.value">
+        <!-- ── 0. The key, and the card already on it ── -->
+        <section class="flex flex-col gap-2">
+          <h3 class="font-semibold">La scheda su questa chiave</h3>
+          <p v-if="!imp.schedaEsistente.value" class="text-sm text-[var(--testo-tenue)]">
+            Nessuna scheda podcast su questa chiave: verrà creata con i dati qui sopra.
+          </p>
+          <template v-else>
+            <BaseAlert v-if="imp.segniDistribuzione.value.length" tono="pericolo">
+              La scheda «{{ imp.datiEsistenti.value?.title }}» risulta già distribuita ({{
+                imp.segniDistribuzione.value.join('; ')
+              }}). Due podcast non stanno su una chiave, e sostituirla trasformerebbe quello show in
+              un altro per chi lo segue: importa su una chiave dedicata.
+            </BaseAlert>
+            <template v-else>
+              <p class="text-sm">
+                Su questa chiave c’è già la scheda «{{ imp.datiEsistenti.value?.title }}». È già
+                pubblicata su qualche piattaforma?
+              </p>
+              <div class="flex gap-4 text-sm">
+                <label class="flex items-center gap-1">
+                  <input v-model="imp.rispostaDistribuita.value" type="radio" value="si" />
+                  Sì
+                </label>
+                <label class="flex items-center gap-1">
+                  <input v-model="imp.rispostaDistribuita.value" type="radio" value="no" />
+                  No, si può sostituire
+                </label>
+              </div>
+              <BaseAlert v-if="imp.rispostaDistribuita.value === 'si'" tono="pericolo">
+                Allora non va sostituita: importa su una chiave dedicata.
+              </BaseAlert>
+            </template>
+            <BaseAlert v-if="imp.episodiNativi.value.length" tono="avviso">
+              {{
+                imp.episodiNativi.value.length === 1
+                  ? 'Un episodio già pubblicato su questa chiave entrerà'
+                  : `${imp.episodiNativi.value.length} episodi già pubblicati su questa chiave entreranno`
+              }}
+              nel feed di «{{ imp.campi.titolo }}». NMC non sa cancellare eventi: se non c’entrano,
+              importa su una chiave dedicata.
+            </BaseAlert>
+          </template>
+        </section>
+
+        <MediaChiavePodcast
+          v-model="imp.sceltaChiave.value"
+          :titolo="imp.campi.titolo"
+          :immagine="imp.campi.immagine"
+          :descrizione="imp.campi.descrizione"
+          :blocco-questa="imp.bloccoQuesta.value"
+          :prima-del-passaggio="imp.copiaCopertina"
+          @creata="imp.chiaveDedicataCreata"
+        />
+
         <!-- ── 3. The preview: the show ── -->
         <section class="flex flex-col gap-3">
           <h3 class="font-semibold">La scheda dello show</h3>
@@ -419,50 +473,6 @@ const etichettaStato: Record<string, string> = {
           </ul>
         </section>
 
-        <!-- ── 4. The card already on this key ── -->
-        <section class="flex flex-col gap-2">
-          <h3 class="font-semibold">La scheda su questa chiave</h3>
-          <p v-if="!imp.schedaEsistente.value" class="text-sm text-[var(--testo-tenue)]">
-            Nessuna scheda podcast su questa chiave: verrà creata con i dati qui sopra.
-          </p>
-          <template v-else>
-            <BaseAlert v-if="imp.segniDistribuzione.value.length" tono="pericolo">
-              La scheda «{{ imp.datiEsistenti.value?.title }}» risulta già distribuita ({{
-                imp.segniDistribuzione.value.join('; ')
-              }}). Due podcast non stanno su una chiave, e sostituirla trasformerebbe quello show in
-              un altro per chi lo segue: importa su una chiave dedicata.
-            </BaseAlert>
-            <template v-else>
-              <p class="text-sm">
-                Su questa chiave c’è già la scheda «{{ imp.datiEsistenti.value?.title }}». È già
-                pubblicata su qualche piattaforma?
-              </p>
-              <div class="flex gap-4 text-sm">
-                <label class="flex items-center gap-1">
-                  <input v-model="imp.rispostaDistribuita.value" type="radio" value="si" />
-                  Sì
-                </label>
-                <label class="flex items-center gap-1">
-                  <input v-model="imp.rispostaDistribuita.value" type="radio" value="no" />
-                  No, si può sostituire
-                </label>
-              </div>
-              <BaseAlert v-if="imp.rispostaDistribuita.value === 'si'" tono="pericolo">
-                Allora non va sostituita: importa su una chiave dedicata.
-              </BaseAlert>
-            </template>
-            <BaseAlert v-if="imp.episodiNativi.value.length" tono="avviso">
-              {{
-                imp.episodiNativi.value.length === 1
-                  ? 'Un episodio già pubblicato su questa chiave entrerà'
-                  : `${imp.episodiNativi.value.length} episodi già pubblicati su questa chiave entreranno`
-              }}
-              nel feed di «{{ imp.campi.titolo }}». NMC non sa cancellare eventi: se non c’entrano,
-              importa su una chiave dedicata.
-            </BaseAlert>
-          </template>
-        </section>
-
         <!-- ── 5. Publishing ── -->
         <section class="flex flex-col gap-3">
           <BaseAlert v-if="!identita.puoFirmare" tono="avviso">
@@ -477,7 +487,9 @@ const etichettaStato: Record<string, string> = {
             <BaseButton
               variant="primario"
               :loading="imp.inScheda.value"
-              :disabled="!identita.puoFirmare || imp.scheda.pubblicato.value"
+              :disabled="
+                !identita.puoFirmare || !imp.chiavePronta.value || imp.scheda.pubblicato.value
+              "
               @click="imp.pubblicaScheda()"
             >
               1. Pubblica la scheda

@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { passwordStrength } from '@nmc/nostr-core'
+import { passwordStrength, toNpub } from '@nmc/nostr-core'
+
+import type { IdentitaSalvata } from '~/stores/identity'
 import { campiEndpoint, useConfigurazione, type CampoEndpoint } from '~/stores/configurazione'
 import { useMediaManager } from '~/stores/mediamanager'
 import { linkEventoEsterno, type PiattaformaClient } from '@nmc/nostr-core'
@@ -290,6 +292,36 @@ function esci(): void {
   errore.value = null
 }
 
+/** Logging in to one more identity, keeping the active one among the saved. */
+const aggiungendo = ref(false)
+watch(
+  () => identita.pubkey,
+  () => {
+    aggiungendo.value = false
+  },
+)
+
+const erroreSalvate = ref<string | null>(null)
+async function usa(pubkey: string): Promise<void> {
+  erroreSalvate.value = null
+  try {
+    await identita.cambiaIdentita(pubkey)
+  } catch (e) {
+    erroreSalvate.value = e instanceof Error ? e.message : String(e)
+  }
+}
+
+function dimentica(s: IdentitaSalvata): void {
+  const avviso =
+    s.modo === 'locale'
+      ? 'La chiave cifrata di questa identità viene cancellata da questo browser. Senza una copia della sua nsec è persa per sempre. Procedo?'
+      : 'Questa identità sparisce dall’elenco di questo browser. Procedo?'
+  if (window.confirm(avviso)) identita.dimentica(s.pubkey)
+}
+
+const nomeSalvata = (s: IdentitaSalvata): string =>
+  s.etichetta ?? `${toNpub(s.pubkey).slice(0, 16)}…`
+
 const etichettaModo: Record<string, string> = {
   nip07: 'Estensione del browser (NIP-07)',
   locale: 'Chiave privata salvata in questo browser',
@@ -345,7 +377,42 @@ const etichettaModo: Record<string, string> = {
             >
               Blocca la chiave
             </BaseButton>
+            <BaseButton v-if="!aggiungendo" size="sm" @click="aggiungendo = true">
+              Aggiungi un’altra identità
+            </BaseButton>
             <BaseButton size="sm" variant="pericolo" @click="esci">Esci</BaseButton>
+          </div>
+
+          <!-- The other identities kept in this browser -->
+          <div v-if="identita.salvate.length > 1" class="flex flex-col gap-2">
+            <h3 class="text-sm font-medium">Identità salvate in questo browser</h3>
+            <ul class="flex flex-col gap-1.5">
+              <li
+                v-for="s in identita.salvate"
+                :key="s.pubkey"
+                class="superficie flex flex-wrap items-center gap-2 rounded-md border px-3 py-2 text-sm"
+              >
+                <span class="min-w-0 flex-1 truncate" :title="toNpub(s.pubkey)">
+                  {{ nomeSalvata(s) }}
+                </span>
+                <span class="text-xs text-[var(--testo-tenue)]">{{ etichettaModo[s.modo] }}</span>
+                <BaseBadge v-if="s.pubkey === identita.pubkey" tono="accento">attiva</BaseBadge>
+                <BaseButton v-else size="sm" @click="usa(s.pubkey)">Usa</BaseButton>
+                <BaseButton
+                  v-if="s.pubkey !== identita.pubkey"
+                  size="sm"
+                  variant="fantasma"
+                  @click="dimentica(s)"
+                >
+                  Dimentica
+                </BaseButton>
+              </li>
+            </ul>
+            <BaseAlert v-if="erroreSalvate" tono="pericolo">{{ erroreSalvate }}</BaseAlert>
+            <p class="text-xs text-[var(--testo-tenue)]">
+              Una sola chiave è aperta alla volta: cambiando identità, quella precedente si
+              richiude, e una chiave salvata qui chiede di nuovo la sua password.
+            </p>
           </div>
 
           <p v-if="identita.modo === 'locale'" class="text-xs text-[var(--testo-tenue)]">
@@ -356,7 +423,11 @@ const etichettaModo: Record<string, string> = {
       </BaseCard>
 
       <!-- ─────────── Logging in ─────────── -->
-      <BaseCard v-else title="Accedi" subtitle="Tre modi, dal più sicuro al meno sicuro.">
+      <BaseCard
+        v-if="!identita.autenticato || aggiungendo"
+        :title="aggiungendo ? 'Aggiungi un’identità' : 'Accedi'"
+        subtitle="Tre modi, dal più sicuro al meno sicuro."
+      >
         <div class="flex flex-col gap-5">
           <div role="tablist" aria-label="Modalità di accesso" class="flex flex-wrap gap-1">
             <button

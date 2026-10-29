@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { toNpub } from '@nmc/nostr-core'
+
 import { useProfiloProprio } from '~/stores/profiloProprio'
 
 const identita = useIdentity()
@@ -21,6 +23,31 @@ const voci = [
 
 const rotta = useRoute()
 const attiva = (to: string) => (to === '/' ? rotta.path === '/' : rotta.path.startsWith(to))
+
+/**
+ * Switching between the identities saved in this browser.
+ *
+ * A local key arrives locked: the switch lands on the settings, where its
+ * password is asked, instead of leaving a «read only» that is not true.
+ */
+const erroreCambio = ref<string | null>(null)
+const nomeIdentita = (s: { pubkey: string; etichetta?: string }): string =>
+  s.pubkey === identita.pubkey && profilo.daProfilo && profilo.nome
+    ? profilo.nome
+    : (s.etichetta ?? `${toNpub(s.pubkey).slice(0, 12)}…`)
+
+async function cambia(ev: Event): Promise<void> {
+  const select = ev.target as HTMLSelectElement
+  const scelta = select.value
+  erroreCambio.value = null
+  try {
+    await identita.cambiaIdentita(scelta)
+    if (identita.modo === 'locale' && !identita.sbloccato) await navigateTo('/impostazioni')
+  } catch (e) {
+    erroreCambio.value = e instanceof Error ? e.message : String(e)
+    select.value = identita.pubkey ?? ''
+  }
+}
 </script>
 
 <template>
@@ -56,7 +83,13 @@ const attiva = (to: string) => (to === '/' ? rotta.path === '/' : rotta.path.sta
           <ClientOnly>
             <template v-if="identita.autenticato">
               <BaseBadge :tono="identita.puoFirmare ? 'successo' : 'avviso'">
-                {{ identita.puoFirmare ? 'può pubblicare' : 'sola lettura' }}
+                {{
+                  identita.puoFirmare
+                    ? 'può pubblicare'
+                    : identita.modo === 'locale'
+                      ? 'bloccata'
+                      : 'sola lettura'
+                }}
               </BaseBadge>
               <!--
                 The profile's name, when there is one; the npub stays in the
@@ -64,6 +97,7 @@ const attiva = (to: string) => (to === '/' ? rotta.path === '/' : rotta.path.sta
                 identity without a kind 0 is an identity all the same.
               -->
               <NuxtLink
+                v-if="identita.salvate.length <= 1"
                 to="/profilo"
                 class="max-w-40 truncate text-[var(--testo-tenue)] hover:underline"
                 :title="identita.npub ?? undefined"
@@ -71,6 +105,21 @@ const attiva = (to: string) => (to === '/' ? rotta.path === '/' : rotta.path.sta
                 <template v-if="profilo.daProfilo">{{ profilo.nome }}</template>
                 <code v-else>{{ identita.npub?.slice(0, 12) }}…</code>
               </NuxtLink>
+              <select
+                v-if="identita.salvate.length > 1"
+                aria-label="Cambia identità"
+                title="Cambia identità"
+                class="superficie max-w-32 rounded-md border px-1.5 py-1 text-xs"
+                :value="identita.pubkey ?? ''"
+                @change="cambia"
+              >
+                <option v-for="s in identita.salvate" :key="s.pubkey" :value="s.pubkey">
+                  {{ nomeIdentita(s) }}
+                </option>
+              </select>
+              <span v-if="erroreCambio" role="alert" class="text-[var(--pericolo)]">
+                {{ erroreCambio }}
+              </span>
             </template>
             <BaseButton v-else to="/impostazioni" size="sm" variant="primario">Accedi</BaseButton>
           </ClientOnly>
