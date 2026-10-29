@@ -47,7 +47,7 @@ const provenienza = ref<'diretta' | 'servizio' | null>(null)
 
 /** The zoom relative to the frame that holds everything: 1 = the shorter side fills the square. */
 const zoom = ref(1)
-/** Spostamento del centro, in pixel dell'anteprima. */
+/** The centre's offset, in the preview's pixels. */
 const dx = ref(0)
 const dy = ref(0)
 
@@ -135,7 +135,7 @@ watch([zoom, dx, dy], disegna)
 watch(() => props.sorgente, carica)
 onMounted(carica)
 
-// ── Trascinamento ─────────────────────────────────────────────────────────
+// ── Dragging ──────────────────────────────────────────────────────────────
 let trascino: { x: number; y: number; dx: number; dy: number } | null = null
 
 function inizia(e: PointerEvent): void {

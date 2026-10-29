@@ -33,7 +33,7 @@ export function renderMarkdown(sorgente: string): string {
   })
 }
 
-/** Numero di parole e minuti di lettura stimati. */
+/** The number of words and the estimated reading minutes. */
 export function statisticheTesto(sorgente: string): { parole: number; minuti: number } {
   const parole = sorgente.trim().split(/\s+/).filter(Boolean).length
   // 200 words a minute: the conventional estimate for prose.

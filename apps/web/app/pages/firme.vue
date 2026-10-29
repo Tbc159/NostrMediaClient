@@ -30,7 +30,7 @@ async function copiaIndirizzo(): Promise<void> {
   }
 }
 
-// ─── Nuova delega ─────────────────────────────────────────────────────────
+// ─── A new delegation ─────────────────────────────────────────────────────────
 const npubAtteso = ref('')
 const indirizzo = ref('')
 const etichetta = ref('')
@@ -171,7 +171,7 @@ const ora = (t: number): string => new Date(t).toLocaleTimeString('it-IT')
               </BaseAlert>
             </template>
 
-            <!-- Richieste in attesa di giudizio -->
+            <!-- Requests awaiting judgement -->
             <div v-if="banco.richieste.length" class="flex flex-col gap-3">
               <h3 class="text-sm font-semibold">Da approvare ({{ banco.richieste.length }})</h3>
               <div

@@ -63,7 +63,7 @@ function annotaDurata(evento: Event): void {
   if (Number.isFinite(el.duration)) durataOriginale.value = el.duration
 }
 
-// ─── 2. Cosa fare ──────────────────────────────────────────────────────────
+// ─── 2. What to do ──────────────────────────────────────────────────────────
 const vuoiSilenzi = ref(true)
 const vuoiLivellare = ref(true)
 /**
@@ -86,14 +86,14 @@ watch(formato, (f) => {
 
 const nienteDaFare = computed(() => !vuoiSilenzi.value && !vuoiLivellare.value)
 
-// ─── 3. Avanzamento ────────────────────────────────────────────────────────
+// ─── 3. Progress ────────────────────────────────────────────────────────
 const inCorso = ref(false)
 const fase = ref<string | null>(null)
 const trascorsoS = ref(0)
 const erroreLavoro = ref<string | null>(null)
 let interruzione: AbortController | null = null
 
-// ─── 4. Risultato ──────────────────────────────────────────────────────────
+// ─── 4. The result ──────────────────────────────────────────────────────────
 const urlRisultato = ref<string | null>(null)
 const nomeRisultato = ref<string | null>(null)
 /** The bytes, not just the URL: handing them to the next page needs them. */
@@ -315,7 +315,7 @@ const pesoLeggibile = (b: number): string =>
         </div>
       </BaseCard>
 
-      <!-- ─────────── 2. Cosa fare ─────────── -->
+      <!-- ─────────── 2. What to do ─────────── -->
       <BaseCard
         v-if="file"
         title="2 · Scegli cosa fare"
@@ -422,7 +422,7 @@ const pesoLeggibile = (b: number): string =>
         </div>
       </BaseCard>
 
-      <!-- ─────────── 3. Avanzamento ─────────── -->
+      <!-- ─────────── 3. Progress ─────────── -->
       <BaseCard v-if="inCorso || erroreLavoro" title="3 · In lavorazione">
         <div class="flex flex-col gap-3">
           <p v-if="fase" class="flex items-center gap-2 text-sm">
@@ -444,7 +444,7 @@ const pesoLeggibile = (b: number): string =>
         </div>
       </BaseCard>
 
-      <!-- ─────────── 4. Confronto ─────────── -->
+      <!-- ─────────── 4. The comparison ─────────── -->
       <BaseCard
         v-if="urlRisultato"
         title="4 · Confronta e scarica"

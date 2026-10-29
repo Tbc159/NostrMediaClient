@@ -195,7 +195,7 @@ watch(
   },
 )
 
-// ─── Scelta dei file ──────────────────────────────────────────────────────
+// ─── Choosing the files ───────────────────────────────────────────────────
 const inputFile = ref<HTMLInputElement | null>(null)
 const trascinamento = ref(false)
 
@@ -220,7 +220,7 @@ function pesoLeggibile(byte: number): string {
   return `${(byte / (1024 * 1024)).toFixed(1)} MB`
 }
 
-// ─── Evento ───────────────────────────────────────────────────────────────
+// ─── The event ───────────────────────────────────────────────────────────────
 function componi(): void {
   const definizione = getKindDefinition(kindScelto.value)
   if (!definizione) {
@@ -725,7 +725,7 @@ onMounted(async () => {
       </BaseAlert>
     </ClientOnly>
 
-    <!-- ─────────── 1. Scelta, tutta in locale ─────────── -->
+    <!-- ─────────── 1. Choosing, all local ─────────── -->
     <BaseCard title="1 · Scegli i file" subtitle="Restano nel browser: qui non parte nulla.">
       <div class="flex flex-col gap-4">
         <div
@@ -1049,7 +1049,7 @@ onMounted(async () => {
       </BaseCard>
     </ClientOnly>
 
-    <!-- ─────────── 3. Caricamento su Blossom ─────────── -->
+    <!-- ─────────── 3. Uploading to Blossom ─────────── -->
     <ClientOnly>
       <BaseCard
         v-if="!upload.nessunoSelezionato.value"
@@ -1112,7 +1112,7 @@ onMounted(async () => {
       </BaseCard>
     </ClientOnly>
 
-    <!-- ─────────── 4. Evento Nostr, facoltativo ─────────── -->
+    <!-- ─────────── 4. The Nostr event, optional ─────────── -->
     <ClientOnly>
       <BaseCard
         v-if="upload.caricati.value.length"

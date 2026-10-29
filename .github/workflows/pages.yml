@@ -5,8 +5,8 @@ on:
     branches: [main]
   workflow_dispatch:
 
-# Un solo deploy alla volta, e senza interrompere quello in corso: interromperlo
-# lascerebbe il sito a metà pubblicazione.
+# One deploy at a time, without interrupting the one in progress: interrupting
+# it would leave the site half published.
 concurrency:
   group: pages
   cancel-in-progress: false
@@ -26,20 +26,20 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          # Preso da .nvmrc, così non diverge dal vincolo del repository.
+          # Taken from .nvmrc, so it does not drift from the repository's constraint.
           node-version-file: .nvmrc
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
 
-      # La build statica è pubblica: se non passa la verifica non va online.
+      # The static build is public: if it fails verification it does not go online.
       - run: pnpm verify
 
       - name: Build
         env:
-          # Il sito vive in una sottocartella con il nome del repository.
+          # The site lives in a subfolder named after the repository.
           NUXT_APP_BASE_URL: /${{ github.event.repository.name }}/
-          # Serve ai link canonici: senza, resterebbe localhost.
+          # The canonical links need it: without it, they would stay localhost.
           NUXT_PUBLIC_SITE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
         run: pnpm build:pages
 

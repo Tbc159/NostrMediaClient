@@ -48,7 +48,7 @@ interface IdentitaPersistita {
   chiaveCifrata?: string
 }
 
-/** Firma esposta dalle estensioni NIP-07 su `window.nostr`. */
+/** The signer NIP-07 extensions expose on `window.nostr`. */
 interface Nip07 {
   getPublicKey(): Promise<string>
   signEvent(event: EventTemplate): Promise<NostrEvent>

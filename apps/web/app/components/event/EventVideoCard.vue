@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { NostrEvent, VideoParsed } from '@nmc/nostr-core'
 
-/** Kind 21 e 22 — video (NIP-71). */
+/** Kinds 21 and 22 — video (NIP-71). */
 const props = defineProps<{ evento: NostrEvent; dati: VideoParsed }>()
 
 /**

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { FileMetadataParsed, NostrEvent } from '@nmc/nostr-core'
 
-/** Kind 1063 — scheda di un file (NIP-94). */
+/** Kind 1063 — a file's card (NIP-94). */
 const props = defineProps<{ evento: NostrEvent; dati: FileMetadataParsed }>()
 
 const immagine = computed(() => (props.dati.mime ?? '').startsWith('image/'))

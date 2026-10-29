@@ -7,10 +7,10 @@ defineProps<{ evento: NostrEvent; nota: NoteParsed }>()
 <template>
   <EventShell :evento="evento" :etichetta="nota.replyToId ? 'risposta' : undefined">
     <!--
-      `whitespace-pre-wrap` conserva gli a capo scritti dall'autore: su Nostr
-      il content e' testo semplice, e collassarli cambierebbe come la nota si
-      legge. La risoluzione dei link e delle menzioni `nostr:` arriva col
-      modulo `content`.
+      `whitespace-pre-wrap` keeps the line breaks the author wrote: on Nostr the
+      content is plain text, and collapsing them would change how the note
+      reads. Resolving the links and the `nostr:` mentions comes with the
+      `content` module.
     -->
     <p class="whitespace-pre-wrap break-words text-sm leading-relaxed">{{ nota.content }}</p>
 

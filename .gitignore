@@ -1,7 +1,7 @@
 node_modules/
-# Senza slash: `nuxt generate` lascia un symlink `dist` verso .output/public, e
-# `dist/` con lo slash vale solo per le cartelle. Un symlink assoluto committato
-# punterebbe al disco di chi ha fatto la build.
+# No slash: `nuxt generate` leaves a `dist` symlink to .output/public, and
+# `dist/` with the slash matches directories only. A committed absolute symlink
+# would point at the disk of whoever ran the build.
 dist
 .output/
 .nuxt/
@@ -10,8 +10,8 @@ dist
 coverage/
 *.tsbuildinfo
 
-# Ambiente: i puntamenti privati a relay e server Blossom non vanno versionati.
-# Solo .env.example sta nel repo.
+# Environment: private pointers to relays and Blossom servers must not be
+# versioned. Only .env.example is in the repo.
 .env
 .env.*
 !.env.example
@@ -31,5 +31,5 @@ blob-report/
 npm-debug.log*
 pnpm-debug.log*
 
-# Stato del dev server gestito da scripts/client.sh
+# State of the dev server managed by scripts/client.sh
 .run/

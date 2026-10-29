@@ -5,7 +5,8 @@ dist/
 coverage/
 pnpm-lock.yaml
 
-# Testo di licenza: va tenuto identico all'originale ufficiale, byte per byte.
-# Prettier collassa i doppi spazi dopo il punto e renderebbe il file diverso
-# dal testo canonico, dando appiglio a chi volesse contestarlo.
+# Licence text: it has to stay identical to the official original, byte for
+# byte. Prettier collapses double spaces after a full stop and would make the
+# file differ from the canonical text, giving a foothold to anyone wishing to
+# dispute it.
 LICENSE.md

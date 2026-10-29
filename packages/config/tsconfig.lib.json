@@ -1,6 +1,6 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
-  // Preset per i package libreria: riaccende l'emit, che la base tiene spento.
+  // The preset for library packages: it turns emit back on, which the base keeps off.
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "noEmit": false,

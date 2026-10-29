@@ -38,7 +38,7 @@ const config = useClientConfig()
 const server = computed(() => config.value.blossomServers)
 const puoCaricare = computed(() => identita.puoFirmare && server.value.length > 0)
 
-// ── Caricamento ───────────────────────────────────────────────────────────
+// ── Uploading ─────────────────────────────────────────────────────────────
 const inCorso = ref(false)
 const errore = ref<string | null>(null)
 

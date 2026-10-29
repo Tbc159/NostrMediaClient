@@ -4,7 +4,7 @@
     "rootDir": "./src",
     "outDir": "./dist",
     "tsBuildInfoFile": "./dist/.tsbuildinfo",
-    // Il core deve restare isomorfico: senza lib DOM, un uso di window non compila.
+    // The core has to stay isomorphic: without the DOM lib, a use of window does not compile.
     "lib": ["ES2023"],
     "types": ["node"]
   },

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { NostrEvent, PodcastEpisodeParsed } from '@nmc/nostr-core'
 
-/** Kind 54 — episodio di podcast (NIP-F4). */
+/** Kind 54 — a podcast episode (NIP-F4). */
 const props = defineProps<{ evento: NostrEvent; dati: PodcastEpisodeParsed }>()
 
 /**

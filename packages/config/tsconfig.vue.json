@@ -1,8 +1,9 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
-  // Preset per i package che contengono SFC Vue.
-  // Niente "types": ["vite/client"]: questi sono package libreria, non app,
-  // e non hanno Vite fra le dipendenze. La lib DOM arriva da tsconfig.base.json.
+  // The preset for the packages that contain Vue SFCs.
+  // No "types": ["vite/client"]: these are library packages, not apps, and they
+  // do not have Vite among their dependencies. The DOM lib comes from
+  // tsconfig.base.json.
   "extends": "./tsconfig.lib.json",
   "compilerOptions": {
     "jsx": "preserve",

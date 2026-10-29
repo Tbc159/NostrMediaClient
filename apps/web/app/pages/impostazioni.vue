@@ -60,7 +60,7 @@ function salvaEndpoint(): void {
   }
 }
 
-// --- Servizio di elaborazione ------------------------------------------------
+// --- Processing service ------------------------------------------------------
 
 /*
  * The service behind the Audio section.
@@ -117,7 +117,7 @@ function ripristinaServizi(): void {
   serviziSalvati.value = false
 }
 
-// --- Client di lettura esterni ---------------------------------------------
+// --- External reading clients ---------------------------------------------
 
 const { piattaforma } = useDispositivo()
 
@@ -283,7 +283,7 @@ const etichettaModo: Record<string, string> = {
     <h1 class="text-xl font-semibold tracking-tight">Impostazioni</h1>
 
     <ClientOnly>
-      <!-- ─────────── Identità già attiva ─────────── -->
+      <!-- ─────────── An identity already active ─────────── -->
       <BaseCard v-if="identita.autenticato" title="Identità">
         <div class="flex flex-col gap-4">
           <dl class="grid gap-2 text-sm sm:grid-cols-[auto_1fr] sm:gap-x-6">
@@ -336,7 +336,7 @@ const etichettaModo: Record<string, string> = {
         </div>
       </BaseCard>
 
-      <!-- ─────────── Accesso ─────────── -->
+      <!-- ─────────── Logging in ─────────── -->
       <BaseCard v-else title="Accedi" subtitle="Tre modi, dal più sicuro al meno sicuro.">
         <div class="flex flex-col gap-5">
           <div role="tablist" aria-label="Modalità di accesso" class="flex flex-wrap gap-1">
@@ -358,7 +358,7 @@ const etichettaModo: Record<string, string> = {
             </button>
           </div>
 
-          <!-- Estensione NIP-07 -->
+          <!-- NIP-07 extension -->
           <div v-if="scheda === 'estensione'" class="flex flex-col gap-3">
             <p class="text-sm text-[var(--testo-tenue)]">
               L’estensione custodisce la chiave e firma per conto tuo: la chiave privata non entra
@@ -378,7 +378,7 @@ const etichettaModo: Record<string, string> = {
             </BaseButton>
           </div>
 
-          <!-- Chiave privata -->
+          <!-- Private key -->
           <form
             v-else-if="scheda === 'chiave'"
             class="flex flex-col gap-4"
@@ -455,7 +455,7 @@ const etichettaModo: Record<string, string> = {
             </BaseButton>
           </form>
 
-          <!-- Sola lettura -->
+          <!-- Read-only -->
           <form v-else class="flex flex-col gap-4" @submit.prevent="solaLettura">
             <p class="text-sm text-[var(--testo-tenue)]">
               Serve solo la chiave pubblica: puoi leggere tutto ma non pubblicare nulla. Utile per
@@ -484,7 +484,7 @@ const etichettaModo: Record<string, string> = {
       </BaseCard>
     </ClientOnly>
 
-    <!-- ─────────── Endpoint ─────────── -->
+    <!-- ─────────── Endpoints ─────────── -->
     <ClientOnly>
       <BaseCard
         title="Endpoint"
@@ -551,7 +551,7 @@ const etichettaModo: Record<string, string> = {
         </form>
       </BaseCard>
 
-      <!-- ─────────── Servizio di elaborazione ─────────── -->
+      <!-- ─────────── Processing service ─────────── -->
       <BaseCard
         title="Servizio di elaborazione"
         subtitle="Il microservizio dietro la sezione Audio. Non è Nostr: è un’API HTTP esterna, e come i relay si può sostituire."
@@ -624,7 +624,7 @@ const etichettaModo: Record<string, string> = {
         </form>
       </BaseCard>
 
-      <!-- ─────────── Client di lettura esterni ─────────── -->
+      <!-- ─────────── External reading clients ─────────── -->
       <BaseCard
         title="Con cosa aprire le tue pubblicazioni"
         subtitle="Questo client serve a gestire i tuoi contenuti. Per vederli come li vede il resto della rete serve un client di lettura."
@@ -717,7 +717,7 @@ const etichettaModo: Record<string, string> = {
         </div>
       </BaseCard>
 
-      <!-- ─────────── Strategia di pubblicazione ─────────── -->
+      <!-- ─────────── Publishing strategy ─────────── -->
       <BaseCard
         title="Come distribuire quello che pubblichi"
         subtitle="Con più relay di scrittura c’è un compromesso, e non ha una risposta unica."

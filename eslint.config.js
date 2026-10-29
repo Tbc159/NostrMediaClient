@@ -32,15 +32,15 @@ export default tseslint.config(
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
       ],
 
-      // Nota: `@typescript-eslint/consistent-type-imports` non e' attiva di
-      // proposito. Richiederebbe il typed linting, e sarebbe comunque
-      // ridondante: tsconfig.base.json abilita `verbatimModuleSyntax`, quindi
-      // e' il compilatore a rifiutare (TS1484) un tipo importato senza
-      // `import type`. Un controllo solo, nel posto giusto.
+      // Note: `@typescript-eslint/consistent-type-imports` is off on purpose.
+      // It would require typed linting, and it would be redundant anyway:
+      // tsconfig.base.json enables `verbatimModuleSyntax`, so it is the
+      // compiler that refuses (TS1484) a type imported without `import type`.
+      // One check, in the right place.
 
-      // Vedi docs/adr/0002: applesauce-factory duplicherebbe applesauce-core.
-      // scripts/guard-deps.mjs controlla i manifest; questa regola intercetta
-      // l'import diretto anche se il pacchetto entrasse come transitiva.
+      // See docs/adr/0002: applesauce-factory would duplicate applesauce-core.
+      // scripts/guard-deps.mjs checks the manifests; this rule catches the
+      // direct import even if the package came in as a transitive dependency.
       'no-restricted-imports': [
         'error',
         {
@@ -48,8 +48,8 @@ export default tseslint.config(
             {
               name: 'applesauce-factory',
               message:
-                "applesauce-factory e' fermo alla 4.x e duplica applesauce-core. " +
-                "Usare 'applesauce-core/factories'.",
+                'applesauce-factory is stuck at 4.x and duplicates applesauce-core. ' +
+                "Use 'applesauce-core/factories'.",
             },
           ],
         },
@@ -57,8 +57,8 @@ export default tseslint.config(
     },
   },
 
-  // Gli SFC con `lang="ts"` hanno bisogno che vue-eslint-parser inoltri il
-  // contenuto degli script al parser TypeScript.
+  // SFCs with `lang="ts"` need vue-eslint-parser to forward the scripts'
+  // content to the TypeScript parser.
   {
     files: ['**/*.vue'],
     languageOptions: {
@@ -72,17 +72,17 @@ export default tseslint.config(
       'vue/multi-word-component-names': 'off',
       'vue/html-self-closing': 'off',
 
-      // typescript-eslint disattiva `no-undef` sui file .ts, perche' e' il
-      // compilatore a fare quel controllo, e meglio. Il suo override non
-      // copre pero' i .vue, dove la regola inciampa sugli auto-import di
-      // Nuxt (useHead, useRoute, definePageMeta...). Stessa ragione, stesso
-      // trattamento: `nuxt typecheck` resta il controllo autorevole.
+      // typescript-eslint turns `no-undef` off on .ts files, because the
+      // compiler does that check, and better. Its override does not cover
+      // .vue files, though, where the rule trips over Nuxt's auto-imports
+      // (useHead, useRoute, definePageMeta...). Same reason, same treatment:
+      // `nuxt typecheck` remains the authoritative check.
       'no-undef': 'off',
     },
   },
 
-  // Il package core deve restare isomorfico: nessun accesso diretto alle API
-  // del browser, altrimenti si rompe in SSR e nei test Node.
+  // The core package has to stay isomorphic: no direct access to the browser's
+  // APIs, otherwise it breaks in SSR and in the Node tests.
   {
     files: ['packages/nostr-core/src/**/*.ts'],
     languageOptions: { globals: globals.node },
@@ -91,15 +91,15 @@ export default tseslint.config(
         'error',
         {
           name: 'window',
-          message: "nostr-core deve restare isomorfico: passare la dipendenza dall'esterno.",
+          message: 'nostr-core has to stay isomorphic: pass the dependency in from outside.',
         },
         {
           name: 'document',
-          message: "nostr-core deve restare isomorfico: passare la dipendenza dall'esterno.",
+          message: 'nostr-core has to stay isomorphic: pass the dependency in from outside.',
         },
         {
           name: 'localStorage',
-          message: 'nostr-core deve restare isomorfico: usare un adapter iniettato.',
+          message: 'nostr-core has to stay isomorphic: use an injected adapter.',
         },
       ],
     },

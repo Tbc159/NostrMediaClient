@@ -37,7 +37,7 @@ const url = computed({
   set: (v: string) => emit('update:modelValue', v),
 })
 
-// ── Misura dell'immagine corrente ─────────────────────────────────────────
+// ── Measuring the current image ───────────────────────────────────────────
 const misure = ref<MisureCopertina | null>(null)
 const misurando = ref(false)
 
@@ -75,7 +75,7 @@ const giudizio = computed(() => {
   return `${m.larghezza}×${m.altezza} — sopra i 3000 px`
 })
 
-// ── Ritaglio e caricamento ────────────────────────────────────────────────
+// ── Cropping and uploading ────────────────────────────────────────────────
 const sorgenteRitaglio = ref<File | string | null>(null)
 const inCorso = ref(false)
 const errore = ref<string | null>(null)

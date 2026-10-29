@@ -26,8 +26,8 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 /** The packages that must not appear in any package.json of the workspace. */
 const FORBIDDEN = {
   'applesauce-factory':
-    'fermo alla 4.x, tira dentro una seconda copia di applesauce-core. ' +
-    'Le factory della 6.x sono in `applesauce-core/factories`.',
+    'stuck at 4.x, it pulls in a second copy of applesauce-core. ' +
+    'The 6.x factories are in `applesauce-core/factories`.',
 }
 
 /** The packages that have to be pinned to an exact version. */
@@ -53,7 +53,7 @@ function findPackageJsons(dir, found = []) {
   return found
 }
 
-// --- 1. Controllo dei manifest del workspace -------------------------------
+// --- 1. Checking the workspace's manifests ---------------------------------
 
 for (const manifestPath of findPackageJsons(ROOT)) {
   const rel = relative(ROOT, manifestPath)
@@ -61,7 +61,7 @@ for (const manifestPath of findPackageJsons(ROOT)) {
   try {
     manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
   } catch (err) {
-    problems.push(`${rel}: JSON non valido (${err.message})`)
+    problems.push(`${rel}: invalid JSON (${err.message})`)
     continue
   }
 
@@ -71,7 +71,7 @@ for (const manifestPath of findPackageJsons(ROOT)) {
 
     for (const [name, range] of Object.entries(deps)) {
       if (FORBIDDEN[name]) {
-        problems.push(`${rel} → ${field}.${name} e' vietato: ${FORBIDDEN[name]}`)
+        problems.push(`${rel} → ${field}.${name} is forbidden: ${FORBIDDEN[name]}`)
       }
       if (PINNED[name]) {
         const expected = PINNED[name]
@@ -80,8 +80,8 @@ for (const manifestPath of findPackageJsons(ROOT)) {
         const viaCatalog = range === 'catalog:' || range.startsWith('catalog:')
         if (!viaCatalog && range !== expected) {
           problems.push(
-            `${rel} → ${field}.${name} = "${range}", atteso il pin esatto "${expected}" ` +
-              `(o "catalog:"). Un range piu' largo duplica il pacchetto in bundle.`,
+            `${rel} → ${field}.${name} = "${range}", expected the exact pin "${expected}" ` +
+              `(or "catalog:"). A wider range duplicates the package in the bundle.`,
           )
         }
       }
@@ -89,7 +89,7 @@ for (const manifestPath of findPackageJsons(ROOT)) {
   }
 }
 
-// --- 2. Controllo del catalog in pnpm-workspace.yaml ------------------------
+// --- 2. Checking the catalog in pnpm-workspace.yaml -------------------------
 
 const workspaceFile = join(ROOT, 'pnpm-workspace.yaml')
 if (existsSync(workspaceFile)) {
@@ -97,12 +97,14 @@ if (existsSync(workspaceFile)) {
   for (const [name, expected] of Object.entries(PINNED)) {
     const match = yaml.match(new RegExp(`^\\s+${name}:\\s*(\\S+)\\s*$`, 'm'))
     if (match && match[1] !== expected) {
-      problems.push(`pnpm-workspace.yaml → catalog.${name} = "${match[1]}", atteso "${expected}".`)
+      problems.push(
+        `pnpm-workspace.yaml → catalog.${name} = "${match[1]}", expected "${expected}".`,
+      )
     }
   }
   for (const name of Object.keys(FORBIDDEN)) {
     if (new RegExp(`^\\s+${name}:`, 'm').test(yaml)) {
-      problems.push(`pnpm-workspace.yaml → catalog.${name} e' vietato: ${FORBIDDEN[name]}`)
+      problems.push(`pnpm-workspace.yaml → catalog.${name} is forbidden: ${FORBIDDEN[name]}`)
     }
   }
 }
@@ -121,8 +123,8 @@ if (existsSync(store)) {
     }
     if (versions.size > 1) {
       problems.push(
-        `node_modules/.pnpm contiene ${versions.size} versioni di ${pkg}: ` +
-          `${[...versions].sort().join(', ')}. Deve essercene una sola.`,
+        `node_modules/.pnpm holds ${versions.size} versions of ${pkg}: ` +
+          `${[...versions].sort().join(', ')}. There must be only one.`,
       )
     }
   }

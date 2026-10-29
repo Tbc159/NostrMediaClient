@@ -27,15 +27,15 @@ jobs:
       - name: Installa le dipendenze
         run: pnpm install --frozen-lockfile
 
-      # Blinda le trappole dell'ADR 0002: applesauce-factory duplicherebbe
-      # applesauce-core, e un range largo su nostr-tools lo duplicherebbe a
-      # sua volta. Gira per primo: se fallisce, il resto e' rumore.
+      # Armours the traps of ADR 0002: applesauce-factory would duplicate
+      # applesauce-core, and a wide range on nostr-tools would duplicate that
+      # in turn. It runs first: if it fails, the rest is noise.
       - name: Guardia sulle dipendenze critiche
         run: pnpm guard:deps
 
-      # L'app fa typecheck contro il `dist` dei pacchetti: su un checkout pulito
-      # non esiste, e il typecheck fallirebbe per un motivo che non c'entra con
-      # il codice. In locale non si notava perche' i pacchetti erano gia' compilati.
+      # The app typechecks against the packages' `dist`: on a clean checkout it
+      # does not exist, and the typecheck would fail for a reason unrelated to
+      # the code. Locally it went unnoticed because the packages were built.
       - name: Compila i pacchetti
         run: pnpm build:packages
 

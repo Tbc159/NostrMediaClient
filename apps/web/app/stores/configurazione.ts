@@ -193,7 +193,7 @@ export const useConfigurazione = defineStore('configurazione', () => {
     Object.values(override.value).some((v) => v !== undefined && v !== null),
   )
 
-  /** Forma grezza effettiva: ambiente con sopra le scelte dell'utente. */
+  /** The effective raw form: the environment with the user's choices on top. */
   const grezza = computed<RawEnv>(() => {
     const unione: RawEnv = { ...daAmbiente.value }
     for (const [k, v] of Object.entries(override.value)) {

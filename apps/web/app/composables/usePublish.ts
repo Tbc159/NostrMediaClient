@@ -27,7 +27,7 @@ export function usePublish() {
   const esito = ref<RisultatoPubblicazione | null>(null)
   const errore = ref<string | null>(null)
 
-  /** Relay di destinazione: quelli di scrittura configurati. */
+  /** The destination relays: the configured write ones. */
   const destinazioni = computed(() => config.value.writeRelays)
 
   function azzera(): void {

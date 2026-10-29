@@ -677,7 +677,7 @@ const valori = { nome, nomeVisualizzato, immagine, copertina, sito, nip05, lud16
                 hint="Obbligatoria per NIP-F4. Le piattaforme la vogliono quadrata, da 1400 a 3000 px: «Carica» e «Ritaglia» la sistemano."
               />
 
-              <!-- ── Categoria, lingua, explicit ── -->
+              <!-- ── Category, language, explicit ── -->
               <div class="flex flex-col gap-2">
                 <p class="text-sm font-medium">
                   Categoria
@@ -770,7 +770,7 @@ const valori = { nome, nomeVisualizzato, immagine, copertina, sito, nip05, lud16
                 </span>
               </label>
 
-              <!-- ── Siti ── -->
+              <!-- ── Websites ── -->
               <div class="flex flex-col gap-2">
                 <p class="text-sm font-medium">Siti</p>
                 <p class="text-xs text-[var(--testo-tenue)]">
@@ -808,7 +808,7 @@ const valori = { nome, nomeVisualizzato, immagine, copertina, sito, nip05, lud16
                 </div>
               </div>
 
-              <!-- ── Autori ── -->
+              <!-- ── Authors ── -->
               <div class="flex flex-col gap-2">
                 <p class="text-sm font-medium">Autori</p>
                 <p class="text-xs text-[var(--testo-tenue)]">

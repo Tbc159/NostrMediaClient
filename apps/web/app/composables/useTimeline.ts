@@ -1,9 +1,9 @@
 import { loadTimeline, type Filtro, type NostrEvent } from '@nmc/nostr-core'
 
 export interface OpzioniTimeline {
-  /** Relay da interrogare. Predefiniti: quelli di lettura configurati. */
+  /** The relays to query. By default: the configured read ones. */
   relays?: readonly string[]
-  /** Se caricare subito al montaggio. */
+  /** Whether to load straight away on mount. */
   immediato?: boolean
   timeoutMs?: number
 }
