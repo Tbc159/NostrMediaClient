@@ -408,7 +408,10 @@ export async function leggiFeedEsterno(xml: string, urlSorgente?: string): Promi
   if (conHtml > 0) {
     avvisi.push({
       codice: 'html-descrizioni',
-      testo: `${conHtml} episodi hanno descrizioni in HTML: vengono trasformate in testo semplice (YouTube rifiuta l’HTML) e le note in Markdown.`,
+      testo:
+        conHtml === 1
+          ? 'Un episodio ha la descrizione in HTML: diventa testo semplice (YouTube rifiuta l’HTML) e le note passano in Markdown.'
+          : `${conHtml} episodi hanno descrizioni in HTML: diventano testo semplice (YouTube rifiuta l’HTML) e le note passano in Markdown.`,
     })
   }
 

@@ -1,7 +1,5 @@
 import {
   dimensioni,
-  mirrorBlob,
-  uploadBlob,
   urlConEstensione,
   BlossomError,
   type BlobDescriptor,
@@ -128,14 +126,13 @@ async function misura(file: File): Promise<{ dim?: string; duration?: number }> 
 }
 
 export function useUpload() {
-  const identita = useIdentity()
-  const config = useClientConfig()
+  const blossom = useBlossom()
 
   const media = ref<MediaSelezionato[]>([])
   const fase = ref<FaseUpload>({ fase: 'inattivo' })
   const errore = ref<string | null>(null)
 
-  const server = computed(() => config.value.blossomServers)
+  const server = blossom.server
   const inCorso = computed(() => fase.value.fase !== 'inattivo')
 
   const daCaricare = computed(() => media.value.filter((m) => m.stato !== 'caricato'))
@@ -212,15 +209,8 @@ export function useUpload() {
   async function caricaSelezionati(): Promise<boolean> {
     errore.value = null
 
-    if (!identita.puoFirmare) {
-      errore.value =
-        identita.motivoNonFirmabile ??
-        'Serve un’identità che possa firmare: Blossom autorizza il caricamento con un evento firmato.'
-      return false
-    }
-    const primario = server.value[0]
-    if (!primario) {
-      errore.value = 'Nessun server Blossom configurato. Impostane uno dalle impostazioni.'
+    if (blossom.motivoNonCaricabile.value) {
+      errore.value = blossom.motivoNonCaricabile.value
       return false
     }
 
@@ -231,33 +221,13 @@ export function useUpload() {
       m.stato = 'in-corso'
       delete m.errore
       try {
-        fase.value = { fase: 'invio', nome: m.nome, server: primario }
-        // The name is what chooses the extension in the URL: an «.mp3» stays
-        // an «.mp3», instead of the «.mpga» the server would answer with.
-        const descrittore = await uploadBlob(primario, m.file, {
-          firma: (template) => identita.firma(template),
-          pubkey: identita.pubkey ?? '',
-          mime: m.mime,
-          nome: m.nome,
-        })
-
-        const copie = [primario]
-        for (const altro of server.value.slice(1)) {
-          fase.value = { fase: 'replica', nome: m.nome, server: altro }
-          try {
-            await mirrorBlob(altro, descrittore.url, descrittore.sha256, {
-              firma: (template) => identita.firma(template),
-              pubkey: identita.pubkey ?? '',
-              mime: m.mime,
-              nome: m.nome,
-            })
-            copie.push(altro)
-          } catch {
-            // The primary has the file: a missed mirror is less redundancy,
-            // not a failed upload.
-          }
-        }
-
+        const { descrittore, copie } = await blossom.carica(
+          m.file,
+          { mime: m.mime, nome: m.nome },
+          (passo, server) => {
+            fase.value = { fase: passo, nome: m.nome, server }
+          },
+        )
         m.descrittore = descrittore
         m.copie = copie
         m.stato = 'caricato'

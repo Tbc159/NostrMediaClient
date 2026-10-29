@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { TIPI_EPISODIO, type TipoEpisodio } from '../kinds/definitions/podcast.js'
 import type { ImetaInput } from '../kinds/imeta.js'
 import type { BlobDescriptor } from '../media/blossom.js'
 
@@ -50,6 +51,13 @@ export const bozzaEpisodioSchema = z.object({
     contenuto: z.string(),
     hashtag: z.array(z.string()),
     immagine: z.string().optional(),
+    // For an episode that comes from another host: optional, so the drafts
+    // saved before these fields existed still read as version 1.
+    guidOriginale: z.string().optional(),
+    publishedAt: z.number().int().positive().optional(),
+    stagione: z.number().int().positive().optional(),
+    numero: z.number().int().positive().optional(),
+    tipoEpisodio: z.enum(TIPI_EPISODIO).optional(),
   }),
   allegati: z.array(allegatoSchema),
 })
@@ -76,6 +84,11 @@ export interface BozzaEpisodio {
     contenuto: string
     hashtag: string[]
     immagine?: string
+    guidOriginale?: string
+    publishedAt?: number
+    stagione?: number
+    numero?: number
+    tipoEpisodio?: TipoEpisodio
   }
   allegati: AllegatoBozza[]
 }
@@ -117,6 +130,11 @@ export function creaBozzaEpisodio(dati: DatiBozzaEpisodio): BozzaEpisodio {
       contenuto: dati.episodio.contenuto,
       hashtag: dati.episodio.hashtag,
       ...(dati.episodio.immagine ? { immagine: dati.episodio.immagine } : {}),
+      ...(dati.episodio.guidOriginale ? { guidOriginale: dati.episodio.guidOriginale } : {}),
+      ...(dati.episodio.publishedAt ? { publishedAt: dati.episodio.publishedAt } : {}),
+      ...(dati.episodio.stagione ? { stagione: dati.episodio.stagione } : {}),
+      ...(dati.episodio.numero ? { numero: dati.episodio.numero } : {}),
+      ...(dati.episodio.tipoEpisodio ? { tipoEpisodio: dati.episodio.tipoEpisodio } : {}),
     },
     allegati: dati.allegati,
   }) as BozzaEpisodio

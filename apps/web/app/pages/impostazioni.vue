@@ -49,6 +49,25 @@ const strategie = [
   },
 ]
 
+/**
+ * The import's safety limit, edited in GB.
+ *
+ * Applied on change and not on every keystroke, like the endpoints: «0,» on
+ * the way to «0,5» is not a limit anyone meant.
+ */
+const limiteGb = ref(String(+(configurazione.limiteImportByte / 1024 ** 3).toFixed(2)))
+const erroreLimite = ref<string | null>(null)
+
+function salvaLimite(): void {
+  const gb = Number(limiteGb.value.replace(',', '.'))
+  if (!Number.isFinite(gb) || gb <= 0) {
+    erroreLimite.value = 'Scrivi un numero di GB maggiore di zero.'
+    return
+  }
+  erroreLimite.value = null
+  configurazione.impostaLimiteImport(gb * 1024 ** 3)
+}
+
 function salvaEndpoint(): void {
   salvato.value = false
   const esito = configurazione.applica({ ...bozzaEndpoint })
@@ -743,6 +762,30 @@ const etichettaModo: Record<string, string> = {
             </span>
           </label>
         </div>
+      </BaseCard>
+
+      <!-- ─────────── Podcast import ─────────── -->
+      <BaseCard
+        title="Importare un podcast"
+        subtitle="Quanto copiare su Blossom in una volta sola, quando porti qui un podcast da un altro host."
+      >
+        <form class="flex flex-wrap items-end gap-3" @submit.prevent="salvaLimite">
+          <BaseField
+            v-slot="{ id, describedBy }"
+            label="Limite di sicurezza per importazione (GB)"
+            hint="Oltre questo peso l’import procede a lotti: i più recenti prima, il resto rilanciandolo. Gli episodi già importati vengono saltati."
+            :error="erroreLimite ?? undefined"
+          >
+            <BaseInput
+              :id="id"
+              v-model="limiteGb"
+              :described-by="describedBy"
+              :invalid="!!erroreLimite"
+              inputmode="decimal"
+              @change="salvaLimite"
+            />
+          </BaseField>
+        </form>
       </BaseCard>
     </ClientOnly>
   </div>

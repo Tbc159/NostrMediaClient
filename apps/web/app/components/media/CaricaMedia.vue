@@ -10,6 +10,7 @@ import {
   type BozzaEpisodio,
   type DatiBozzaEpisodio,
   type Firmatario,
+  type TipoEpisodio,
 } from '@nmc/nostr-core'
 import { useConsegna } from '~/stores/consegna'
 import { useDeleghe } from '~/stores/deleghe'
@@ -57,7 +58,62 @@ const descrizione = ref('')
 const noteEpisodio = ref('')
 /** For the episodes alone: the image's URL, written or obtained by uploading it. */
 const immagineEpisodio = ref('')
+/*
+ * For an episode that comes from another host, or belongs to a series. The
+ * GUID and the first publication are what the apps know a moved episode by:
+ * copied by hand they keep it the same episode instead of a new one.
+ */
+const guidOriginale = ref('')
+/** `datetime-local`, in the browser's zone. */
+const primaPubblicazione = ref('')
+const stagione = ref('')
+const numeroEpisodio = ref('')
+const tipoEpisodio = ref<'' | TipoEpisodio>('')
 const hashtag = ref('')
+
+/** The series fields, as the kind 54 definition and the draft take them. */
+const datiSerie = computed(() => {
+  const intero = (v: string): number | undefined => {
+    const n = Number(v.trim())
+    return v.trim() !== '' && Number.isInteger(n) && n > 0 ? n : undefined
+  }
+  const quando = primaPubblicazione.value ? Date.parse(primaPubblicazione.value) : Number.NaN
+  return {
+    ...(guidOriginale.value.trim() ? { guidOriginale: guidOriginale.value.trim() } : {}),
+    ...(Number.isFinite(quando) ? { publishedAt: Math.floor(quando / 1000) } : {}),
+    ...(intero(stagione.value) ? { stagione: intero(stagione.value) as number } : {}),
+    ...(intero(numeroEpisodio.value) ? { numero: intero(numeroEpisodio.value) as number } : {}),
+    ...(tipoEpisodio.value ? { tipoEpisodio: tipoEpisodio.value } : {}),
+  }
+})
+
+/** Fills the series fields from an episode read back or a draft; `{}` clears them. */
+function applicaSerie(d: {
+  guidOriginale?: string
+  publishedAt?: number
+  stagione?: number
+  numero?: number
+  tipoEpisodio?: TipoEpisodio
+}): void {
+  guidOriginale.value = d.guidOriginale ?? ''
+  primaPubblicazione.value = d.publishedAt ? dataLocale(d.publishedAt) : ''
+  stagione.value = d.stagione ? String(d.stagione) : ''
+  numeroEpisodio.value = d.numero ? String(d.numero) : ''
+  tipoEpisodio.value = d.tipoEpisodio ?? ''
+}
+
+/** Unix seconds as the value of a `datetime-local` input, in the browser's zone. */
+function dataLocale(secondi: number): string {
+  const d = new Date(secondi * 1000)
+  const due = (n: number): string => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${due(d.getMonth() + 1)}-${due(d.getDate())}T${due(d.getHours())}:${due(d.getMinutes())}`
+}
+
+const tipiEpisodio = [
+  { value: '', label: 'Completo' },
+  { value: 'trailer', label: 'Trailer' },
+  { value: 'bonus', label: 'Bonus' },
+]
 const avvisoContenuto = ref('')
 const conAvviso = ref(false)
 
@@ -260,6 +316,7 @@ function componi(): void {
       ...(immagineEpisodio.value.trim() ? { image: immagineEpisodio.value.trim() } : {}),
       audio: audio.map((a) => ({ url: a.url, ...(a.mime ? { mime: a.mime } : {}) })),
       ...(durata ? { duration: durata } : {}),
+      ...datiSerie.value,
     })
     return
   }
@@ -300,6 +357,7 @@ function ricomincia(): void {
   descrizione.value = ''
   noteEpisodio.value = ''
   immagineEpisodio.value = ''
+  applicaSerie({})
   hashtag.value = ''
   avvisoContenuto.value = ''
   conAvviso.value = false
@@ -338,6 +396,7 @@ async function riprendi(id: string): Promise<void> {
     descrizione.value = trovato.kind === 54 ? (dati.description ?? '') : (dati.content ?? '')
     noteEpisodio.value = trovato.kind === 54 ? (dati.content ?? '') : ''
     immagineEpisodio.value = trovato.kind === 54 ? (dati.image ?? '') : ''
+    if (trovato.kind === 54) applicaSerie(dati)
     titolo.value = dati.title ?? ''
     hashtag.value = (dati.hashtags ?? []).join(' ')
     if (dati.contentWarning) {
@@ -439,6 +498,7 @@ const datiEpisodio = computed(() => ({
   contenuto: noteEpisodio.value.trim(),
   hashtag: listaHashtag.value,
   ...(immagineEpisodio.value.trim() ? { immagine: immagineEpisodio.value.trim() } : {}),
+  ...datiSerie.value,
 }))
 
 /** What is missing for the episode to be publishable. For the podcast alone. */
@@ -480,6 +540,7 @@ function applicaBozza(b: BozzaEpisodio): void {
   descrizione.value = b.episodio.descrizione
   noteEpisodio.value = b.episodio.contenuto
   immagineEpisodio.value = b.episodio.immagine ?? ''
+  applicaSerie(b.episodio)
   hashtag.value = b.episodio.hashtag.join(' ')
   upload.adotta(b.allegati)
 }
@@ -1005,6 +1066,44 @@ onMounted(async () => {
                 label="Immagine dell’episodio"
                 hint="Facoltativa. Un indirizzo, oppure carica un’immagine: passa dal ritaglio quadrato e va su Blossom."
               />
+
+              <details class="flex flex-col gap-3">
+                <summary class="cursor-pointer text-sm font-medium">
+                  Da un altro host, o in una serie
+                </summary>
+                <div class="mt-3 flex flex-col gap-3">
+                  <BaseField
+                    v-slot="{ id, describedBy }"
+                    label="GUID originale"
+                    hint="Solo per un episodio già pubblicato altrove: copialo dal vecchio feed (<guid>). Le app riconoscono gli episodi da questo, e con un GUID diverso lo mostrerebbero come nuovo."
+                  >
+                    <BaseInput :id="id" v-model="guidOriginale" :described-by="describedBy" />
+                  </BaseField>
+                  <BaseField
+                    v-slot="{ id, describedBy }"
+                    label="Data di prima pubblicazione"
+                    hint="La data in cui l’episodio è uscito la prima volta: il feed la usa per l’ordine. Vuota: adesso."
+                  >
+                    <BaseInput
+                      :id="id"
+                      v-model="primaPubblicazione"
+                      type="datetime-local"
+                      :described-by="describedBy"
+                    />
+                  </BaseField>
+                  <div class="grid gap-3 sm:grid-cols-3">
+                    <BaseField v-slot="{ id }" label="Stagione">
+                      <BaseInput :id="id" v-model="stagione" type="number" />
+                    </BaseField>
+                    <BaseField v-slot="{ id }" label="Numero">
+                      <BaseInput :id="id" v-model="numeroEpisodio" type="number" />
+                    </BaseField>
+                    <BaseField v-slot="{ id }" label="Tipo">
+                      <BaseSelect :id="id" v-model="tipoEpisodio" :options="tipiEpisodio" />
+                    </BaseField>
+                  </div>
+                </div>
+              </details>
             </template>
 
             <BaseField

@@ -333,6 +333,32 @@ export interface FileDaCaricare {
   sha256?: string
 }
 
+/** What `HEAD /upload` answered: the status, and the reason when the server gives one. */
+interface RispostaPreUpload {
+  stato: number
+  /** BUD-06's `X-Reason`: the server's own words, e.g. its size limit. */
+  ragione?: string
+}
+
+async function domandaUpload(
+  server: string,
+  file: FileDaCaricare,
+  opzioni: { fetch?: typeof globalThis.fetch; segnale?: AbortSignal },
+): Promise<RispostaPreUpload> {
+  const base = server.replace(/\/+$/, '')
+  const risposta = await (opzioni.fetch ?? globalThis.fetch)(`${base}/upload`, {
+    method: 'HEAD',
+    headers: {
+      'X-Content-Type': file.mime,
+      'X-Content-Length': String(file.peso),
+      'X-SHA-256': file.sha256 ?? SHA_SEGNAPOSTO,
+    },
+    ...(opzioni.segnale ? { signal: opzioni.segnale } : {}),
+  })
+  const ragione = risposta.headers.get('x-reason')?.trim()
+  return { stato: risposta.status, ...(ragione ? { ragione } : {}) }
+}
+
 /**
  * The status `HEAD /upload` (BUD-06) answers for a file of this size and type.
  *
@@ -345,17 +371,7 @@ export async function statoUpload(
   file: FileDaCaricare,
   opzioni: { fetch?: typeof globalThis.fetch; segnale?: AbortSignal } = {},
 ): Promise<number> {
-  const base = server.replace(/\/+$/, '')
-  const risposta = await (opzioni.fetch ?? globalThis.fetch)(`${base}/upload`, {
-    method: 'HEAD',
-    headers: {
-      'X-Content-Type': file.mime,
-      'X-Content-Length': String(file.peso),
-      'X-SHA-256': file.sha256 ?? SHA_SEGNAPOSTO,
-    },
-    ...(opzioni.segnale ? { signal: opzioni.segnale } : {}),
-  })
-  return risposta.status
+  return (await domandaUpload(server, file, opzioni)).stato
 }
 
 export type EsitoPreUpload =
@@ -377,8 +393,9 @@ export async function accettaUpload(
   opzioni: { fetch?: typeof globalThis.fetch; segnale?: AbortSignal } = {},
 ): Promise<EsitoPreUpload> {
   let stato: number
+  let ragione: string | undefined
   try {
-    stato = await statoUpload(server, file, opzioni)
+    ;({ stato, ragione } = await domandaUpload(server, file, opzioni))
   } catch {
     return {
       esito: 'sconosciuto',
@@ -388,7 +405,7 @@ export async function accettaUpload(
   }
   if (stato >= 200 && stato < 300) return { esito: 'accettato' }
   if (stato === 413 || stato === 402 || stato === 415) {
-    return { esito: 'rifiutato', stato, motivo: spiegaStato(stato, hostDi(server), undefined) }
+    return { esito: 'rifiutato', stato, motivo: spiegaStato(stato, hostDi(server), ragione) }
   }
   return {
     esito: 'sconosciuto',

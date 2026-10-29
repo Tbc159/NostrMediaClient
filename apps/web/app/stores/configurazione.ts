@@ -43,9 +43,17 @@ interface Persistito {
   strategia?: StrategiaPubblicazione
   /** The external client chosen for each platform. */
   visualizzatori?: Partial<Record<PiattaformaClient, string>>
-  /** Client aggiunti a mano dall'utente. */
+  /** The clients the user added by hand. */
   visualizzatoriPersonali?: ClientEsterno[]
+  /** The import's safety limit, in bytes. */
+  limiteImportByte?: number
 }
+
+/**
+ * The default safety limit of a podcast import: 2 GB copied to Blossom in one
+ * go. Above it the import proceeds in batches; the user can raise it.
+ */
+export const LIMITE_IMPORT_PREDEFINITO = 2 * 1024 ** 3
 
 /** The fields shown in the interface, with an explanation of what they change. */
 export interface CampoEndpoint {
@@ -112,6 +120,7 @@ export const useConfigurazione = defineStore('configurazione', () => {
   const daAmbiente = ref<RawEnv>({})
   const override = ref<OverrideEndpoint>({})
   const strategia = ref<StrategiaPubblicazione>('sequenziale')
+  const limiteImportByte = ref(LIMITE_IMPORT_PREDEFINITO)
 
   /**
    * The external clients to open an already published event with.
@@ -221,6 +230,10 @@ export const useConfigurazione = defineStore('configurazione', () => {
       strategia.value = salvato.strategia ?? 'sequenziale'
       visualizzatori.value = salvato.visualizzatori ?? {}
       visualizzatoriPersonali.value = salvato.visualizzatoriPersonali ?? []
+      limiteImportByte.value =
+        typeof salvato.limiteImportByte === 'number' && salvato.limiteImportByte > 0
+          ? salvato.limiteImportByte
+          : LIMITE_IMPORT_PREDEFINITO
     }
   }
 
@@ -229,10 +242,15 @@ export const useConfigurazione = defineStore('configurazione', () => {
     try {
       localStorage.setItem(
         CHIAVE_STORAGE,
+        // Every persisted field, or the ones left out are lost on reload: it
+        // was the case of the external clients, saved in memory only.
         JSON.stringify({
           override: override.value,
           strategia: strategia.value,
-        } satisfies Persistito),
+          visualizzatori: visualizzatori.value,
+          visualizzatoriPersonali: visualizzatoriPersonali.value,
+          limiteImportByte: limiteImportByte.value,
+        } satisfies Required<Persistito>),
       )
     } catch {
       // Storage full or denied: the choice holds for this session.
@@ -280,6 +298,12 @@ export const useConfigurazione = defineStore('configurazione', () => {
     salva()
   }
 
+  function impostaLimiteImport(byte: number): void {
+    if (!Number.isFinite(byte) || byte <= 0) return
+    limiteImportByte.value = Math.round(byte)
+    salva()
+  }
+
   /** The value currently in force for a field, however it was arrived at. */
   function valoreDi(chiave: keyof OverrideEndpoint): string {
     return (grezza.value[chiave] ?? '').toString()
@@ -293,6 +317,8 @@ export const useConfigurazione = defineStore('configurazione', () => {
   return {
     override,
     strategia,
+    limiteImportByte,
+    impostaLimiteImport,
     visualizzatori,
     visualizzatoriPersonali,
     visualizzatoriDisponibili,

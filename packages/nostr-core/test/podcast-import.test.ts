@@ -350,6 +350,13 @@ describe('copying files from the old host', () => {
       esito: 'rifiutato',
       stato: 402,
     })
+    // The server's own reason, when it gives one, reaches the user.
+    const conRagione: typeof fetch = async () =>
+      new Response(null, { status: 413, headers: { 'X-Reason': 'massimo 100 MB' } })
+    expect(await accettaUpload('https://b.example', file, { fetch: conRagione })).toMatchObject({
+      esito: 'rifiutato',
+      motivo: expect.stringContaining('«massimo 100 MB»'),
+    })
     // A 401 tells nothing about the size: the upload goes ahead.
     expect(await accettaUpload('https://b.example', file, { fetch: risponde(401) })).toMatchObject({
       esito: 'sconosciuto',
