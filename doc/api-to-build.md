@@ -813,6 +813,132 @@ TESTS
   - the feed tag absent: no itunes:new-feed-url at all, whatever the request.
 ```
 
+### Prompt M — Managed subdomains on the NMC domain
+
+To deliver **when the NMC domain exists**, before Prompt L. A creator without a
+domain of their own gets a stable feed address the operator manages:
+`mariarossi.<NMC domain>`. The client already has the whole flow, running on a
+simulation that calls nothing; this prompt is what replaces the simulation,
+with no client change — the operator only turns on
+`NUXT_PUBLIC_FEED_DOMINI_GESTITI` once these endpoints answer. Only the block.
+
+```
+Repository: microservice-media-manager, feed domain, branch develop.
+Depends on Prompt K (the feed tag drives self and new-feed-url).
+
+DOMAINS
+  api.<NMC domain>       the current APIs; becomes the client's default
+                         technical address in place of mediamanager-dev.duckdns.org,
+                         which keeps answering (or 301s to api.) until the
+                         creators' intermediaries have been updated.
+  *.<NMC domain>         one wildcard DNS record and one wildcard certificate
+                         (DNS-01 challenge). ONE nginx server block for every
+                         subdomain, routing by Host to the feed of the key the
+                         name belongs to. No file per creator.
+
+ENDPOINTS
+  GET  /v0/feed/domini/capacita
+       200 { "sottodomini": "<NMC domain>", "cname": false }
+       What the service offers. The client shows the managed modes as active
+       only when this says so AND its own switch is on.
+
+  GET  /v0/feed/sottodomini/{nome}
+       200 { "libero": true|false, "motivo"?: "…" }
+       Name rules, the same the client checks: a DNS label, a-z 0-9 and
+       hyphen, 3 to 63 characters, no hyphen at either end, not starting with
+       "xn--", not reserved (admin api app blossom cdn dev docs feed feeds ftp
+       help imap mail media nmc ns1 ns2 pop relay root smtp staging static
+       status support test www). Case-insensitive, stored lowercase.
+
+  POST /v0/feed/sottodomini            body { "nome": "mariarossi" }
+       Authorization: Nostr <base64 of a kind 27235 event>   (NIP-98)
+       Check, in this order, and answer 401 with a reason on any failure:
+         - the event's signature;
+         - kind 27235;
+         - tag u == the exact URL called (scheme, host, path, query);
+         - tag method == POST;
+         - tag payload == sha256 hex of the exact request body;
+         - created_at within 60 seconds of now.
+       The key that signed it is the podcast's key: the name is bound to that
+       pubkey. First come, first served: 409 if the name is taken. One name
+       per key (409 with a reason if the key already has one). Rate limited.
+       201 { "url": "https://mariarossi.<NMC domain>/feed.xml" }
+
+  https://<nome>.<NMC domain>/feed.xml
+       the feed of the bound key, exactly as /v0/feed/<npub>.xml, with CORS *
+       and the same ETag. Self link and new-feed-url come from the 10154's feed
+       tag (Prompt K), which the client writes with this very URL after the 201.
+
+  POST /v0/feed/sottodomini/{nome}/uscita   body { "nuovo": "<https url>" }
+       NIP-98 as above, signed by the bound key. From then on the subdomain
+       answers 301 to the new feed, for at least four weeks and normally for
+       ever. This is the commitment the client tells the creator about: the
+       name is the operator's, but leaving does not cost them their listeners.
+
+NOT TO DO
+  - No accounts, passwords or API keys for these endpoints: the signed request
+    is the authentication.
+  - No per-creator nginx files, no per-creator certificates.
+  - Never free a name that has an exit redirect in place.
+
+TESTS
+  - a valid NIP-98 POST binds the name; the same name again is 409; a second
+    name for the same key is 409.
+  - each NIP-98 check failing on its own gives 401 with its reason (wrong u,
+    wrong method, payload of another body, stale created_at, bad signature,
+    another kind).
+  - a reserved or malformed name is refused by both endpoints.
+  - Host: mariarossi.<NMC domain> serves the bound key's feed; an unbound name
+    is 404.
+  - after uscita, the subdomain answers 301 to the new URL.
+```
+
+### Prompt L — Custom domains through a CNAME
+
+After Prompt M, whose routing by Host it reuses. A creator who owns a domain
+points it at the service with a CNAME instead of running an intermediary. The
+name stays theirs. Only the block.
+
+```
+Repository: microservice-media-manager, feed domain, branch develop.
+Depends on Prompt M.
+
+TARGET
+  feeds.<NMC domain>   the CNAME target of every creator's domain. It must
+                       exist for ever: every CNAME out there points at it.
+
+ENDPOINTS
+  GET  /v0/feed/domini/capacita   now { "sottodomini": "<NMC domain>", "cname": true }
+
+  POST /v0/feed/domini            body { "dominio": "feed.mariarossi.it" }
+       NIP-98 exactly as in Prompt M, signed by the podcast's key.
+       Accepted only when BOTH records are in place:
+         CNAME  feed.mariarossi.it        → feeds.<NMC domain>
+         TXT    _nmc.feed.mariarossi.it   = <npub of the signing key>
+       The TXT is the proof of ownership: it settles two keys claiming the
+       same domain. 409 if another key holds the domain.
+       200 { "attivo": true, "url": "https://feed.mariarossi.it/feed.xml" }
+         when the records are seen and the certificate is issued;
+       202 { "attivo": false } while waiting for DNS: the client tells the
+         creator to come back after adding the records.
+
+CERTIFICATES
+  Issued on demand, ONLY for domains declared and proven through the endpoint
+  above (an "ask" endpoint for the automatic issuance, e.g. Caddy's
+  on_demand_tls ask). Nobody can exhaust the Let's Encrypt limits by pointing
+  random domains at the service.
+
+ROUTING
+  The same Host routing as Prompt M: a declared domain serves the feed of the
+  key that proved it.
+
+TESTS
+  - CNAME and TXT present: 200 attivo; TXT with another npub: refused; TXT
+    missing: 202.
+  - the ask endpoint says yes for a proven domain and no for any other.
+  - a second key declaring a proven domain: 409.
+```
+
 ## 4. From the old repository: what is worth porting
 
 `microservices-media` (branch `dev`, service `ffmpeg`) exposes today:
@@ -878,6 +1004,17 @@ works.
 archive, `copertina` or `composita` composition, preview, download or back to
 Blossom. Its UX needs revising before it goes to `main`: you compose blind, the
 ingredients disappear on reload, there are no thumbnails.
+
+**Moving a podcast and its stable address** (branch
+`feature/migrazione-podcast`) — the client already writes every tag Prompt K
+reads: the inherited identities, `published_at`, the numbering, the
+Podcasting 2.0 data, and the `feed` tag with the creator's stable address. Two
+consequences while K is not deployed: the feed still dates imported episodes
+by `created_at` and gives them new GUIDs, so **no redirect from an old host
+should be done yet** — the client's parity check says so; and the feed's self
+link is the technical address, so the client does not hand out the stable one
+either, because it cannot be verified as the feed's own. The managed modes
+(Prompts L and M) run on a simulation until the NMC domain exists.
 
 No feature was added: `analyze`, `split`, `concat`, the `social` and `slide`
 presets and the font catalogue exist in the contract and do not yet have a

@@ -349,6 +349,161 @@ explained above. For the second case there is «Redistribute to the relays», in
 that card and in the podcast card: it sends the card and the episodes, already
 signed, to every write relay.
 
+## Stable address and moving from another host
+
+A podcast that already lives elsewhere — Spotify for Creators, Anchor,
+Buzzsprout — has listeners, a place in every directory, Lightning splits and
+comments attached to it. Moving it to NMC must not cost any of that. The apps
+only see the feed, so the question is narrow: **after the old host's redirect,
+does the new feed look like the same podcast, with the same episodes?** Three
+things decide it, and the client now writes all three into the events.
+
+### What makes it the same podcast
+
+- **The show's identity, `podcast:guid`.** Podcast Index, and through it
+  Fountain, Podverse and the others, knows a show by this UUID. Podcasting 2.0
+  says it is computed once, from the first feed's address, and **inherited by
+  every later host**. An old feed that does not declare one still has one: the
+  UUIDv5 of its address, which is what the import computes (from the address
+  the feed declares for itself, falling back to the one it was read from).
+  NMC writes it on the 10154 as a NIP-73 identifier and never recomputes it.
+- **The episodes' GUIDs.** Apple documents that it matches episodes by GUID:
+  change it and the episode appears twice, with its statistics reset. NMC's
+  feed used the event id as the GUID; an imported episode now carries its
+  original GUID as a NIP-73 identifier, and the feed uses that.
+- **The original dates.** `created_at` is the moment of signing, which for an
+  import is today. The original date goes in `published_at` (as NIP-23 and
+  NIP-71 do), and the feed uses it for `<pubDate>` and for the order.
+
+### The tags NMC adds to NIP-F4
+
+NIP-F4 has no field for any of this. These are NMC's conventions, read by the
+feed service (Prompt K in [`doc/api-to-build.md`](../doc/api-to-build.md)) and
+by any client that wants them.
+
+| Tag                                                                                   | On           | Feed element                                           |
+| ------------------------------------------------------------------------------------- | ------------ | ------------------------------------------------------ |
+| `["i", "podcast:item:guid:<guid>"]` + `["k", "podcast:item:guid"]`                    | 54           | `<guid>` (NIP-73)                                      |
+| `["i", "podcast:guid:<uuid>"]` + `["k", "podcast:guid"]`                              | 10154        | `<podcast:guid>` (NIP-73)                              |
+| `["published_at", "<unix>"]`                                                          | 54           | `<pubDate>` and the order                              |
+| `["season", "<n>"]`, `["episode", "<n>"]`, `["episode-type", "full\|trailer\|bonus"]` | 54           | `itunes:` and `podcast:` season, episode, episodeType  |
+| `["transcript", "<url>", "<mime>"]`, `["chapters", "<url>", "<mime>"]`                | 54           | `<podcast:transcript>`, `<podcast:chapters>`           |
+| `["feed", "<url>"]`                                                                   | 10154        | `<atom:link rel="self">`, `<itunes:new-feed-url>`      |
+| `["author", "<name>"]`, `["type", "episodic\|serial"]`                                | 10154        | `<itunes:author>`, `<itunes:type>`                     |
+| `["value", …]`, `["value-recipient", …]`                                              | 54 and 10154 | `<podcast:value>` with its `<podcast:valueRecipient>`s |
+| `["person", "<name>", "<role>", "<group>", "<img>", "<href>"]`                        | 54 and 10154 | `<podcast:person>`                                     |
+| `["funding", "<url>", "<text>"]`                                                      | 10154        | `<podcast:funding>`                                    |
+
+Positional tags drop their empty trailing values. The definitions are in
+[`podcast.ts`](../packages/nostr-core/src/kinds/definitions/podcast.ts) and
+[`podcast-extra.ts`](../packages/nostr-core/src/kinds/podcast-extra.ts).
+
+### The stable address
+
+Once an app has subscribed, the feed's URL **is** the podcast. Moving it again
+means another redirect, kept for weeks, and it is only possible while the old
+name is still yours. So the address NMC hands out is never the service's
+technical one (`…/v0/feed/<npub>.xml`): it is an address the creator chose,
+written in the 10154's `feed` tag so it follows the key to every device.
+**Without a stable address that has passed its check, NMC shows no feed URL,
+generates no OPML and offers no submission link.** A new podcast without a
+domain of its own therefore waits for the NMC domain; that is deliberate.
+
+| Way                                      | How the domain reaches the feed                                                                              | Whose name                                                         | State       |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ | ----------- |
+| **1. Your domain, with an intermediary** | Your reverse proxy (Caddy, nginx, a Cloudflare Worker) asks the service for the feed and answers with a 200  | Yours                                                              | Active      |
+| **2. Your domain, via CNAME**            | A CNAME to `feeds.<NMC domain>` and a TXT `_nmc.<domain>` with your npub; the service issues the certificate | Yours                                                              | Coming soon |
+| **3. An NMC subdomain**                  | `<name>.<NMC domain>`, set up by the operator                                                                | The operator's, who commits to a 301 to your new feed if you leave | Coming soon |
+
+**Never an HTTP redirect in front of the service**: the apps follow a 301 and
+remember where it lands, which would be the technical address again.
+
+The check («Verify address», in the podcast card) downloads the stable address
+and the technical one and requires the same `podcast:guid` and the same episode
+GUIDs. It tells apart a redirect (wrong configuration), an address the browser
+cannot read (nearly always an intermediary that does not pass the service's
+CORS header on) and another feed. The feed's own self link can only name the
+stable address once the card carries it and the service reads it (Prompt K):
+until then the address is written but not yet handed out.
+
+Ways 2 and 3 need the NMC domain. They appear as «Coming soon» and can be tried
+end to end on a simulation that calls nothing, signs nothing and writes no
+`feed` tag; the simulated subdomain is always `<name>.<suffix>`
+(`NUXT_PUBLIC_FEED_SUBDOMAIN_SUFFIX`, `duckdns.org` for now). They turn on only
+when the operator sets `NUXT_PUBLIC_FEED_DOMINI_GESTITI=true` **and** the
+service declares them in `GET /v0/feed/domini/capacita` (Prompts L and M). The
+real requests are signed with NIP-98 (kind 27235) by the podcast's key: that
+is how the service knows, without accounts, that a name belongs to a key.
+
+The service's own address is configuration, not code
+(`NUXT_PUBLIC_MEDIA_MANAGER_URL`, replaceable in the settings): when the APIs
+move to the NMC domain, the intermediaries pointing at the technical address
+need updating, but the creators' stable addresses do not change.
+
+### Which key
+
+Asked before the first card, on the import and in the profile: the active
+identity, or **a dedicated key** NMC creates. A dedicated key separates the
+show from the person, allows more than one podcast, and can one day be handed
+over. Creating it: the key is born encrypted (NIP-49) and its nsec is shown
+once, with an encrypted backup to download and a confirmation before anything
+is published; the personal key publishes its 10064 naming the new one; the new
+key publishes its profile (kind 0) and its relay list (kind 10002, which the
+feed service needs to find its events); then the active identity switches to
+it, and its card names the personal key as `host`. Both stay among the
+identities saved in the browser, each locked behind its own password.
+
+A key that already carries a podcast is protected: if its card has a `feed`
+tag or links to the platforms, or the user says it is already distributed, the
+import will not replace it — two podcasts do not fit on one key, and replacing
+a distributed one would turn it into another show for everyone following it.
+
+### Moving a podcast, step by step
+
+1. **Import** (_Media → Podcast → Import a podcast from another host_). Read
+   the old feed by URL, or paste it. A feed with `<podcast:locked>yes` stops
+   here: the old host protects it, and it has to be unlocked there. The preview
+   shows the inherited identity, the warnings, what will not be carried
+   (`podcast:soundbite`, `podcast:alternateEnclosure`, `podcast:location`,
+   `podcast:license`…), the Lightning split with the old host's fee recipient
+   unticked, and the episodes.
+2. **Choose the key**, then publish the card and the episodes. The files are
+   copied to Blossom by default — the podcast stops depending on the old host,
+   whose account can then be closed — or left at their original URLs. Each
+   file is asked about first (BUD-06 `HEAD /upload`): one the server refuses
+   keeps its original URL, with the reason beside it. Above the safety limit
+   (2 GB, in the settings) the import goes in batches, newest first; running
+   it again skips what is already on the key.
+3. **Set the stable address** in the podcast card and publish the card again.
+4. **Compare** (_RSS feed → Coming from another host?_) the old feed with
+   NMC's. It must say the redirect is safe: same identity, every old episode
+   under its GUID.
+5. **Redirect on the old host.** On Spotify for Creators it is a setting; the
+   account stays open, and the redirect must stay on for at least four weeks,
+   better for ever.
+6. **Do not resubmit** where the show already is: _Media → Podcast →
+   Platforms_ marks them, from the links saved at import. YouTube is the
+   exception, below.
+
+### The platforms
+
+| Platform                             | Follows the move                                                      | Knows the episodes by                                               |
+| ------------------------------------ | --------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| Spotify                              | A redirect setting in Spotify for Creators; show and followers stay   | Not documented                                                      |
+| Apple Podcasts                       | 301 plus `<itunes:new-feed-url>` in the new feed, at least four weeks | GUID, documented: a new GUID means a duplicate and reset statistics |
+| Amazon Music                         | No specific documentation; follows the 301 in practice                | Guides advise against changing episode IDs                          |
+| YouTube                              | Not documented: relink the feed in Studio                             | Not documented; import only the episodes after the last one it has  |
+| Podcast Index                        | Follows the 301 in practice                                           | The show by `podcast:guid`, which the new host must inherit         |
+| Fountain (and Podverse, Castamatic…) | Reads from Podcast Index                                              | Ties Nostr comments and boosts to show and episodes through NIP-73  |
+
+YouTube needs care of its own. It turns the feed into videos: unlink the old
+feed in YouTube Studio, link the new one, and start from the episodes
+published after the newest one YouTube already has — NMC proposes the date of
+the newest imported episode. Titles and descriptions must carry no HTML (the
+import turns descriptions into plain text), an episode's audio cannot be
+replaced after YouTube has ingested it, and the ownership check goes to the
+feed's email.
+
 ## The tags we do not know, and the `client` tag
 
 Every event that leaves here carries `["client", "NostrMediaClient"]`
@@ -389,6 +544,18 @@ where they are starting from:
   podcast** that already has published episodes: nothing intercepts it,
   because "rotating the key" is, to the client, simply "using a different
   identity", indistinguishable from any other key change.
+- **The managed stable addresses wait for the NMC domain.** Until then the
+  only active way is the creator's own intermediary; a podcast without a
+  domain of its own does not get a feed URL from NMC.
+- **The redirect itself is the creator's to do**, on the old host's panel, and
+  so is YouTube Studio: NMC checks parity and guides, it has no access to
+  either.
+- **Episodes born on a key before an import stay in its feed.** The client
+  cannot delete events (no kind 5 yet): the import lists them, and the way out
+  is a dedicated key.
+- **Some Podcasting 2.0 tags are not carried**: soundbites, alternate
+  enclosures, location, licence, value time splits. The import lists them, with
+  how many episodes use them, before anything is published.
 
 ## References
 
@@ -403,5 +570,19 @@ where they are starting from:
   NIP-46 desk and delegation, with [`delegated-signing.test.ts`](../packages/nostr-core/test/delegated-signing.test.ts).
 - [`packages/nostr-core/src/feed/index.ts`](../packages/nostr-core/src/feed/index.ts) —
   reading and verifying the feed, OPML generator, with [`feed.test.ts`](../packages/nostr-core/test/feed.test.ts).
+- [`packages/nostr-core/src/podcast/import.ts`](../packages/nostr-core/src/podcast/import.ts) —
+  reading another host's feed, with [`podcast-import.test.ts`](../packages/nostr-core/test/podcast-import.test.ts)
+  and the fixtures beside it.
+- [`packages/nostr-core/src/feed/indirizzo.ts`](../packages/nostr-core/src/feed/indirizzo.ts) —
+  the stable address: subdomain names, CNAME records, the same-feed check, with
+  [`stable-address.test.ts`](../packages/nostr-core/test/stable-address.test.ts).
+- [`packages/nostr-core/src/kinds/definitions/http-auth.ts`](../packages/nostr-core/src/kinds/definitions/http-auth.ts) —
+  NIP-98, the signed requests of the managed domains.
+- [Podcasting 2.0 `podcast:guid`](https://podcasting2.org/docs/podcast-namespace/tags/guid),
+  [NIP-73](https://github.com/nostr-protocol/nips/blob/master/73.md),
+  [Apple: changing the RSS feed URL](https://podcasters.apple.com/support/change-the-rss-feed-url),
+  [Spotify for Creators: switching away with a 301 redirect](https://support.spotify.com/us/creators/article/switching-away-from-spotify-for-creators-with-a-301-redirect/),
+  [YouTube: delivering podcasts by RSS](https://support.google.com/youtube/answer/13525207?hl=en).
 - [`doc/api-to-build.md`](../doc/api-to-build.md) — the prompts for the
-  external service (audio domain, feed domain).
+  external service (audio domain, feed domain; K, L and M for the move and the
+  stable address).

@@ -514,6 +514,59 @@ It also keeps test events off the public relays.
 
 ---
 
+## Moving a podcast from another host (branch `feature/migrazione-podcast`) · DONE, NOT MERGED
+
+The goal: a podcast born on Spotify for Creators (or any host) moves to NMC
+without losing episodes, order, identity or listeners, and lands on a feed
+address its creator owns. The analysis was done on the real test feed
+`https://anchor.fm/s/117e26658/podcast/rss`; the design is in
+[`docs/PODCAST.md`](PODCAST.md), «Stable address and moving from another
+host». The branch stays unmerged until it has been tried by hand: `main` has
+real users.
+
+| Stage | Content                                                                                                        | Commit    |
+| ----- | -------------------------------------------------------------------------------------------------------------- | --------- |
+| 1     | Data model: NIP-73 identities, `published_at`, numbering, Podcasting 2.0 tags, kind 10002; Prompt K            | `35c9bf0` |
+| 2     | Reading other hosts' feeds, the parity comparison, BUD-06 pre-upload question                                  | `1e38289` |
+| 3     | The import: preview, `podcast:locked`, Blossom copies with a 2 GB limit and batches, reruns without duplicates | `9e87de4` |
+| 4     | Which key: the question, the dedicated key, saved identities and «Cambia identità»                             | `25718d8` |
+| 5     | The stable address: the gate on the URL, the intermediary's check, managed domains as «coming soon», NIP-98    | `e153aaf` |
+| 6     | Parity check before the redirect; platforms where the show already is, YouTube's start date                    | `e9f41c0` |
+| 7     | This documentation, Prompts L and M                                                                            | —         |
+
+### How it was verified
+
+- **Unit tests** for every core piece: the UUIDv5 vectors, the tags' build and
+  parse, the three fixtures (the real Anchor feed, a complete synthetic one, a
+  locked one), the comparison, the subdomain and domain rules, NIP-98.
+- **Five browser runs**, headless Firefox through WebDriver, against local
+  fakes only — a NIP-01 relay, a Blossom server that answers 413 above a set
+  size, the old host serving the fixtures, a feed service that behaves as
+  Prompt K asks, three intermediaries (correct, without CORS, a 301) and the
+  managed-domain endpoints checking NIP-98. Nothing was published to a public
+  relay. They cover the import with both file choices, the locked feed, the
+  card already on a key (distributed and not), the dedicated key end to end,
+  switching identities, the address gate, the managed modes with the switch
+  off and on, the parity check and the platforms. The fakes and the drivers
+  were throwaway tools and are not in the repository.
+
+### What is waiting, and on whom
+
+1. **Prompt K deployed on the media-manager.** Until then the feed dates
+   imported episodes by `created_at`, gives them new GUIDs and declares the
+   technical address as its own: the parity check says the redirect is not
+   safe, and the stable address is written but not handed out. No redirect
+   from an old host should be done before it.
+2. **A real run, on confirmation**: import the test show, then compare with
+   the Anchor feed, which must give full parity (same GUIDs, same dates,
+   `podcast:guid` `2977094a-…`). It publishes to real relays, so it waits for
+   an explicit go-ahead. The redirect on Spotify is a separate decision, after.
+3. **The NMC domain**, for Prompts M then L. The client side is ready: the
+   operator turns on `NUXT_PUBLIC_FEED_DOMINI_GESTITI` and moves
+   `NUXT_PUBLIC_MEDIA_MANAGER_URL` to `api.<NMC domain>`.
+
+---
+
 ## Next step: the rest of Phase 1
 
 Done in this round: `relays/` — pool, publishing with a per-relay outcome,
@@ -527,7 +580,9 @@ reading with deduplication. Still missing:
    Today every page change re-reads from the relays: it works, but it is
    wasted traffic.
 3. `signers/` — NIP-46 bunker (NIP-07 and NIP-49 already done).
-4. The remaining `kinds/definitions/`: 3 (follows), 5 (deletion), 10002.
+4. The remaining `kinds/definitions/`: 3 (follows), 5 (deletion). Kind 10002
+   exists since the podcast move (a dedicated key publishes one); the outbox
+   resolver in point 1 still does not.
 5. `nostr-vue`: `useAccount`, `useProfile`, `useEvent` — `useTimeline` lives in
    `apps/web` for now, to be promoted when more than one app needs it.
 

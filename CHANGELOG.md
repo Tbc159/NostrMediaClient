@@ -21,6 +21,129 @@ Two things are worth knowing when reading what follows:
 
 ---
 
+## 2026-10-30 — Moving a podcast to NMC without losing it
+
+Developed on `feature/migrazione-podcast`. A podcast that already lives on
+another host can now move to NMC keeping what its creator built there: the
+episodes with their GUIDs and original dates, the show's identity in Podcast
+Index and Fountain, its Lightning split and its listeners on every platform.
+And a podcast's feed now has an address its creator owns, instead of the
+service's. The analysis behind it was done on the real test feed
+`https://anchor.fm/s/117e26658/podcast/rss`, and the whole design is in
+`docs/PODCAST.md`, «Stable address and moving from another host».
+
+### Added
+
+- **Import a podcast from another host** (_Media → Podcast_). Read the old feed
+  by URL, or paste it, or load the file. The preview shows the show's card with
+  every field editable, the identity it will inherit, the warnings, the
+  Podcasting 2.0 elements that will not be carried with how many episodes use
+  them, the Lightning split one recipient per row, and the episodes with date,
+  duration, season and number. Then the card is published, and the episodes one
+  at a time, each with its own outcome.
+- **A locked feed stops the import.** When the old feed declares
+  `<podcast:locked>yes</podcast:locked>` nothing is imported: the old host is
+  protecting the show from being copied, and the page says to unlock it there,
+  showing the owner's declared email.
+- **The files go to Blossom, or stay where they are.** By default audio,
+  images, transcripts, chapters and the show's cover are copied to Blossom, so
+  the podcast stops depending on the old host and its account can be closed.
+  The alternative keeps the original URLs. An episode without a GUID keeps its
+  original URL by default: the apps know it by that address.
+- **Blossom is asked before downloading.** Each file is announced to the server
+  with BUD-06 `HEAD /upload`; a 413, 402 or 415 leaves that episode at its
+  original address, with the server's reason beside it, instead of failing
+  after a long download.
+- **A safety limit on what one import copies**: 2 GB by default, editable in
+  _Settings → Importing a podcast_. Above it the import proposes the newest
+  episodes that fit, and the rest goes in later batches: running the import
+  again skips what is already on the key, recognised by the original GUID or,
+  without one, by title and date.
+- **The old host's fee recipient is left out** of the Lightning split by
+  default: hosts usually add themselves to it as a fee, and after the move they
+  should no longer get a share of the boosts.
+- **«Which key does the podcast live on»**, asked before the first card, on the
+  import and in the profile. The active identity, or a **dedicated key** NMC
+  creates: it separates the show from the person, allows more than one
+  podcast, and can one day be handed over. The new key is encrypted with its
+  own password (NIP-49), its nsec is shown once with an encrypted backup to
+  download, and nothing is published until the user confirms it is safe. Then
+  the personal key publishes its 10064 naming the new one, the new key
+  publishes its profile and its relay list, the active identity switches to
+  it, and its card names the personal key as `host`.
+- **Saved identities.** Every identity used in the browser stays in a list,
+  local keys encrypted as before. «Cambia identità» in the header and
+  _Settings → Identità salvate_ switch between them; one key is open at a time,
+  and a local key arrives locked until its password is given. «Aggiungi
+  un’altra identità» logs into one more without leaving the current one.
+- **A card already on the key is protected.** If it has a feed address or
+  links to the platforms, or the user says it is already distributed, the
+  import will not replace it and proposes a dedicated key. Otherwise each field
+  can be taken from the import or kept, other clients' tags survive, and the
+  episodes already on the key are listed because they will share the feed.
+- **The feed's stable address**, in the podcast card. The creator's own domain
+  through an intermediary of theirs is the way available today, with
+  ready-made Caddy, nginx and Cloudflare Worker configurations; «Verify
+  address» checks that it serves this key's feed, and tells a redirect, a
+  missing CORS header and another feed apart. A CNAME to the service and a
+  subdomain managed by NMC are shown as «Coming soon»: they can be tried end
+  to end on a simulation that calls nothing, signs nothing and saves nothing,
+  and they turn on only when `NUXT_PUBLIC_FEED_DOMINI_GESTITI` is set and the
+  service declares them.
+- **`podcast:guid` is written once.** An imported show inherits the old host's
+  (declared, or computed from the old feed's address as Podcast Index does); a
+  new one gets it from its stable address at the first publication that has
+  one. It is then shown read-only and never recomputed.
+- **The card's feed fields**: the author the feed signs with, episodic or
+  serial, the Lightning split with each share's percentage, the funding links
+  and the people.
+- **A parity check before the redirect** (_RSS feed → Coming from another
+  host?_): compares the old feed with NMC's and says whether the redirect is
+  safe, listing each difference as blocking or worth a look.
+- **Platforms where the show already is** are marked «già distribuito» with
+  «non risottomettere» instead of a submission link. For YouTube the card
+  explains how to relink the feed in Studio and proposes the start date from
+  the newest imported episode.
+- In the episode form, «Da un altro host, o in una serie»: original GUID, first
+  publication date, season, number and type.
+- Core: kind 10002 (NIP-65), kind 27235 (NIP-98) with `autorizzaRichiesta`,
+  `uuidV5` and `podcastGuidPerUrl`, `leggiFeedEsterno`, `confrontaFeed`,
+  `confrontaIndirizzoStabile`, `validaSottodominio`, `validaDominio`,
+  `recordCname`, `accettaUpload`, and the NIP-73, `published_at`, numbering and
+  Podcasting 2.0 tags on kinds 54 and 10154.
+- `doc/api-to-build.md`: Prompt K (the feed reads all of the above), Prompt M
+  (managed subdomains) and Prompt L (custom domains by CNAME).
+
+### Changed
+
+- **No feed URL without a stable, verified address.** The «RSS feed» card no
+  longer shows or copies the service's technical address, generates no OPML
+  and offers no submission guide until the card carries a stable address that
+  serves this feed under its own name; «Piattaforme» hides its «Sottoponi su»
+  buttons the same way. The technical address is still what NMC reads the feed
+  from, to check it. A feed already submitted with the technical address keeps
+  working: only NMC stops handing that address out.
+- Prompt K emits `itunes:new-feed-url` only when the card names a stable
+  address: filled from the request URL, it would move a proxied show to the
+  technical address.
+- The comparison takes the old show's identity from the address its feed
+  declares, as the import does, before the address it was read from.
+- Blossom's own reason (`X-Reason`) for refusing a file in advance now reaches
+  the message.
+
+### Fixed
+
+- **The external clients chosen in the settings were not saved**: the choice
+  per platform and the clients added by hand lived in memory only and were
+  lost on reload. Every setting is now persisted, and the type system checks
+  that none is left out.
+- The profile page did not reload the podcast card and the author list when
+  the identity changed, only the profile.
+- The translation of 16 October had missed the configuration files, the CI
+  workflows, the lint messages, the dependency guard's output and about 25
+  section headers and short comments in the application. They are in English
+  now.
+
 ## 2026-10-16 — The repository speaks English
 
 ### Changed

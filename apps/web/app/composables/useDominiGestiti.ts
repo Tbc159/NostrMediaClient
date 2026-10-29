@@ -121,7 +121,10 @@ export function useDominiGestiti() {
     },
     async registra(nome) {
       const r = await firmata('/v0/feed/sottodomini', { nome })
-      if (r.status === 409) throw new Error(`«${nome}» è già stato preso: scegline un altro.`)
+      if (r.status === 409) {
+        // Taken, or this key has a name already: the service says which.
+        throw new Error(await messaggio(r, `«${nome}» è già stato preso: scegline un altro.`))
+      }
       if (!r.ok) throw new Error(await messaggio(r, `Il servizio risponde ${r.status}.`))
       const dati = (await r.json()) as { url?: string }
       if (!dati.url) throw new Error('Il servizio non ha restituito l’indirizzo del feed.')
@@ -129,7 +132,9 @@ export function useDominiGestiti() {
     },
     async dichiaraCname(dominio) {
       const r = await firmata('/v0/feed/domini', { dominio })
-      if (r.status === 409) throw new Error(`«${dominio}» è già dichiarato da un’altra chiave.`)
+      if (r.status === 409) {
+        throw new Error(await messaggio(r, `«${dominio}» è già dichiarato da un’altra chiave.`))
+      }
       if (!r.ok) throw new Error(await messaggio(r, `Il servizio risponde ${r.status}.`))
       const dati = (await r.json()) as { attivo?: boolean; url?: string }
       return {
