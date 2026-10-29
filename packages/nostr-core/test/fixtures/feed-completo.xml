@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"
+     xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd"
+     xmlns:content="http://purl.org/rss/1.0/modules/content/"
+     xmlns:atom="http://www.w3.org/2005/Atom"
+     xmlns:podcast="https://podcastindex.org/namespace/1.0">
+  <channel>
+    <title>Storie di Bitcoin</title>
+    <description><![CDATA[<p>Una serie in <strong>dieci</strong> puntate sull&#8217;origine di Bitcoin.</p>]]></description>
+    <link>https://storiedibitcoin.example</link>
+    <language>it</language>
+    <atom:link href="https://vecchiohost.example/feeds/storie.xml" rel="self" type="application/rss+xml"/>
+    <podcast:guid>c90e609a-df1e-596a-bd5e-57bcc8aad6cc</podcast:guid>
+    <podcast:locked owner="maria@esempio.it">no</podcast:locked>
+    <itunes:author>Maria Rossi</itunes:author>
+    <itunes:type>serial</itunes:type>
+    <itunes:owner>
+      <itunes:name>Maria Rossi</itunes:name>
+      <itunes:email>maria@esempio.it</itunes:email>
+    </itunes:owner>
+    <itunes:explicit>false</itunes:explicit>
+    <itunes:category text="Society &amp; Culture">
+      <itunes:category text="Documentary"/>
+    </itunes:category>
+    <itunes:image href="https://vecchiohost.example/img/storie.jpg"/>
+    <podcast:value type="lightning" method="keysend" suggested="0.00000005000">
+      <podcast:valueRecipient name="Maria Rossi" type="lnaddress" address="maria@getalby.com" split="95"/>
+      <podcast:valueRecipient name="VecchioHost" type="node" address="03ae9f91a0cb8ff43840e3c322c4c61f019d8c1c3cea15a25cfc425ac605e61a4a" split="5" fee="true"/>
+    </podcast:value>
+    <podcast:person role="host" img="https://vecchiohost.example/img/maria.jpg" href="https://maria.example">Maria Rossi</podcast:person>
+    <podcast:funding url="https://storiedibitcoin.example/sostieni">Sostieni la serie</podcast:funding>
+    <podcast:location geo="geo:45.07,7.68">Torino</podcast:location>
+    <podcast:license>cc-by-4.0</podcast:license>
+    <item>
+      <title>Trailer</title>
+      <description>Di cosa parlerà la serie.</description>
+      <guid isPermaLink="false">storie-trailer</guid>
+      <pubDate>Mon, 01 Sep 2025 08:00:00 GMT</pubDate>
+      <enclosure url="https://vecchiohost.example/audio/trailer.mp3" length="1200000" type="audio/mpeg"/>
+      <itunes:duration>754</itunes:duration>
+      <itunes:episodeType>trailer</itunes:episodeType>
+      <itunes:season>1</itunes:season>
+    </item>
+    <item>
+      <title>1. Il whitepaper</title>
+      <description><![CDATA[<p>Il 31 ottobre 2008 arriva un&#x2019;email.</p><p>Seconda riga.</p>]]></description>
+      <content:encoded><![CDATA[<p>Note <em>lunghe</em> della puntata.</p><ul><li>uno</li><li>due</li></ul>]]></content:encoded>
+      <guid isPermaLink="false">storie-ep-1</guid>
+      <pubDate>Mon, 08 Sep 2025 08:00:00 GMT</pubDate>
+      <enclosure url="https://vecchiohost.example/audio/ep1.mp3" length="48000000" type="audio/mpeg"/>
+      <itunes:duration>1:02:03</itunes:duration>
+      <itunes:episodeType>full</itunes:episodeType>
+      <itunes:season>1</itunes:season>
+      <itunes:episode>1</itunes:episode>
+      <itunes:image href="https://vecchiohost.example/img/ep1.jpg"/>
+      <podcast:transcript url="https://vecchiohost.example/t/ep1.vtt" type="text/vtt" language="it"/>
+      <podcast:transcript url="https://vecchiohost.example/t/ep1.srt" type="application/x-subrip"/>
+      <podcast:chapters url="https://vecchiohost.example/c/ep1.json" type="application/json+chapters"/>
+      <podcast:person role="guest" href="https://ospite.example">Luca Bianchi</podcast:person>
+      <podcast:soundbite startTime="73" duration="60">L'email</podcast:soundbite>
+      <podcast:value type="lightning" method="keysend">
+        <podcast:valueRecipient name="Maria Rossi" type="lnaddress" address="maria@getalby.com" split="50"/>
+        <podcast:valueRecipient name="Luca Bianchi" type="lnaddress" address="luca@getalby.com" split="50"/>
+      </podcast:value>
+    </item>
+    <item>
+      <title>2. Il blocco genesi</title>
+      <description>Il 3 gennaio 2009.</description>
+      <pubDate>Mon, 15 Sep 2025 08:00:00 GMT</pubDate>
+      <enclosure url="https://vecchiohost.example/audio/ep2.mp3" type="audio/mpeg"/>
+      <itunes:duration>12:30</itunes:duration>
+      <itunes:season>1</itunes:season>
+      <itunes:episode>2</itunes:episode>
+      <podcast:soundbite startTime="10" duration="30">Il titolo del Times</podcast:soundbite>
+      <podcast:alternateEnclosure type="audio/opus"><podcast:source uri="https://vecchiohost.example/audio/ep2.opus"/></podcast:alternateEnclosure>
+    </item>
+  </channel>
+</rss>

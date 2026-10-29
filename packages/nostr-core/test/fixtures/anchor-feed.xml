@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?><rss xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:atom="http://www.w3.org/2005/Atom" version="2.0" xmlns:anchor="https://anchor.fm/xmlns" xmlns:podcast="https://podcastindex.org/namespace/1.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" xmlns:psc="http://podlove.org/simple-chapters">
+	<channel>
+		<title><![CDATA[Brevi articoli test]]></title>
+		<description><![CDATA[Generazione di episodio podcast da articoli scritti da autori noti, per testare la divulgazione di contenuti sotto nuove forme]]></description>
+		<link>https://podcasters.spotify.com/pod/show/tbc1598</link>
+		<generator>Anchor Podcasts</generator>
+		<lastBuildDate>Thu, 29 Oct 2026 15:59:47 GMT</lastBuildDate>
+		<atom:link href="https://anchor.fm/s/117e26658/podcast/rss" rel="self" type="application/rss+xml"/>
+		<author><![CDATA[ThebC]]></author>
+		<copyright><![CDATA[ThebC]]></copyright>
+		<language><![CDATA[it]]></language>
+		<atom:link rel="hub" href="https://pubsubhubbub.appspot.com/"/>
+		<itunes:author>ThebC</itunes:author>
+		<itunes:summary>Generazione di episodio podcast da articoli scritti da autori noti, per testare la divulgazione di contenuti sotto nuove forme</itunes:summary>
+		<itunes:type>episodic</itunes:type>
+		<itunes:owner>
+			<itunes:name>ThebC</itunes:name>
+			<itunes:email></itunes:email>
+		</itunes:owner>
+		<itunes:explicit>false</itunes:explicit>
+		<itunes:category text="Technology"/>
+		<itunes:image href="https://d3t3ozftmdmh3i.cloudfront.net/staging/podcast_uploaded_nologo/46856806/46856806-1790674323208-61b75f1379724.jpg"/>
+		<item>
+			<title><![CDATA[S00E02 - Europa inasprisce il MiCA in nome della "protezione"]]></title>
+			<description><![CDATA[<p>Mentre l’Europa continua a stringere il cappio normativo sul mondo crypto con la revisione della MiCA, i bitcoiners osservano con crescente preoccupazione.</p>
+]]></description>
+			<link>https://podcasters.spotify.com/pod/show/tbc1598/episodes/S00E02---Europa-inasprisce-il-MiCA-in-nome-della-protezione-e3r69ma</link>
+			<guid isPermaLink="false">f666a2ad-c531-4868-ae1a-da55e791fe65</guid>
+			<dc:creator><![CDATA[ThebC]]></dc:creator>
+			<pubDate>Tue, 27 Oct 2026 13:34:42 GMT</pubDate>
+			<enclosure url="https://anchor.fm/s/117e26658/podcast/play/128181386/https%3A%2F%2Fd3ctxlq1ktw2nl.cloudfront.net%2Fstaging%2F2026-9-27%2F435115577-44100-2-97564e24a6ccb.m4a" length="4376759" type="audio/x-m4a"/>
+			<itunes:summary>&lt;p&gt;Mentre l’Europa continua a stringere il cappio normativo sul mondo crypto con la revisione della MiCA, i bitcoiners osservano con crescente preoccupazione.&lt;/p&gt;
+</itunes:summary>
+			<itunes:explicit>false</itunes:explicit>
+			<itunes:duration>00:04:30</itunes:duration>
+			<itunes:image href="https://d3t3ozftmdmh3i.cloudfront.net/staging/podcast_uploaded_episode/46856806/46856806-1793107799708-d90029e3601b2.jpg"/>
+			<itunes:episodeType>full</itunes:episodeType>
+		</item>
+		<item>
+			<title><![CDATA[S00E01 - Nostr: dai live audio all’innovazione senza permesso]]></title>
+			<description><![CDATA[<p>Da anni il martedì e il giovedì, alle 18:30, sono un appuntamento fisso per gli Space su X con “21 Milioni di Chiacchiere”. Parliamo di Bitcoin, di sovranità digitale, di protocollo e di tutto ciò che ruota intorno a queste idee.</p>
+]]></description>
+			<link>https://podcasters.spotify.com/pod/show/tbc1598/episodes/S00E01---Nostr-dai-live-audio-allinnovazione-senza-permesso-e3pifi2</link>
+			<guid isPermaLink="false">5b0a0828-92a6-4c14-a656-ea81951dd6f0</guid>
+			<dc:creator><![CDATA[ThebC]]></dc:creator>
+			<pubDate>Tue, 29 Sep 2026 09:35:05 GMT</pubDate>
+			<enclosure url="https://anchor.fm/s/117e26658/podcast/play/126483458/https%3A%2F%2Fd3ctxlq1ktw2nl.cloudfront.net%2Fstaging%2F2026-8-29%2F432896765-44100-2-251252873459a.m4a" length="4806001" type="audio/x-m4a"/>
+			<itunes:summary>&lt;p&gt;Da anni il martedì e il giovedì, alle 18:30, sono un appuntamento fisso per gli Space su X con “21 Milioni di Chiacchiere”. Parliamo di Bitcoin, di sovranità digitale, di protocollo e di tutto ciò che ruota intorno a queste idee.&lt;/p&gt;
+</itunes:summary>
+			<itunes:explicit>false</itunes:explicit>
+			<itunes:duration>00:04:57</itunes:duration>
+			<itunes:image href="https://d3t3ozftmdmh3i.cloudfront.net/staging/podcast_uploaded_episode/46856806/46856806-1790674487858-68cc94ccb37de.jpg"/>
+			<itunes:episodeType>full</itunes:episodeType>
+		</item>
+	</channel>
+</rss>

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"
+     xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd"
+     xmlns:podcast="https://podcastindex.org/namespace/1.0">
+  <channel>
+    <title>Uno show protetto</title>
+    <description>Il proprietario non vuole che venga importato altrove.</description>
+    <podcast:locked owner="proprietario@esempio.it">yes</podcast:locked>
+    <item>
+      <title>Episodio</title>
+      <guid isPermaLink="false">protetto-1</guid>
+      <enclosure url="https://host.example/1.mp3" length="1000" type="audio/mpeg"/>
+    </item>
+  </channel>
+</rss>

@@ -1,3 +1,5 @@
+import { statoUpload } from '../media/blossom.js'
+
 /**
  * Diagnostic probes for relays and Blossom servers.
  *
@@ -299,25 +301,18 @@ export async function checkBlossomServer(
   // Without a kind 24242 authorization event we expect a 401, which is the
   // healthy outcome.
   try {
-    const res = await withTimeout(
-      fetch(`${base}/upload`, {
-        method: 'HEAD',
-        headers: {
-          'X-Content-Type': 'image/png',
-          'X-Content-Length': '1024',
-          'X-SHA-256': SHA_INESISTENTE,
-        },
-      }),
+    const stato = await withTimeout(
+      statoUpload(base, { peso: 1024, mime: 'image/png', sha256: SHA_INESISTENTE }),
       timeoutMs,
       'timeout',
     )
-    result.uploadStatus = res.status
+    result.uploadStatus = stato
     result.uploadHint =
-      res.status === 401
+      stato === 401
         ? 'protetto da autorizzazione kind 24242, come previsto'
-        : res.status === 402
+        : stato === 402
           ? 'upload a pagamento (BUD-07): fuori dallo scope della v0'
-          : res.status === 200
+          : stato === 200
             ? 'accettato senza autorizzazione: server aperto in scrittura'
             : `risposta inattesa a HEAD /upload: BUD-06 potrebbe non essere implementato`
   } catch {

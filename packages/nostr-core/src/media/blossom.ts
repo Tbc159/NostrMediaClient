@@ -320,3 +320,79 @@ export async function listBlobs(
   const dati = (await risposta.json()) as BlobDescriptor[]
   return Array.isArray(dati) ? dati : []
 }
+
+// ── BUD-06: asking before uploading ───────────────────────────────────────
+
+/** A digest that almost certainly matches no blob, for a question about size and type alone. */
+const SHA_SEGNAPOSTO = 'f'.repeat(64)
+
+export interface FileDaCaricare {
+  peso: number
+  mime: string
+  /** When known. A size-and-type question works without it. */
+  sha256?: string
+}
+
+/**
+ * The status `HEAD /upload` (BUD-06) answers for a file of this size and type.
+ *
+ * It is the server telling in advance whether it would accept the upload,
+ * without a byte being sent. Shared by the diagnostics page and by the import,
+ * which asks before downloading a file from another host.
+ */
+export async function statoUpload(
+  server: string,
+  file: FileDaCaricare,
+  opzioni: { fetch?: typeof globalThis.fetch; segnale?: AbortSignal } = {},
+): Promise<number> {
+  const base = server.replace(/\/+$/, '')
+  const risposta = await (opzioni.fetch ?? globalThis.fetch)(`${base}/upload`, {
+    method: 'HEAD',
+    headers: {
+      'X-Content-Type': file.mime,
+      'X-Content-Length': String(file.peso),
+      'X-SHA-256': file.sha256 ?? SHA_SEGNAPOSTO,
+    },
+    ...(opzioni.segnale ? { signal: opzioni.segnale } : {}),
+  })
+  return risposta.status
+}
+
+export type EsitoPreUpload =
+  | { esito: 'accettato' }
+  /** The server said no in advance: uploading would only waste the download. */
+  | { esito: 'rifiutato'; stato: number; motivo: string }
+  /**
+   * The server would not say. Usually a 401: many servers want the signed
+   * token for the question too, and signing one per file would mean a popup
+   * from the extension per episode. The upload goes ahead, and the real answer
+   * comes from the PUT.
+   */
+  | { esito: 'sconosciuto'; stato: number | null; motivo: string }
+
+/** Whether the server would accept this file, asked before downloading it. */
+export async function accettaUpload(
+  server: string,
+  file: FileDaCaricare,
+  opzioni: { fetch?: typeof globalThis.fetch; segnale?: AbortSignal } = {},
+): Promise<EsitoPreUpload> {
+  let stato: number
+  try {
+    stato = await statoUpload(server, file, opzioni)
+  } catch {
+    return {
+      esito: 'sconosciuto',
+      stato: null,
+      motivo: `${hostDi(server)} non ha risposto alla domanda preventiva: si prova a caricare.`,
+    }
+  }
+  if (stato >= 200 && stato < 300) return { esito: 'accettato' }
+  if (stato === 413 || stato === 402 || stato === 415) {
+    return { esito: 'rifiutato', stato, motivo: spiegaStato(stato, hostDi(server), undefined) }
+  }
+  return {
+    esito: 'sconosciuto',
+    stato,
+    motivo: `${hostDi(server)} non dice in anticipo se accetterebbe il file (${stato}): si prova a caricare.`,
+  }
+}

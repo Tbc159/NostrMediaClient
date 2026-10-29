@@ -1,6 +1,7 @@
 import { npubEncode } from 'nostr-tools/nip19'
 
 import { normalizzaBaseUrl } from '../services/http.js'
+import { podcastGuidPerUrl } from '../utils/uuid.js'
 
 /**
  * The podcast's RSS feed: the client does not generate it, it governs it.
@@ -46,6 +47,12 @@ export interface RiassuntoFeed {
   /** True when the feed declares <itunes:explicit>true</itunes:explicit>. */
   explicit: boolean
   episodi: EpisodioFeed[]
+  /** The show's identity (`podcast:guid`), when the feed declares it. */
+  podcastGuid: string | null
+  /** `itunes:new-feed-url`: where the feed says it has moved, or itself in a new feed. */
+  nuovoFeedUrl: string | null
+  /** `atom:link rel="self"`: the address the feed says it lives at. */
+  selfUrl: string | null
   /** The relays the service queried, when it declares them in a comment at the top. */
   relays: string[]
   /** Things a podcast app would refuse or display badly. */
@@ -62,24 +69,37 @@ export interface RiassuntoFeed {
  * summary would say «no episodes» and the page would show it: a visible
  * failure, not a silent one.
  */
-const decodifica = (t: string): string =>
+export const decodifica = (t: string): string =>
   t
     .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
     .replace(/&apos;/g, "'")
+    // Numeric references before &amp;, or "&amp;#39;" would turn into an apostrophe.
+    .replace(/&#x([0-9a-f]+);/gi, (_, h: string) => String.fromCodePoint(Number.parseInt(h, 16)))
+    .replace(/&#(\d+);/g, (_, d: string) => String.fromCodePoint(Number.parseInt(d, 10)))
     .replace(/&amp;/g, '&')
     .trim()
 
-function tagIn(blocco: string, nome: string): string | null {
+/** The text of the first `<nome>…</nome>` in the block, decoded. */
+export function tagIn(blocco: string, nome: string): string | null {
   const m = new RegExp(`<${nome}(?:\\s[^>]*)?>([\\s\\S]*?)</${nome}>`, 'i').exec(blocco)
   return m ? decodifica(m[1] ?? '') : null
 }
 
-function attributo(blocco: string, tag: string, attr: string): string | null {
+/** An attribute of the first `<tag …>` in the block, decoded. */
+export function attributo(blocco: string, tag: string, attr: string): string | null {
   const m = new RegExp(`<${tag}\\b[^>]*\\b${attr}="([^"]*)"`, 'i').exec(blocco)
   return m ? decodifica(m[1] ?? '') : null
+}
+
+/** The `<item>` blocks, and the channel with them taken out. */
+export function dividiFeed(xml: string): { canale: string; item: string[] } {
+  return {
+    item: [...xml.matchAll(/<item\b[^>]*>([\s\S]*?)<\/item>/gi)].map((m) => m[1] ?? ''),
+    canale: xml.replace(/<item\b[\s\S]*<\/item>/gi, ''),
+  }
 }
 
 /** Reads an RSS feed and returns a summary of it with the problems found. */
@@ -89,8 +109,7 @@ export function riassumiFeedPodcast(xml: string): RiassuntoFeed {
     throw new Error('Non e’ un feed RSS: il documento non contiene <rss>.')
   }
 
-  const blocchiItem = [...xml.matchAll(/<item\b[^>]*>([\s\S]*?)<\/item>/gi)].map((m) => m[1] ?? '')
-  const canale = xml.replace(/<item\b[\s\S]*<\/item>/gi, '')
+  const { canale, item: blocchiItem } = dividiFeed(xml)
 
   const titolo = tagIn(canale, 'title') ?? ''
   const descrizione = tagIn(canale, 'description') ?? ''
@@ -168,9 +187,24 @@ export function riassumiFeedPodcast(xml: string): RiassuntoFeed {
     email,
     explicit,
     episodi,
+    podcastGuid: tagIn(canale, 'podcast:guid'),
+    nuovoFeedUrl: tagIn(canale, 'itunes:new-feed-url'),
+    selfUrl: linkSelf(canale),
     relays,
     problemi,
   }
+}
+
+/** The `href` of the `<atom:link rel="self">`, whatever the order of its attributes. */
+function linkSelf(canale: string): string | null {
+  for (const m of canale.matchAll(/<atom:link\b([^>]*)>/gi)) {
+    const attr = m[1] ?? ''
+    if (/\brel="self"/i.test(attr)) {
+      const href = /\bhref="([^"]*)"/i.exec(attr)?.[1]
+      if (href) return decodifica(href)
+    }
+  }
+  return null
 }
 
 /**
@@ -187,6 +221,186 @@ export function episodiFuoriDalFeed(
 ): { id: string; titolo: string }[] {
   const nelFeed = new Set(feed.episodi.map((e) => e.id).filter((id): id is string => !!id))
   return pubblicati.filter((p) => !nelFeed.has(p.id))
+}
+
+/**
+ * Plain text from a fragment of HTML: paragraphs and line breaks become new
+ * lines, tags go, entities are decoded, spaces collapse.
+ *
+ * Hosts write descriptions as HTML (Anchor wraps every one in `<p>`) while
+ * NMC writes plain text: two descriptions with the same words have to compare
+ * as equal. YouTube also refuses HTML in descriptions, which is the other
+ * reason an import passes through here.
+ */
+export function testoDaHtml(html: string): string {
+  return decodifica(
+    html
+      .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<\/(p|div|li|h[1-6])>/gi, '\n')
+      .replace(/<[^>]+>/g, ''),
+  )
+    .replace(/[ \t]+/g, ' ')
+    .replace(/ *\n */g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
+export type GravitaDifferenza = 'blocca' | 'avviso'
+
+export interface DifferenzaFeed {
+  campo:
+    | 'podcast:guid'
+    | 'new-feed-url'
+    | 'titolo'
+    | 'descrizione'
+    | 'episodio-mancante'
+    | 'episodio-senza-guid'
+    | 'episodio-nuovo'
+    | 'ordine'
+    | 'data'
+  /** `blocca`: a redirect now would lose something. `avviso`: worth a look, nothing lost. */
+  gravita: GravitaDifferenza
+  /** What differs, in words. The UI shows it, so it stays Italian. */
+  testo: string
+  /** The episode it refers to, when it refers to one. */
+  guid?: string
+}
+
+export interface EsitoConfronto {
+  /** True when nothing blocks: the redirect from the old host keeps every episode and the show's identity. */
+  sicuro: boolean
+  differenze: DifferenzaFeed[]
+}
+
+const DATA_IT = new Intl.DateTimeFormat('it-IT', { dateStyle: 'medium', timeZone: 'UTC' })
+const normalizza = (t: string): string => testoDaHtml(t).replace(/\s+/g, ' ').trim()
+
+/**
+ * Compares the old host's feed with NMC's, before the redirect.
+ *
+ * It is the check that tells whether moving loses anything. Blocking: a
+ * different show identity (`podcast:guid`), and an old episode missing from the
+ * new feed — the apps would drop it, or show it twice under a new GUID.
+ * Warnings: titles, descriptions, dates and order that differ, episodes in the
+ * new feed only, a missing `itunes:new-feed-url`.
+ *
+ * @param opzioni.urlVecchio the old feed's address. An old feed that declares
+ *        no `podcast:guid` still has one — the one computed from its address,
+ *        which is how Podcast Index knows it — and this is how it is found.
+ */
+export async function confrontaFeed(
+  vecchio: RiassuntoFeed,
+  nuovo: RiassuntoFeed,
+  opzioni: { urlVecchio?: string } = {},
+): Promise<EsitoConfronto> {
+  const differenze: DifferenzaFeed[] = []
+
+  const identitaVecchia =
+    vecchio.podcastGuid ?? (opzioni.urlVecchio ? await podcastGuidPerUrl(opzioni.urlVecchio) : null)
+  if (identitaVecchia && nuovo.podcastGuid !== identitaVecchia) {
+    differenze.push({
+      campo: 'podcast:guid',
+      gravita: 'blocca',
+      testo: nuovo.podcastGuid
+        ? `Il nuovo feed dichiara l’identità ${nuovo.podcastGuid}, il vecchio è ${identitaVecchia}: per Podcast Index e Fountain sarebbe un altro podcast.`
+        : `Il nuovo feed non dichiara un podcast:guid, il vecchio è ${identitaVecchia}: per Podcast Index e Fountain sarebbe un altro podcast.`,
+    })
+  }
+
+  if (!nuovo.nuovoFeedUrl) {
+    differenze.push({
+      campo: 'new-feed-url',
+      gravita: 'avviso',
+      testo:
+        'Il nuovo feed non ha <itunes:new-feed-url>: Apple lo chiede nel feed di arrivo di un trasloco.',
+    })
+  } else if (nuovo.selfUrl && nuovo.nuovoFeedUrl !== nuovo.selfUrl) {
+    differenze.push({
+      campo: 'new-feed-url',
+      gravita: 'avviso',
+      testo: `<itunes:new-feed-url> (${nuovo.nuovoFeedUrl}) non coincide con l’indirizzo del feed (${nuovo.selfUrl}).`,
+    })
+  }
+
+  if (normalizza(vecchio.titolo) !== normalizza(nuovo.titolo)) {
+    differenze.push({
+      campo: 'titolo',
+      gravita: 'avviso',
+      testo: `Il titolo cambia: «${vecchio.titolo}» → «${nuovo.titolo}».`,
+    })
+  }
+  if (normalizza(vecchio.descrizione) !== normalizza(nuovo.descrizione)) {
+    differenze.push({
+      campo: 'descrizione',
+      gravita: 'avviso',
+      testo: 'La descrizione dello show è diversa da quella del vecchio feed.',
+    })
+  }
+
+  const nuoviPerGuid = new Map(
+    nuovo.episodi.filter((e) => e.id).map((e) => [e.id as string, e] as const),
+  )
+  const vecchiConGuid = vecchio.episodi.filter((e) => e.id)
+
+  for (const e of vecchio.episodi.filter((e) => !e.id)) {
+    differenze.push({
+      campo: 'episodio-senza-guid',
+      gravita: 'avviso',
+      testo: `«${e.titolo}» non ha un GUID nel vecchio feed: le app lo riconoscono dall’URL dell’audio, e non si può verificare.`,
+    })
+  }
+
+  for (const e of vecchiConGuid) {
+    const corrispondente = nuoviPerGuid.get(e.id as string)
+    if (!corrispondente) {
+      differenze.push({
+        campo: 'episodio-mancante',
+        gravita: 'blocca',
+        testo: `«${e.titolo}» non è nel nuovo feed con lo stesso GUID: le app lo toglierebbero, o lo mostrerebbero due volte.`,
+        guid: e.id as string,
+      })
+      continue
+    }
+    if (e.data && corrispondente.data && e.data.getTime() !== corrispondente.data.getTime()) {
+      differenze.push({
+        campo: 'data',
+        gravita: 'avviso',
+        testo: `«${e.titolo}»: la data passa dal ${DATA_IT.format(e.data)} al ${DATA_IT.format(corrispondente.data)}.`,
+        guid: e.id as string,
+      })
+    }
+  }
+
+  const guidVecchi = new Set(vecchiConGuid.map((e) => e.id as string))
+  for (const e of nuovo.episodi) {
+    if (e.id && !guidVecchi.has(e.id)) {
+      differenze.push({
+        campo: 'episodio-nuovo',
+        gravita: 'avviso',
+        testo: `«${e.titolo}» c’è solo nel nuovo feed.`,
+        guid: e.id,
+      })
+    }
+  }
+
+  // The order of the episodes both feeds have, compared as sequences.
+  const comuni = new Set(
+    vecchiConGuid.map((e) => e.id as string).filter((g) => nuoviPerGuid.has(g)),
+  )
+  const ordineVecchio = vecchiConGuid.map((e) => e.id as string).filter((g) => comuni.has(g))
+  const ordineNuovo = nuovo.episodi
+    .map((e) => e.id)
+    .filter((g): g is string => !!g && comuni.has(g))
+  if (ordineVecchio.join('\n') !== ordineNuovo.join('\n')) {
+    differenze.push({
+      campo: 'ordine',
+      gravita: 'avviso',
+      testo: 'Gli episodi sono in un ordine diverso rispetto al vecchio feed.',
+    })
+  }
+
+  return { sicuro: !differenze.some((d) => d.gravita === 'blocca'), differenze }
 }
 
 const xmlEsc = (t: string): string =>
