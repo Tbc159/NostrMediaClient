@@ -2,9 +2,13 @@
 import { toNpub } from '@nmc/nostr-core'
 
 import { useProfiloProprio } from '~/stores/profiloProprio'
+import { useSincronizzazione } from '~/stores/sincronizzazione'
 
 const identita = useIdentity()
 const profilo = useProfiloProprio()
+// Started here because the layout is on every page: the key's relay and
+// Blossom lists are read as soon as an identity is active, wherever it happens.
+useSincronizzazione()
 
 // The identity's state lives in localStorage: it must be read in the browser alone.
 onMounted(() => identita.ripristina())

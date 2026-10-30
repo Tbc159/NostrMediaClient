@@ -1,6 +1,7 @@
 import { getKindDefinition, registerKind } from '../registry.js'
 import { articleDefinition, articleDraftDefinition } from './article.js'
 import { blossomAuthDefinition } from './blossom-auth.js'
+import { blossomServersDefinition } from './blossom-servers.js'
 import { calendarDateEventDefinition } from './calendar-date.js'
 import { calendarRsvpDefinition } from './calendar-rsvp.js'
 import { calendarTimeEventDefinition } from './calendar-time.js'
@@ -20,6 +21,7 @@ import { shortVideoDefinition, videoDefinition } from './video.js'
 
 export * from './article.js'
 export * from './blossom-auth.js'
+export * from './blossom-servers.js'
 export * from './calendar-common.js'
 export * from './draft.js'
 export * from './calendar-date.js'
@@ -47,6 +49,7 @@ export const kindDefinitions = [
   podcastMetadataDefinition,
   authoredPodcastsDefinition,
   blossomAuthDefinition,
+  blossomServersDefinition,
   httpAuthDefinition,
   articleDefinition,
   articleDraftDefinition,

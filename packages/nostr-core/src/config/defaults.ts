@@ -5,8 +5,9 @@ import { z } from 'zod'
  *
  * Project rule (ADR 0003): these are **first-run defaults, never
  * dependencies**. The user must be able to replace them and get a working
- * client pointing elsewhere; their choices then live on the relays as kind
- * 10002 (NIP-65) and 10063 (Blossom BUD-03).
+ * client pointing elsewhere. The relays and the Blossom servers then live on
+ * the relays too, as the key's kind 10002 (NIP-65) and 10063 (Blossom BUD-03):
+ * see `liste.ts` for how they are read back and published.
  *
  * The values come from environment variables and are not versioned: private
  * endpoints stay out of the repository. See `.env.example`.

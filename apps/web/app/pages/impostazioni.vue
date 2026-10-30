@@ -4,6 +4,7 @@ import { passwordStrength, toNpub } from '@nmc/nostr-core'
 import type { IdentitaSalvata } from '~/stores/identity'
 import { campiEndpoint, useConfigurazione, type CampoEndpoint } from '~/stores/configurazione'
 import { useMediaManager } from '~/stores/mediamanager'
+import { useSincronizzazione, type QualeLista } from '~/stores/sincronizzazione'
 import { linkEventoEsterno, type PiattaformaClient } from '@nmc/nostr-core'
 
 useHead({ title: 'Impostazioni · NostrMediaClient' })
@@ -35,6 +36,34 @@ const bozzaEndpoint = reactive(
 
 const erroreEndpoint = ref<string | null>(null)
 const salvato = ref(false)
+
+/*
+ * The relays and the Blossom servers are also the key's public lists (see
+ * `stores/sincronizzazione.ts`): a change made here is noted, so that the
+ * published list does not take it back at the next login, and a published list
+ * taken at login shows up in the draft without a reload.
+ */
+const sincronia = useSincronizzazione()
+const CAMPI_LISTA: Record<QualeLista, CampoEndpoint['chiave'][]> = {
+  relay: ['NUXT_PUBLIC_DEFAULT_READ_RELAYS', 'NUXT_PUBLIC_DEFAULT_WRITE_RELAYS'],
+  blossom: ['NUXT_PUBLIC_DEFAULT_BLOSSOM_SERVERS'],
+}
+const valoriEndpoint = () => campiEndpoint.map((c) => configurazione.valoreDi(c.chiave))
+
+function conModificheNotate(cambia: () => boolean): void {
+  const prima = Object.fromEntries(
+    campiEndpoint.map((c) => [c.chiave, configurazione.valoreDi(c.chiave)]),
+  )
+  if (!cambia()) return
+  const cambiate = (Object.keys(CAMPI_LISTA) as QualeLista[]).filter((q) =>
+    CAMPI_LISTA[q].some((k) => prima[k] !== configurazione.valoreDi(k)),
+  )
+  sincronia.segnaModifica(cambiate)
+}
+
+watch(valoriEndpoint, (valori) => {
+  campiEndpoint.forEach((c, i) => (bozzaEndpoint[c.chiave] = valori[i] ?? ''))
+})
 
 const strategie = [
   {
@@ -72,13 +101,16 @@ function salvaLimite(): void {
 
 function salvaEndpoint(): void {
   salvato.value = false
-  const esito = configurazione.applica({ ...bozzaEndpoint })
-  if (esito.ok) {
-    erroreEndpoint.value = null
-    salvato.value = true
-  } else {
-    erroreEndpoint.value = esito.errore
-  }
+  conModificheNotate(() => {
+    const esito = configurazione.applica({ ...bozzaEndpoint })
+    if (esito.ok) {
+      erroreEndpoint.value = null
+      salvato.value = true
+    } else {
+      erroreEndpoint.value = esito.errore
+    }
+    return esito.ok
+  })
 }
 
 // --- Processing service ------------------------------------------------------
@@ -194,7 +226,10 @@ function aggiungiVisualizzatore(): void {
 }
 
 function tornaAiDefault(): void {
-  configurazione.ripristinaDefault()
+  conModificheNotate(() => {
+    configurazione.ripristinaDefault()
+    return true
+  })
   for (const c of campiEndpoint) bozzaEndpoint[c.chiave] = configurazione.valoreDi(c.chiave)
   erroreEndpoint.value = null
   salvato.value = true
@@ -578,7 +613,7 @@ const etichettaModo: Record<string, string> = {
     <ClientOnly>
       <BaseCard
         title="Endpoint"
-        subtitle="I valori del file .env sono soltanto il punto di partenza: qui li sostituisci, e la scelta resta in questo browser."
+        subtitle="I valori del file .env sono soltanto il punto di partenza: qui li sostituisci, e la scelta resta in questo browser. Relay e server Blossom puoi anche pubblicarli sul tuo account, nella scheda che segue."
       >
         <BaseAlert v-if="config.errore" tono="pericolo" class="mb-4">
           La configurazione attuale non è valida e il client non può leggere né pubblicare finché
@@ -640,6 +675,9 @@ const etichettaModo: Record<string, string> = {
           </div>
         </form>
       </BaseCard>
+
+      <!-- ─────────── The key's public lists ─────────── -->
+      <ListePubblicate v-if="identita.autenticato" />
 
       <!-- ─────────── Processing service ─────────── -->
       <BaseCard

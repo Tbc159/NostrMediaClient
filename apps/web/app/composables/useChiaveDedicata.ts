@@ -1,7 +1,10 @@
 import {
   authoredPodcastsDefinition,
+  blossomServersDefinition,
+  destinazioniLista,
   encryptSecretKey,
   fondiTag,
+  listeDaConfig,
   metadataDefinition,
   newSecretKey,
   plainEventTemplate,
@@ -28,10 +31,10 @@ import {
  *      is safe;
  *   2. the **personal** key, still the active one, publishes its 10064 naming
  *      the new key: the half of the link only the author can write;
- *   3. the **new** key signs its own profile (kind 0) and relay list (kind
- *      10002) through a signer that lives as long as this composable — the
- *      service that builds the feed finds a key through its 10002, and a key
- *      born a minute ago has none;
+ *   3. the **new** key signs its own profile (kind 0), relay list (kind
+ *      10002) and Blossom servers (kind 10063) through a signer that lives as
+ *      long as this composable — the service that builds the feed finds a key
+ *      through its 10002, and a key born a minute ago has none;
  *   4. only then does the active identity switch to the new key, which stays in
  *      the saved identities, encrypted, next to the personal one.
  *
@@ -145,9 +148,13 @@ export function useChiaveDedicata() {
     }
   }
 
-  async function pubblicaComeNuova(template: Parameters<Firmatario['firma']>[0], cosa: string) {
+  async function pubblicaComeNuova(
+    template: Parameters<Firmatario['firma']>[0],
+    cosa: string,
+    relays?: readonly string[],
+  ) {
     const firmato = await firmatarioNuovo().firma(template)
-    if (!(await invio.pubblica(firmato))) {
+    if (!(await invio.pubblica(firmato, relays))) {
       throw new Error(
         `${cosa} della nuova chiave non è stato accettato: ${invio.errore.value ?? 'nessun relay l’ha preso'}.`,
       )
@@ -199,17 +206,29 @@ export function useChiaveDedicata() {
         'Il profilo',
       )
 
-      fase.value = 'La nuova chiave pubblica i suoi relay (kind 10002)…'
-      const cfg = config.value
-      const relay = [...new Set([...cfg.readRelays, ...cfg.writeRelays])].map((url) => ({
-        url,
-        lettura: cfg.readRelays.includes(url),
-        scrittura: cfg.writeRelays.includes(url),
-      }))
-      await pubblicaComeNuova(
-        relayListDefinition.build({ relays: relay }, { pubkey: c.pubkey, now: now() }),
-        'L’elenco dei relay',
-      )
+      // The lists the personal key would publish from here, on the indexers
+      // too: what only this device can reach stays out (see config/liste.ts).
+      const { liste } = listeDaConfig(config.value)
+      const destinazioni = destinazioniLista(config.value)
+      if (liste.relay.length) {
+        fase.value = 'La nuova chiave pubblica i suoi relay (kind 10002)…'
+        await pubblicaComeNuova(
+          relayListDefinition.build({ relays: liste.relay }, { pubkey: c.pubkey, now: now() }),
+          'L’elenco dei relay',
+          destinazioni,
+        )
+      }
+      if (liste.blossom.length) {
+        fase.value = 'La nuova chiave pubblica i suoi server Blossom (kind 10063)…'
+        await pubblicaComeNuova(
+          blossomServersDefinition.build(
+            { server: liste.blossom },
+            { pubkey: c.pubkey, now: now() },
+          ),
+          'L’elenco dei server Blossom',
+          destinazioni,
+        )
+      }
 
       fase.value = 'Passo alla nuova chiave…'
       identita.accediConChiave(toNsec(segreta), password, show.titolo.trim())
