@@ -813,6 +813,78 @@ TESTS
   - the feed tag absent: no itunes:new-feed-url at all, whatever the request.
 ```
 
+> **Delivered and deployed** (service commit `b76aa41`, merged into `develop`
+> and deployed on 30 October 2026). The block above is the corrected version:
+> the first version filled `itunes:new-feed-url` from the request URL when the
+> `feed` tag was absent. The service already does what the corrected version
+> asks, and has a test for it (`test_feed_tag_sets_both_self_link_and_new_feed_url`):
+> no delta to hand over for that.
+
+### Prompt N — A moved catalogue stays whole in the feed
+
+Reading the deployed code for Prompt K shows two gaps that only appear on a
+real move: a catalogue bigger than the episode cap loses its oldest episodes,
+and the cap is not even applied by publication date; and two events for the
+same episode give two items with the same GUID. The platforms read the feed
+as the whole show, so an episode that drops out of it is removed by most of
+them, and the client's parity check would stop the redirect anyway. A delta
+on K, to hand over separately because K is delivered. Only the block.
+
+```
+Repository: microservice-media-manager, feed domain, branch develop.
+A delta on Prompt K, independent of it.
+
+WHAT HAPPENS TODAY
+  feed_service._generate asks the relays for kind 54 with
+  limit = FEED_MAX_EPISODES (200), then sorts what arrived by published_at.
+  The relays apply limit by created_at, not by published_at. An imported
+  catalogue has every created_at on the import days, in whatever order the
+  creator imported it (the client allows batches in any order, precisely
+  because published_at now drives date and order). So:
+    - a show with more than 200 episodes comes out with 200 of them, and
+      which 200 depends on the order of the import, not on their dates;
+    - a relay may cap limit lower than asked, with the same effect on fewer
+      episodes.
+  Separately: two kind 54 with the same ["i", "podcast:item:guid:<g>"] (an
+  import resumed after a relay missed the first copy, or an episode
+  republished to correct it) give two <item> with the same <guid>.
+
+WHAT SHOULD HAPPEN
+  - Fetch every kind 54 of the key, paging backwards: after each answer,
+    ask again with until = the oldest created_at received (inclusive, the same
+    second can hold several events; dedupe by id), until a page brings
+    nothing new or FEED_MAX_EVENTS_SCAN (default 5000) events have been read.
+  - One item per episode GUID: among the events with the same
+    podcast:item:guid, the one with the newest created_at wins (it is the
+    latest version). Events without the i tag keep the event id as GUID,
+    already unique.
+  - Then sort by published_at (created_at when absent), newest first, as
+    today, and only THEN cut to FEED_MAX_EPISODES: what is left out is always
+    the oldest. Raise its default to 1000; it stays configurable.
+  - When episodes are cut, say so inside <channel>, like the "saltati" comment:
+    <!-- troncati: N episodi più vecchi oltre FEED_MAX_EPISODES -->
+    When duplicates are dropped: <!-- doppioni scartati: N -->. Both depend on
+    the events only, so the ETag stays deterministic.
+  - A partial answer (Prompt J) stays partial: paging does not change how
+    long a feed is cached when a relay did not answer.
+
+NOT TO DO
+  - Do not cut by created_at, anywhere: it is the day of the import, not of the
+    episode.
+  - Do not merge two events with the same GUID field by field: the newest
+    replaces the older one whole.
+
+TESTS
+  - 250 kind 54 whose created_at order is the opposite of their published_at
+    order, served by a fake relay that caps limit at 100: with
+    FEED_MAX_EPISODES=200 the feed has the 200 newest by published_at, in that
+    order, and the "troncati: 50" comment.
+  - with FEED_MAX_EPISODES=1000 the same 250 all come out, no comment.
+  - two 54s with the same podcast:item:guid and different created_at: one
+    item, the newer one's title, and "doppioni scartati: 1".
+  - the Prompt K fixture: same body and same ETag as today.
+```
+
 ### Prompt M — Managed subdomains on the NMC domain
 
 To deliver **when the NMC domain exists**, before Prompt L. A creator without a
@@ -831,6 +903,13 @@ DOMAINS
                          technical address in place of mediamanager-dev.duckdns.org,
                          which keeps answering (or 301s to api.) until the
                          creators' intermediaries have been updated.
+                         A card without the i tag podcast:guid: keeps the
+                         podcast:guid it has today, computed from the
+                         mediamanager-dev.duckdns.org URL (FEED_GUID_HOST,
+                         that default), whichever host the request came on:
+                         computed from api.<NMC domain> it would be another
+                         podcast for Podcast Index. The client writes the i
+                         tag at the card's next save, with that same value.
   *.<NMC domain>         one wildcard DNS record and one wildcard certificate
                          (DNS-01 challenge). ONE nginx server block for every
                          subdomain, routing by Host to the feed of the key the
