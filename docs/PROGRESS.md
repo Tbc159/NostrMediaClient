@@ -532,7 +532,7 @@ real users.
 | 4     | Which key: the question, the dedicated key, saved identities and «Cambia identità»                             | `25718d8` |
 | 5     | The stable address: the gate on the URL, the intermediary's check, managed domains as «coming soon», NIP-98    | `e153aaf` |
 | 6     | Parity check before the redirect; platforms where the show already is, YouTube's start date                    | `e9f41c0` |
-| 7     | This documentation, Prompts L and M                                                                            | —         |
+| 7     | This documentation, Prompts L and M                                                                            | `bd7f00c` |
 
 ### How it was verified
 
@@ -552,11 +552,12 @@ real users.
 
 ### What is waiting, and on whom
 
-1. **Prompt K deployed on the media-manager.** Until then the feed dates
-   imported episodes by `created_at`, gives them new GUIDs and declares the
-   technical address as its own: the parity check says the redirect is not
-   safe, and the stable address is written but not handed out. No redirect
-   from an old host should be done before it.
+1. **Prompt N on the media-manager.** Prompt K is deployed (service commit
+   `b76aa41`, 30 October 2026) and already behaves as its corrected version.
+   Reading its code showed what Prompt N asks: the service reads 200 episodes
+   chosen by `created_at`, so a catalogue bigger than that loses some, and
+   which ones depends on the order of the import; two events for one episode
+   give two items. A show under 200 episodes, imported once, is not affected.
 2. **A real run, on confirmation**: import the test show, then compare with
    the Anchor feed, which must give full parity (same GUIDs, same dates,
    `podcast:guid` `2977094a-…`). It publishes to real relays, so it waits for
@@ -564,6 +565,39 @@ real users.
 3. **The NMC domain**, for Prompts M then L. The client side is ready: the
    operator turns on `NUXT_PUBLIC_FEED_DOMINI_GESTITI` and moves
    `NUXT_PUBLIC_MEDIA_MANAGER_URL` to `api.<NMC domain>`.
+
+## Relays and Blossom servers follow the key (same branch) · DONE, NOT MERGED
+
+The endpoints chosen in the settings were per browser, while the
+configuration comments promised a sync through kinds 10002 and 10063. Now
+`stores/sincronizzazione.ts` reads both lists whenever an identity becomes
+active and takes them unless something newer was chosen here, with that key;
+the settings card «Relay e server Blossom sul tuo account» shows each list's
+state and publishes on request, after a preview. What only this device can
+reach (localhost, private networks, no TLS) never goes into a public list and
+stays in the device's endpoints. The pure logic is in
+`packages/nostr-core/src/config/liste.ts`; kind 10063 is
+`blossomServersDefinition`.
+
+Verified with 25 unit tests and a browser run against the local fakes (the
+«public» relays and servers were `.invalid` names, which never resolve): a new
+browser takes the published lists and keeps its own local relay; a change made
+here survives a reload; publishing shows the preview, leaves the local relay
+out, keeps another client's tag and replaces the old version; «Usa quelli
+pubblicati» brings the list back without publishing; a second key without
+lists changes nothing until its server list is published; with only local
+addresses there is nothing to publish; switching back to the first key brings
+its lists back, since the change was made with the other one. The four earlier
+runs (import, key, address, platforms) were run again.
+
+Two more fixes on the branch, found while doing this:
+
+- the stray spaces before punctuation, everywhere, through a template compiler
+  transform (`apps/web/compiler/punteggiatura.ts`): 57 in the compiled
+  templates before, none after;
+- the `podcast:guid` of a card the feed had already served is inherited from
+  that feed when a stable address is added, instead of being computed from the
+  new address.
 
 ---
 
@@ -580,8 +614,8 @@ reading with deduplication. Still missing:
    Today every page change re-reads from the relays: it works, but it is
    wasted traffic.
 3. `signers/` — NIP-46 bunker (NIP-07 and NIP-49 already done).
-4. The remaining `kinds/definitions/`: 3 (follows), 5 (deletion). Kind 10002
-   exists since the podcast move (a dedicated key publishes one); the outbox
+4. The remaining `kinds/definitions/`: 3 (follows), 5 (deletion). Kinds 10002
+   and 10063 exist, read at login and published from the settings; the outbox
    resolver in point 1 still does not.
 5. `nostr-vue`: `useAccount`, `useProfile`, `useEvent` — `useTimeline` lives in
    `apps/web` for now, to be promoted when more than one app needs it.

@@ -1085,15 +1085,14 @@ Blossom. Its UX needs revising before it goes to `main`: you compose blind, the
 ingredients disappear on reload, there are no thumbnails.
 
 **Moving a podcast and its stable address** (branch
-`feature/migrazione-podcast`) — the client already writes every tag Prompt K
-reads: the inherited identities, `published_at`, the numbering, the
-Podcasting 2.0 data, and the `feed` tag with the creator's stable address. Two
-consequences while K is not deployed: the feed still dates imported episodes
-by `created_at` and gives them new GUIDs, so **no redirect from an old host
-should be done yet** — the client's parity check says so; and the feed's self
-link is the technical address, so the client does not hand out the stable one
-either, because it cannot be verified as the feed's own. The managed modes
-(Prompts L and M) run on a simulation until the NMC domain exists.
+`feature/migrazione-podcast`) — the client writes every tag Prompt K reads:
+the inherited identities, `published_at`, the numbering, the Podcasting 2.0
+data, and the `feed` tag with the creator's stable address. K is deployed, so
+imported episodes keep their GUIDs and dates and the stable address can be
+verified as the feed's own. Until Prompt N is, a catalogue of more than 200
+episodes loses some of them in the feed — the client's parity check says so
+before any redirect. The managed modes (Prompts L and M) run on a simulation
+until the NMC domain exists.
 
 No feature was added: `analyze`, `split`, `concat`, the `social` and `slide`
 presets and the font catalogue exist in the contract and do not yet have a

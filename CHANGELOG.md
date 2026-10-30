@@ -21,6 +21,92 @@ Two things are worth knowing when reading what follows:
 
 ---
 
+## 2026-10-30 — Your relays and Blossom servers follow your key
+
+Developed on `feature/migrazione-podcast`, after the move below. Until now the
+relays and Blossom servers chosen in the settings lived in one browser: logging
+in elsewhere started again from the `.env` defaults, and the comments in
+`.env.example` and `config/defaults.ts` promised a synchronisation through
+kinds 10002 and 10063 that did not exist. It exists now, built so that it can
+never rewrite a list the user did not look at.
+
+### Added
+
+- **The key's lists are read at every login.** When an identity becomes active
+  — logging in, restoring a session, switching identity — NMC reads its kind
+  10002 (NIP-65, the relays) and kind 10063 (BUD-03, the Blossom servers) from
+  the indexers and the configured relays. When they differ from this
+  browser's endpoints and nothing newer was chosen here, it takes them: a new
+  browser starts from the user's relays, not from someone else's defaults. The
+  settings say so, with the date of the list that was taken.
+- **A newer choice made here is not taken back.** Changing the relays or the
+  servers in the settings is noted with its time, per key. A published list
+  signed before that change is not taken: the page marks the two as
+  «diversa», shows the published list, and offers both ways — publish the
+  one from here, or use the published one. A change made with one identity
+  does not count for another: switching back to a key brings its own lists
+  back.
+- **Publishing is explicit, and previewed.** A new card in _Settings_, «Relay
+  e server Blossom sul tuo account», shows each list's state and publishes it
+  only on request, after showing exactly what will be signed — each relay with
+  its use (read, write, both), each server with its role (primary, mirror) —
+  and a warning that the relay list is read by every client the user has, not
+  only NMC. Reading never publishes anything. The new list goes to the write
+  relays, the indexers, and, for the relays, to the previous list's write
+  relays too, so that whoever still reads there finds out it changed. Tags
+  another client added to the previous version are kept, and the outcome is
+  shown relay by relay.
+- **What only this device can reach stays out of the lists.** A relay on
+  localhost, a server on the home network, anything without TLS: published, it
+  would send the rest of the network where it cannot go and say something about
+  the user's network that is nobody's business. It stays in this browser's
+  endpoints, untouched — also when a published list is taken — and the preview
+  names it. With nothing reachable from outside, there is nothing to publish,
+  and the page says so.
+- **Kind 10063** in the core (`blossomServersDefinition`), and the pure logic of
+  the lists in `config/liste.ts` (`listeDaConfig`, `campiDaListe`,
+  `stessiRelay`, `stessiServer`, `indirizzoPubblico`, `destinazioniLista`),
+  with 25 unit tests.
+- **Prompt N** in `doc/api-to-build.md`: the feed service keeps a moved
+  catalogue whole. Reading the deployed Prompt K showed that the service asks
+  the relays for 200 episodes, which relays pick by `created_at` — the import
+  day — and only then sorts by `published_at`: a catalogue bigger than that
+  loses episodes, and which ones depends on the order of the import. The
+  prompt asks for paging, the cut by publication date, a higher default, and
+  one item per episode GUID. Prompt M now says that a card without its
+  `podcast:guid` keeps the one computed on today's host when the APIs move.
+
+### Changed
+
+- **The dedicated key's lists follow the same rules.** Its 10002 leaves out
+  what only this device can reach and goes to the indexers too, where the feed
+  service looks it up; it now publishes a 10063 as well. When nothing is
+  reachable from outside, the list is not published instead of failing.
+- The comments in `.env.example` and `packages/nostr-core/src/config/defaults.ts`
+  describe what actually happens.
+
+### Fixed
+
+- **Stray spaces before punctuation, across the whole interface.** Prettier
+  formats the templates with `htmlWhitespaceSensitivity: 'ignore'`, which puts
+  every inline element on a line of its own when a paragraph is long; Vue
+  turned each of those line breaks into a space, and the pages read
+  «impostazioni .», «itunes:new-feed-url , per», «( podcast:guid )». Moving
+  the punctuation in the source did not last: the next format broke the line
+  again. A template compiler transform (`apps/web/compiler/punteggiatura.ts`,
+  wired in `nuxt.config.ts`) now removes the space before closing punctuation
+  and after opening punctuation, in every component, including the ones not
+  written yet. Measured on the compiled templates: 57 occurrences before, none
+  after. `<pre>` and `<textarea>` are left alone.
+- **A podcast card without an identity got a new one when given a stable
+  address.** The profile page computed the `podcast:guid` from the stable
+  address the first time one was set. For a card the feed service had already
+  served, that changed the show's identity: the service had been declaring the
+  one of its technical address, and whoever indexed the show knows it by that.
+  The page now inherits the identity the feed declares — read from the feed,
+  or computed the way the service computes it — and only a new card takes it
+  from its stable address.
+
 ## 2026-10-30 — Moving a podcast to NMC without losing it
 
 Developed on `feature/migrazione-podcast`. A podcast that already lives on

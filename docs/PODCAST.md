@@ -422,9 +422,9 @@ The check («Verify address», in the podcast card) downloads the stable address
 and the technical one and requires the same `podcast:guid` and the same episode
 GUIDs. It tells apart a redirect (wrong configuration), an address the browser
 cannot read (nearly always an intermediary that does not pass the service's
-CORS header on) and another feed. The feed's own self link can only name the
-stable address once the card carries it and the service reads it (Prompt K):
-until then the address is written but not yet handed out.
+CORS header on) and another feed. The feed's own self link names the stable
+address because the card carries it and the service reads it (Prompt K,
+deployed since 30 October 2026).
 
 Ways 2 and 3 need the NMC domain. They appear as «Coming soon» and can be tried
 end to end on a simulation that calls nothing, signs nothing and writes no
@@ -448,9 +448,10 @@ show from the person, allows more than one podcast, and can one day be handed
 over. Creating it: the key is born encrypted (NIP-49) and its nsec is shown
 once, with an encrypted backup to download and a confirmation before anything
 is published; the personal key publishes its 10064 naming the new one; the new
-key publishes its profile (kind 0) and its relay list (kind 10002, which the
-feed service needs to find its events); then the active identity switches to
-it, and its card names the personal key as `host`. Both stay among the
+key publishes its profile (kind 0), its relay list (kind 10002, which the
+feed service needs to find its events) and its Blossom servers (kind 10063),
+both built from the endpoints in use and sent to the indexers too, leaving out
+what only this device can reach; then the active identity switches to it, and its card names the personal key as `host`. Both stay among the
 identities saved in the browser, each locked behind its own password.
 
 A key that already carries a podcast is protected: if its card has a `feed`
@@ -550,6 +551,10 @@ where they are starting from:
 - **The redirect itself is the creator's to do**, on the old host's panel, and
   so is YouTube Studio: NMC checks parity and guides, it has no access to
   either.
+- **A catalogue of more than 200 episodes loses some in the feed** until the
+  feed service has Prompt N: it reads 200 episodes chosen by the day they were
+  signed — the import day — not by their date. The parity check shows the
+  missing GUIDs before any redirect.
 - **Episodes born on a key before an import stay in its feed.** The client
   cannot delete events (no kind 5 yet): the import lists them, and the way out
   is a dedicated key.
