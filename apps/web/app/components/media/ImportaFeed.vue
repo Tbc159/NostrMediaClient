@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { chiaveEpisodio } from '~/composables/useImportPodcast'
+import { useProfiloProprio } from '~/stores/profiloProprio'
 
 /**
  * Importing a podcast from another host: the page side of `useImportPodcast`.
@@ -11,6 +12,12 @@ import { chiaveEpisodio } from '~/composables/useImportPodcast'
 
 const imp = useImportPodcast()
 const identita = useIdentity()
+const profilo = useProfiloProprio()
+
+/** The active account as the user knows it: its profile name, or the start of its npub. */
+const nomeAccount = computed(() =>
+  profilo.daProfilo && profilo.nome ? profilo.nome : `${identita.npub?.slice(0, 16)}…`,
+)
 
 const xmlIncollato = ref('')
 const mostraIncolla = ref(false)
@@ -206,8 +213,8 @@ const etichettaStato: Record<string, string> = {
                 importando?
               </p>
               <p class="text-xs text-[var(--testo-tenue)]">
-                Rispondi sì se hai creato questa scheda per lo show mentre era ancora sul vecchio
-                host, e non hai mai sottoposto il suo feed a una piattaforma.
+                Rispondi sì solo se il feed della scheda podcast attualmente legata al tuo account
+                Nostr «{{ nomeAccount }}», non l’hai mai sottoposto a una piattaforma esterna.
               </p>
               <div class="flex gap-4 text-sm">
                 <label class="flex items-center gap-1">
