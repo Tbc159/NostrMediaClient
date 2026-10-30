@@ -885,31 +885,33 @@ TESTS
   - the Prompt K fixture: same body and same ETag as today.
 ```
 
-> **Delivered as PR #28** (`feature/feed-paging-dedup`, open on 30 October
-> 2026). Three choices go beyond the text, all sound: paging per relay, each
-> with its own `until`, since relays cap `limit` differently; one retry with
-> `until - 1` when a page brings nothing new, or a page all in one second
-> would stop the scan (more events in one second than a relay's cap are then
-> skipped — NIP-01 offers no way round it, and NMC publishes episodes one at a
-> time); and the compose file, which pinned `FEED_MAX_EPISODES` at 200.
+> **Delivered as PR #28** (`feature/feed-paging-dedup`), merged into
+> `develop` and deployed on 30 October 2026 (`c76307e`). Three choices go
+> beyond the text, all sound: paging per relay, each with its own `until`,
+> since relays cap `limit` differently; one retry with `until - 1` when a page
+> brings nothing new, or a page all in one second would stop the scan (more
+> events in one second than a relay's cap are then skipped — NIP-01 offers no
+> way round it, and NMC publishes episodes one at a time); and the compose
+> file, which pinned `FEED_MAX_EPISODES` at 200.
 >
 > One change the summary did not mention: signature verification rewritten in
 > Jacobian coordinates with Shamir's trick, to verify a whole catalogue in
 > time, plus a cache of verified signatures. The cache is safe: it is keyed on
 > id, pubkey and signature, and `is_valid` recomputes the id from the content
-> before looking it up. The formulas read correctly, but no test uses the
-> official BIP-340 vectors: the tests sign and verify with the same arithmetic,
-> so a mistake shared by both would pass, and a wrong verification either lets
-> forged events into a feed (the endpoint accepts relays from the caller) or
-> empties it. Before merging, hand over:
+> before looking it up. The deployed `schnorr.verify` was checked from here
+> against the official BIP-340 vectors (`bip-0340/test-vectors.csv`): rows
+> 0–14 all give the expected result, invalid signatures included; rows 15–18
+> sign messages that are not 32 bytes long, which Nostr never does, and the
+> function refuses them on purpose. The service's own tests still sign and
+> verify with the same arithmetic, so the vectors are worth having there too,
+> to guard the next change:
 
 ```
-Repository: microservice-media-manager, branch feature/feed-paging-dedup (PR #28).
-Before merging: test schnorr.verify against the official BIP-340 vectors
-(bitcoin/bips, bip-0340/test-vectors.csv), every row, valid and invalid, with
-the expected result as the file gives it — public key not on the curve, R with
-odd y, r equal to p, s equal to n, and the others. Run them through _mul_add
-and through the old affine path, and assert both agree. No other change.
+Repository: microservice-media-manager, feed domain, branch develop.
+Add a test of schnorr.verify on the official BIP-340 vectors (bitcoin/bips,
+bip-0340/test-vectors.csv), rows 0 to 14, with the expected result as the file
+gives it. Rows 15 to 18 sign messages that are not 32 bytes long: assert that
+verify refuses them, since a Nostr id is always 32 bytes. No other change.
 ```
 
 ### Prompt M — Managed subdomains on the NMC domain
