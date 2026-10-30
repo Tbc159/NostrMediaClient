@@ -1,5 +1,7 @@
 import tailwindcss from '@tailwindcss/vite'
 
+import { punteggiaturaAttaccata } from './compiler/punteggiatura'
+
 /*
  * The publication's base path.
  *
@@ -26,6 +28,12 @@ export default defineNuxtConfig({
   modules: ['@pinia/nuxt'],
 
   css: ['~/assets/css/main.css'],
+
+  vue: {
+    // Prettier breaks lines around inline elements, and Vue turns each break
+    // into a space before the punctuation that follows: see compiler/punteggiatura.ts.
+    compilerOptions: { nodeTransforms: [punteggiaturaAttaccata] },
+  },
 
   vite: {
     // Tailwind 4 integrates with the Vite plugin, not with @nuxtjs/tailwindcss:
