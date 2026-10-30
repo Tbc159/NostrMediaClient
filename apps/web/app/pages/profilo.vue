@@ -3,10 +3,13 @@ import {
   CATEGORIE_APPLE,
   MAX_CATEGORIE,
   PIATTAFORME,
+  chiama,
   getKindDefinition,
   parsePublicKeyInput,
   podcastGuidPerUrl,
+  riassumiFeedPodcast,
   toNpub,
+  urlFeedPodcast,
   type CategoriaPodcast,
   type Firmatario,
   type Persona,
@@ -15,12 +18,14 @@ import {
 } from '@nmc/nostr-core'
 import type { SceltaChiave } from '~/composables/useChiaveDedicata'
 import { useDeleghe } from '~/stores/deleghe'
+import { useMediaManager } from '~/stores/mediamanager'
 import { useProfiloProprio } from '~/stores/profiloProprio'
 
 useHead({ title: 'Profilo · NostrMediaClient' })
 
 const identita = useIdentity()
 const profiloProprio = useProfiloProprio()
+const servizio = useMediaManager()
 const bozza = useEventDraft()
 const esistente = useEventoEsistente()
 
@@ -551,6 +556,34 @@ async function caricaPodcast(): Promise<void> {
   }
 }
 
+/**
+ * The show's `podcast:guid`, for a card that has none: written once, never
+ * recomputed.
+ *
+ * A card already on the relays has been served by the feed service, which
+ * gave it the identity of its technical address — and whoever indexed the
+ * show (Podcast Index, Fountain) knows it by that one. It is inherited: read
+ * from the feed itself, or computed the way the service computes it when the
+ * feed cannot be read. Taking it from the stable address instead would make
+ * the same show another podcast the day the address is added. Only a new card
+ * takes it from its stable address.
+ */
+async function identitaDaScrivere(feedUrl: string): Promise<string | null> {
+  const pubkey = firmaPodcastCon.value || identita.pubkey
+  if (haPodcast.value && pubkey && servizio.configurato) {
+    const tecnico = urlFeedPodcast(servizio.baseUrl, pubkey)
+    try {
+      const r = await chiama(tecnico, { headers: { accept: 'application/rss+xml' } })
+      const dichiarata = r.ok ? riassumiFeedPodcast(await r.text()).podcastGuid : null
+      if (dichiarata) return dichiarata
+    } catch {
+      // Unreachable from here: the same value, computed.
+    }
+    return podcastGuidPerUrl(tecnico)
+  }
+  return feedUrl ? podcastGuidPerUrl(feedUrl) : null
+}
+
 async function componiPodcast(): Promise<void> {
   const definizione = getKindDefinition(10154)
   if (!definizione) {
@@ -558,8 +591,7 @@ async function componiPodcast(): Promise<void> {
     return
   }
   const feedUrl = podcastFeedUrl.value.trim()
-  // Once, from the stable address, when the card has no identity yet.
-  if (!podcastGuid.value && feedUrl) podcastGuid.value = await podcastGuidPerUrl(feedUrl)
+  if (!podcastGuid.value) podcastGuid.value = await identitaDaScrivere(feedUrl)
   // NIP-F4 wants the description and the image: the `build` refuses them
   // empty, and the form asks for them first instead of letting the error arrive.
   bozzaPodcast.costruisci(
