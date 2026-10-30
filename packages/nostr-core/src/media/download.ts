@@ -107,7 +107,7 @@ export async function scaricaFile(
     if (!risposta.ok) throw new Error(`il server ha risposto ${risposta.status}`)
     const blob = await risposta.blob()
     if (blob.type && !accettato(blob.type, atteso)) {
-      throw new Error(`non e' ${atteso.nome} (${blob.type})`)
+      throw new Error(`non è ${atteso.nome} (${blob.type})`)
     }
     return { blob, via: 'diretta' }
   } catch (e) {
@@ -116,7 +116,7 @@ export async function scaricaFile(
 
   if (!opzioni.mediaManager) {
     throw new Error(
-      `${primoErrore}: il server non permette di ${leggi} da un'altra pagina, e non c'e' un servizio configurato che ${atteso.pronome} scarichi al posto tuo.`,
+      `${primoErrore}: il server non permette di ${leggi} da un’altra pagina, e non c’è un servizio configurato che ${atteso.pronome} scarichi al posto tuo.`,
     )
   }
 
@@ -132,7 +132,7 @@ export async function scaricaFile(
   } catch (e) {
     const secondo = e instanceof Error ? e.message : String(e)
     throw new Error(
-      `${primoErrore}: il server non permette di ${leggi} da un'altra pagina, e nemmeno il servizio e' riuscito a scaricar${atteso.pronome} (${secondo}).`,
+      `${primoErrore}: il server non permette di ${leggi} da un’altra pagina, e nemmeno il servizio è riuscito a scaricar${atteso.pronome} (${secondo}).`,
     )
   }
 }

@@ -219,7 +219,7 @@ function nipDichiarati(esito: RelayCheck): string[] {
                   NIP: {{ nipDichiarati(riga.esito).join(', ') || '—' }}
                 </li>
                 <li v-if="riga.esito.infoError">
-                  NIP-11 non leggibile ({{ riga.esito.infoError }}) — spesso e' solo CORS dal
+                  NIP-11 non leggibile ({{ riga.esito.infoError }}) — spesso è solo CORS dal
                   browser, non un guasto del relay
                 </li>
               </ul>

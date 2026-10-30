@@ -257,13 +257,13 @@ describe('beyond NIP-F4: what the platforms demand', () => {
   it('refuses a category Apple does not have, a non-ISO language, a crooked email', () => {
     expect(() =>
       podcastMetadataDefinition.build({ ...scheda, categories: [{ principale: 'Podcast' }] }, CTX),
-    ).toThrow(/non e’ una categoria/)
+    ).toThrow(/non è una categoria/)
     expect(() =>
       podcastMetadataDefinition.build(
         { ...scheda, categories: [{ principale: 'News', sotto: 'Improv' }] },
         CTX,
       ),
-    ).toThrow(/non e’ una categoria/)
+    ).toThrow(/non è una categoria/)
     expect(() => podcastMetadataDefinition.build({ ...scheda, language: 'italiano' }, CTX)).toThrow(
       /ISO 639-1/,
     )

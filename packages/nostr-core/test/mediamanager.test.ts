@@ -114,7 +114,7 @@ describe('the errors the browser makes incomprehensible', () => {
 
   it('translates the statuses this service actually uses', () => {
     expect(spiegaStato(401)).toMatch(/Chiave API/)
-    expect(spiegaStato(409)).toMatch(/gia’ presente/)
+    expect(spiegaStato(409)).toMatch(/già presente/)
     expect(spiegaStato(503)).toMatch(/non risponde/)
   })
 

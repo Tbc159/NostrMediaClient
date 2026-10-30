@@ -97,7 +97,7 @@ export async function unwrapDraft(
     testo = await cifrario.decrypt(bozza.ciphertext)
   } catch {
     throw new Error(
-      'Non e’ stato possibile decifrare la bozza. Di norma significa che e’ stata scritta con un’altra identita’.',
+      'Non è stato possibile decifrare la bozza. Di norma significa che è stata scritta con un’altra identità.',
     )
   }
 
@@ -105,7 +105,7 @@ export async function unwrapDraft(
   try {
     contenuto = JSON.parse(testo)
   } catch {
-    throw new Error('La bozza si e’ decifrata ma non contiene JSON valido.')
+    throw new Error('La bozza si è decifrata ma non contiene JSON valido.')
   }
 
   if (

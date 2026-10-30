@@ -47,7 +47,7 @@ export function usePublish() {
     opzioni: { strategia?: StrategiaPubblicazione } = {},
   ): Promise<boolean> {
     if (!pool) {
-      errore.value = 'Il pool di relay non e’ disponibile: ricarica la pagina.'
+      errore.value = 'Il pool di relay non è disponibile: ricarica la pagina.'
       return false
     }
 

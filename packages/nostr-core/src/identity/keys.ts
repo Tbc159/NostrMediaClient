@@ -80,10 +80,8 @@ export function parseSecretKeyInput(input: string): SecretKey {
 
   if (pulito.startsWith('npub1')) {
     throw new Error(
-      'Questa e' +
-        "' una chiave pubblica (npub), non una privata. " +
-        'Per il solo accesso in lettura usa la modalita' +
-        "' apposita.",
+      'Questa è una chiave pubblica (npub), non una privata. ' +
+        'Per il solo accesso in lettura usa la modalità apposita.',
     )
   }
 

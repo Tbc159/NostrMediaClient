@@ -79,12 +79,12 @@ export const blossomAuthDefinition = defineKind<BlossomAuthParsed, BlossomAuthIn
     }
     if (input.verb === 'upload' && (input.hashes ?? []).length === 0) {
       throw new Error(
-        'Un token di upload deve dichiarare l’hash del file: senza, il server non puo’ legarlo al blob che riceve.',
+        'Un token di upload deve dichiarare l’hash del file: senza, il server non può legarlo al blob che riceve.',
       )
     }
     if (input.content.trim() === '') {
       throw new Error(
-        'Il token deve spiegare a cosa serve: e’ il testo che l’utente vede quando gli si chiede di firmarlo.',
+        'Il token deve spiegare a cosa serve: è il testo che l’utente vede quando gli si chiede di firmarlo.',
       )
     }
     for (const s of input.servers ?? []) {

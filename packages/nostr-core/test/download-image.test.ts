@@ -68,7 +68,7 @@ describe('scaricaImmagine', () => {
   it('says the service is missing when there is no CORS and no service', async () => {
     await expect(
       scaricaImmagine('https://sito.esempio/foto.jpg', { fetch: fetchSenzaCors }),
-    ).rejects.toThrow(/non c'e' un servizio configurato/)
+    ).rejects.toThrow(/non c’è un servizio configurato/)
   })
 
   it('carries both causes in the error when the service fails too', async () => {
@@ -95,6 +95,6 @@ describe('scaricaImmagine', () => {
         fetch: async () =>
           new Response('<html>', { status: 200, headers: { 'content-type': 'text/html' } }),
       }),
-    ).rejects.toThrow(/non e' un'immagine \(text\/html\)/)
+    ).rejects.toThrow(/non è un'immagine \(text\/html\)/)
   })
 })

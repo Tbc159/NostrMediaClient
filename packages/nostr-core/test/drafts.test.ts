@@ -121,7 +121,7 @@ describe('encrypted drafts (NIP-37)', () => {
       evento({ tags: draftWrapDefinition.build(input, CTX).tags, content: input.ciphertext }),
     )
 
-    await expect(unwrapDraft(altro, riletto)).rejects.toThrow(/altra identita/)
+    await expect(unwrapDraft(altro, riletto)).rejects.toThrow(/altra identità/)
   })
 
   it('refuses to read an event without the k tag, which NIP-37 requires', () => {

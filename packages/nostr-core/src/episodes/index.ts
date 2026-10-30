@@ -166,7 +166,7 @@ export function leggiBozzaEpisodio(testo: string): BozzaEpisodio {
   if (!esito.success) {
     const primo = esito.error.issues[0]
     const dove = primo?.path.length ? ` (${primo.path.join('.')})` : ''
-    throw new Error(`Non e’ una bozza di episodio${dove}: ${primo?.message ?? 'forma inattesa'}.`)
+    throw new Error(`Non è una bozza di episodio${dove}: ${primo?.message ?? 'forma inattesa'}.`)
   }
   return esito.data as BozzaEpisodio
 }

@@ -92,7 +92,7 @@ export const draftWrapDefinition = defineKind<DraftWrapParsed, DraftWrapInput>({
   build(input, ctx) {
     if (input.identifier.trim() === '') {
       throw new Error(
-        'Una bozza ha bisogno di un identificatore: e’ il tag `d` che la rende sostituibile.',
+        'Una bozza ha bisogno di un identificatore: è il tag `d` che la rende sostituibile.',
       )
     }
     if (input.draftKind === 31234) {

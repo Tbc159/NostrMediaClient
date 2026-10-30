@@ -49,11 +49,11 @@ export function spiegaStato(stato: number, dettaglio?: string): string {
     case 405:
       return `Il servizio non accetta questo metodo su questo indirizzo${coda}.`
     case 409:
-      return `Un file con lo stesso contenuto o nome e’ gia’ presente${coda}.`
+      return `Un file con lo stesso contenuto o nome è già presente${coda}.`
     case 413:
       return 'File troppo grande per il servizio.'
     case 501:
-      return `Questa funzione e’ dichiarata ma non ancora realizzata dal servizio${coda}.`
+      return `Questa funzione è dichiarata ma non ancora realizzata dal servizio${coda}.`
     case 502:
     case 503:
     case 504:
@@ -75,8 +75,8 @@ export function spiegaStato(stato: number, dettaglio?: string): string {
  * where it is not.
  */
 export const CAUSE_PROBABILI_RETE =
-  'Non e’ stato possibile raggiungere il servizio. Dal browser le cause piu’ frequenti non sono ' +
-  'la rete: il servizio potrebbe non esporre le intestazioni CORS, oppure questa pagina e’ su ' +
+  'Non è stato possibile raggiungere il servizio. Dal browser le cause più frequenti non sono ' +
+  'la rete: il servizio potrebbe non esporre le intestazioni CORS, oppure questa pagina è su ' +
   'https e il servizio su http (contenuto misto, che il browser blocca).'
 
 export interface OpzioniChiamata {

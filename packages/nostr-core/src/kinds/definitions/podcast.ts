@@ -237,7 +237,7 @@ export const podcastEpisodeDefinition = defineKind<PodcastEpisodeParsed, Podcast
 
   build(input, ctx) {
     if (input.title.trim() === '') {
-      throw new Error('Un episodio ha bisogno di un titolo: e’ come lo si trova in un lettore.')
+      throw new Error('Un episodio ha bisogno di un titolo: è come lo si trova in un lettore.')
     }
     if (input.publishedAt !== undefined) {
       richiediIntero(input.publishedAt, 'La data di prima pubblicazione')
@@ -259,7 +259,7 @@ export const podcastEpisodeDefinition = defineKind<PodcastEpisodeParsed, Podcast
     }
     if (input.audio.length === 0) {
       throw new Error(
-        'Un episodio senza sorgente audio non e’ ascoltabile. Per un testo senza audio usa una nota o un articolo.',
+        'Un episodio senza sorgente audio non è ascoltabile. Per un testo senza audio usa una nota o un articolo.',
       )
     }
 
@@ -437,7 +437,7 @@ export const podcastMetadataDefinition = defineKind<PodcastMetadataParsed, Podca
     for (const c of categorie) {
       if (!isCategoriaApple(c)) {
         throw new Error(
-          `«${c.sotto ? `${c.principale} / ${c.sotto}` : c.principale}» non e’ una categoria di Apple Podcasts.`,
+          `«${c.sotto ? `${c.principale} / ${c.sotto}` : c.principale}» non è una categoria di Apple Podcasts.`,
         )
       }
     }
@@ -546,7 +546,7 @@ export const authoredPodcastsDefinition = defineKind<AuthoredPodcastsParsed, Aut
       )
       if (podcasts.length === 0) {
         throw new Error(
-          'La lista dei podcast di cui sei autore e’ vuota: per toglierti da tutti, cancella l’evento invece di pubblicarne uno vuoto.',
+          'La lista dei podcast di cui sei autore è vuota: per toglierti da tutti, cancella l’evento invece di pubblicarne uno vuoto.',
         )
       }
       return {

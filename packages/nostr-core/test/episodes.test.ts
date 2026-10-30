@@ -98,7 +98,7 @@ describe('what it refuses, and how it says so', () => {
 
   it('any old JSON, pointing at the field', () => {
     expect(() => leggiBozzaEpisodio(JSON.stringify({ versione: 1, kind: 54 }))).toThrow(
-      /Non e’ una bozza/,
+      /Non è una bozza/,
     )
   })
 

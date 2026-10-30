@@ -289,7 +289,7 @@ export async function checkBlossomServer(
       result.error = msg
     } else {
       result.error =
-        `${msg} — dal browser questo e' quasi sempre CORS: il server non espone ` +
+        `${msg} — dal browser questo è quasi sempre CORS: il server non espone ` +
         `Access-Control-Allow-Origin sulla risposta effettiva (alcuni lo mandano solo ` +
         `sul preflight OPTIONS, e non basta). Confrontare con \`pnpm check:endpoints\`, ` +
         `che gira su Node e non subisce CORS.`

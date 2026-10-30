@@ -65,7 +65,7 @@ describe('the checklist per platform', () => {
     const esito = verificaPiattaforma(per('apple'), COMPLETA, { larghezza: 640, altezza: 426 })
     const voce = esito.voci.find((v) => v.requisito === 'copertina-quadrata')
     expect(voce?.ok).toBe(false)
-    expect(voce?.testo).toMatch(/640×426.*non e’ quadrata/)
+    expect(voce?.testo).toMatch(/640×426.*non è quadrata/)
   })
 
   it('has a wav episode trip the mp3/m4a requirement', () => {

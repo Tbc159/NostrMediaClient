@@ -69,7 +69,7 @@ export async function attendiLavoro(
 
     if (stato.stato === 'fallito') {
       throw new ErroreServizio(
-        `L’elaborazione non e’ riuscita: ${stato.errore ?? 'motivo non riportato'}.`,
+        `L’elaborazione non è riuscita: ${stato.errore ?? 'motivo non riportato'}.`,
         null,
       )
     }
@@ -78,8 +78,8 @@ export async function attendiLavoro(
       // The job stays in progress on the service: here we only stop waiting
       // for it, and the message does not promise it has been cancelled.
       throw new ErroreServizio(
-        `Il lavoro non e’ finito entro ${Math.round(scadenza / 1000)}s. ` +
-          'Puo’ essere ancora in corso sul servizio.',
+        `Il lavoro non è finito entro ${Math.round(scadenza / 1000)}s. ` +
+          'Può essere ancora in corso sul servizio.',
         null,
       )
     }

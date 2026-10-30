@@ -162,7 +162,7 @@ export function useBozzeRemote() {
     if (!bozza.template) {
       errore.value =
         identita.motivoNonCifrabile ??
-        'Questa bozza non si decifra con l’identita’ attiva: probabilmente e’ stata scritta con un’altra chiave.'
+        'Questa bozza non si decifra con l’identità attiva: probabilmente è stata scritta con un’altra chiave.'
       return null
     }
     return bozza.template

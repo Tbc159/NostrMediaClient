@@ -120,7 +120,7 @@ export function spiegaRispostaRelay(
 
   if (ok) {
     if (prefisso === 'duplicate') {
-      return { esito: 'duplicato', motivo: 'Il relay aveva gia’ questo evento.' }
+      return { esito: 'duplicato', motivo: 'Il relay aveva già questo evento.' }
     }
     return { esito: 'accettato', motivo: 'Accettato.' }
   }
@@ -218,7 +218,7 @@ export async function publishEvent(
   const destinazioni = mergeRelayLists(relays)
   if (destinazioni.length === 0) {
     throw new Error(
-      'Nessun relay di scrittura configurato: non c’e’ dove pubblicare. Controlla le impostazioni.',
+      'Nessun relay di scrittura configurato: non c’è dove pubblicare. Controlla le impostazioni.',
     )
   }
 
@@ -272,7 +272,7 @@ async function aRotazione(
     risultati.push({
       url,
       esito: 'non tentato',
-      motivo: 'Non contattato: un relay precedente aveva gia’ preso in carico l’evento.',
+      motivo: 'Non contattato: un relay precedente aveva già preso in carico l’evento.',
     })
   }
 
@@ -405,7 +405,7 @@ function messaggioErrore(errore: unknown): string {
       return `connessione chiusa dal relay, codice ${e.code}${motivo}`
     }
     if (e.type === 'error') {
-      return 'connessione rifiutata o interrotta: il relay non e’ raggiungibile da questo browser'
+      return 'connessione rifiutata o interrotta: il relay non è raggiungibile da questo browser'
     }
     if (typeof e.type === 'string') return `evento WebSocket "${e.type}"`
   }
@@ -415,7 +415,7 @@ function messaggioErrore(errore: unknown): string {
 
 function descriviErrore(errore: unknown, url: string, attesaAuth: boolean): string {
   if (attesaAuth) {
-    return `${url} ha chiesto l’autenticazione NIP-42 e la pubblicazione e’ rimasta in attesa. Accedi con una chiave che possa firmare.`
+    return `${url} ha chiesto l’autenticazione NIP-42 e la pubblicazione è rimasta in attesa. Accedi con una chiave che possa firmare.`
   }
   return messaggioErrore(errore)
 }

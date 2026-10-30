@@ -3,6 +3,7 @@ import type { DestinatarioValore, Persona, Valore } from '../kinds/podcast-extra
 import type { FileAllegato, TipoEpisodio, TipoPodcast } from '../kinds/definitions/podcast.js'
 import { TIPI_EPISODIO } from '../kinds/definitions/podcast.js'
 import { podcastGuidPerUrl } from '../utils/uuid.js'
+import { PIATTAFORME, type Piattaforma } from './platforms.js'
 
 /**
  * Reading a podcast's RSS feed from another host, to move it to NMC.
@@ -224,6 +225,55 @@ function nomiPodcast(blocco: string): Set<string> {
   )
 }
 
+// ── a show's page instead of its feed ──────────────────────────────────────
+
+const DOVE_SPOTIFY =
+  'Se lo ospiti su Spotify for Creators, il feed è in Impostazioni → Distribuzione → feed RSS, e comincia con https://anchor.fm/s/. Se lo ospita un altro host, lo trovi nel suo pannello.'
+
+const DOVE_PER_PIATTAFORMA: Record<Piattaforma['id'], string> = {
+  spotify: `Spotify non dà il feed dalla pagina dello show. ${DOVE_SPOTIFY}`,
+  apple:
+    'Apple non ospita il podcast: legge il feed dal tuo host. L’indirizzo lo trovi nel pannello dell’host, e anche fra le informazioni dello show in Apple Podcasts Connect.',
+  amazon:
+    'Amazon non ospita il podcast: legge il feed dal tuo host, e l’indirizzo lo trovi nel suo pannello.',
+  youtube:
+    'Se YouTube riceve gli episodi da un feed, è quello del tuo host: l’indirizzo lo trovi nel suo pannello.',
+  podcastindex: 'Il feed è indicato in quella pagina, e anche nel pannello del tuo host.',
+}
+
+/**
+ * The explanation for a show's page pasted where the feed goes, or null.
+ *
+ * It is the likeliest mistake of a creator who thinks of the show as «on
+ * Spotify»: the platforms are directories that read the host's feed, and their
+ * pages are not feeds. The browser could not even read them, so without this
+ * check the error would speak of CORS and send the creator the wrong way.
+ */
+export function paginaDiPiattaforma(url: string): string | null {
+  let indirizzo: URL
+  try {
+    indirizzo = new URL(url.trim())
+  } catch {
+    return null
+  }
+  // An address that names a feed is let through: YouTube, for one, serves feeds too.
+  if (/rss|feed|\.xml$/i.test(indirizzo.pathname + indirizzo.search)) return null
+  const host = indirizzo.hostname.toLowerCase()
+  const su = (domini: readonly string[]): boolean =>
+    domini.some((d) => host === d || host.endsWith(`.${d}`))
+
+  if (su(['creators.spotify.com', 'podcasters.spotify.com'])) {
+    return `Questo è l’indirizzo di una pagina di Spotify for Creators, non del feed RSS. ${DOVE_SPOTIFY}`
+  }
+  const piattaforma = PIATTAFORME.find((p) => su(p.dominiShow))
+  if (!piattaforma) return null
+  const cosa =
+    piattaforma.id === 'podcastindex'
+      ? 'Questa è la pagina dello show su Podcast Index'
+      : `Questo è il link dello show su ${piattaforma.nome}`
+  return `${cosa}, non il feed RSS. ${DOVE_PER_PIATTAFORMA[piattaforma.id]}`
+}
+
 // ── the import ─────────────────────────────────────────────────────────────
 
 /**
@@ -236,7 +286,11 @@ function nomiPodcast(blocco: string): Set<string> {
  */
 export async function leggiFeedEsterno(xml: string, urlSorgente?: string): Promise<EsitoImport> {
   if (!/<rss\b/i.test(xml)) {
-    throw new Error('Non e’ un feed RSS: il documento non contiene <rss>.')
+    throw new Error(
+      /<html\b|<!doctype html/i.test(xml)
+        ? 'Questa è una pagina web, non un feed RSS. L’indirizzo del feed lo trovi nel pannello del tuo host: di solito finisce con /rss, /feed o .xml.'
+        : 'Non è un feed RSS: il documento non contiene <rss>.',
+    )
   }
   const { canale, item } = dividiFeed(xml)
 

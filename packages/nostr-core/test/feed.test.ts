@@ -95,7 +95,7 @@ describe("a feed's summary", () => {
   })
 
   it('refuses what is not RSS, and says so', () => {
-    expect(() => riassumiFeedPodcast('<html>404</html>')).toThrow(/Non e’ un feed RSS/)
+    expect(() => riassumiFeedPodcast('<html>404</html>')).toThrow(/Non è un feed RSS/)
   })
 })
 

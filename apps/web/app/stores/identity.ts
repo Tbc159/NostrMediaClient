@@ -180,7 +180,7 @@ export const useIdentity = defineStore('identity', () => {
   /** Why signing is not possible, to be shown in the UI. */
   const motivoNonFirmabile = computed(() => {
     if (!autenticato.value) return 'Devi prima accedere.'
-    if (modo.value === 'readonly') return 'Sei in sola lettura: non e’ possibile pubblicare.'
+    if (modo.value === 'readonly') return 'Sei in sola lettura: non è possibile pubblicare.'
     if (modo.value === 'locale' && !sbloccato.value) return 'Sblocca la chiave con la password.'
     return null
   })
@@ -317,7 +317,7 @@ export const useIdentity = defineStore('identity', () => {
     const pk = publicKeyFrom(sk)
     if (pubkey.value && pk !== pubkey.value) {
       wipeSecretKey(sk)
-      throw new Error('La chiave salvata non corrisponde all’identita’ attesa.')
+      throw new Error('La chiave salvata non corrisponde all’identità attesa.')
     }
 
     chiaveInMemoria = sk
@@ -382,7 +382,7 @@ export const useIdentity = defineStore('identity', () => {
     if (modo.value === 'nip07') {
       return 'La tua estensione non espone la cifratura NIP-44, che serve alle bozze. Le bozze restano salvate in questo browser.'
     }
-    return 'Cifratura non disponibile in questa modalita’.'
+    return 'Cifratura non disponibile in questa modalità.'
   })
 
   /** Signs a template with the active mode. */
@@ -395,7 +395,7 @@ export const useIdentity = defineStore('identity', () => {
 
     if (modo.value === 'nip07') {
       if (!import.meta.client || !window.nostr) {
-        throw new Error('Estensione NIP-07 non piu’ disponibile.')
+        throw new Error('Estensione NIP-07 non più disponibile.')
       }
       return window.nostr.signEvent(piano)
     }
@@ -405,7 +405,7 @@ export const useIdentity = defineStore('identity', () => {
       return signWithSecretKey(piano, chiaveInMemoria)
     }
 
-    throw new Error(motivoNonFirmabile.value ?? 'Firma non disponibile in questa modalita’.')
+    throw new Error(motivoNonFirmabile.value ?? 'Firma non disponibile in questa modalità.')
   }
 
   return {

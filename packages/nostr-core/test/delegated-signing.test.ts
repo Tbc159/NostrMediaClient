@@ -134,7 +134,7 @@ describe('delegated signing between two parties', () => {
         autoreAtteso: altro,
         kinds: [54],
       }),
-    ).rejects.toThrow(/identita/)
+    ).rejects.toThrow(/identità/)
   }, 20_000)
 })
 

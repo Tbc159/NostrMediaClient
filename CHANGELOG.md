@@ -21,6 +21,62 @@ Two things are worth knowing when reading what follows:
 
 ---
 
+## 2026-10-30 — What the manual test plan found in the import
+
+Developed on `feature/migrazione-podcast`. Writing the plan for the manual
+tests meant walking every path of the import again, the way four different
+creators would take it: one with no podcast yet, one whose show is on Spotify,
+one with a card in their own name, one with an account made for the show. Each
+story runs on a real podcast. Three paths did not behave as a creator would
+expect, and a family of misspelled messages showed up along the way. None of
+them was on the main path of a move. Each was on a path a real creator takes
+sooner or later.
+
+### Fixed
+
+- **Running the import again on the same show no longer stops it.** A card
+  with a platform link or a stable address was taken for a second podcast,
+  even when it was the very show being imported. The import itself suggests
+  adding that link, in «Dove è già distribuito». So a second batch, or a run
+  resumed after an interruption, stopped at «un secondo podcast non ci sta»
+  and asked for a dedicated key. The import now recognises the show by its
+  `podcast:guid`. When the card on the key already has the identity the import
+  inherits, the import says so and asks nothing about the key or the
+  distribution. It leaves the card as it is, hides the fields that would only
+  have rewritten it, and publishes only the episodes that are missing.
+- **A card made by hand for the show is no longer taken for another
+  podcast.** Take a creator who made an account for their show, and a card for
+  it while the show still lived on its old host. That card naturally carries
+  the show's Spotify or Apple links. Those links made it «distributed», so the
+  import refused that account — the one made for the show — and proposed
+  creating yet another key. Platform links alone no longer decide. The import
+  asks whether they are the links of the show being imported, and explains
+  when to answer yes: when the card's own feed was never submitted anywhere.
+  «Yes» lets the import replace the card field by field, with the identity
+  inherited from the old host, keeping the card's links. «No» protects the
+  card as before. A stable address (the `feed` tag) still protects the card
+  without asking, because NMC only hands a feed out once it has one.
+- **Pasting the show's page instead of its feed gets an explanation, not a
+  CORS error.** A creator who thinks «my podcast is on Spotify» pastes
+  `open.spotify.com/show/…`, or the Apple Podcasts link. The browser cannot
+  read those pages, so the error spoke of CORS and suggested saving the file
+  as XML: the wrong way. The import now recognises the show pages of Spotify,
+  Spotify for Creators, Apple Podcasts, Amazon Music, YouTube and Podcast
+  Index before fetching anything. It says that the platform reads the feed
+  from the host rather than serving one, and where the feed is to be found.
+  An address that names a feed, such as YouTube's `feeds/videos.xml`, is let
+  through. Any other web page that gets downloaded is named as a web page,
+  with a hint of what feed addresses usually look like.
+- **Accented words written with an apostrophe.** About sixty messages across
+  the client and the core library had them: errors, the platforms'
+  requirements, signing, drafts, downloads and diagnostics. They read «Non e’
+  un feed RSS», «non si puo’ sottoporre», «gia’», «identita’», sometimes with
+  a straight apostrophe. They now read «è», «può», «già», «identità». One of
+  them was built from four string pieces that left a stray apostrophe in the
+  middle of the sentence; it is one sentence again.
+
+---
+
 ## 2026-10-30 — Your relays and Blossom servers follow your key
 
 Developed on `feature/migrazione-podcast`, after the move below. Until now the

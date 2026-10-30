@@ -185,13 +185,49 @@ const etichettaStato: Record<string, string> = {
           <p v-if="!imp.schedaEsistente.value" class="text-sm text-[var(--testo-tenue)]">
             Nessuna scheda podcast su questa chiave: verrà creata con i dati qui sopra.
           </p>
+          <BaseAlert v-else-if="imp.stessoShow.value" tono="info">
+            Su questa chiave c’è già «{{ imp.datiEsistenti.value?.title }}», ed è questo stesso
+            show: ha la stessa identità (
+            <code>podcast:guid</code>
+            ). L’import riprende da dove era rimasto: la scheda resta com’è, e si pubblicano solo
+            gli episodi che mancano.
+          </BaseAlert>
           <template v-else>
-            <BaseAlert v-if="imp.segniDistribuzione.value.length" tono="pericolo">
+            <BaseAlert v-if="imp.datiEsistenti.value?.feedUrl" tono="pericolo">
               La scheda «{{ imp.datiEsistenti.value?.title }}» risulta già distribuita ({{
                 imp.segniDistribuzione.value.join('; ')
               }}). Due podcast non stanno su una chiave, e sostituirla trasformerebbe quello show in
               un altro per chi lo segue: importa su una chiave dedicata.
             </BaseAlert>
+            <template v-else-if="imp.linkPiattaforme.value.length">
+              <p class="text-sm">
+                Su questa chiave c’è già la scheda «{{ imp.datiEsistenti.value?.title }}», con i
+                link a {{ imp.linkPiattaforme.value.join(', ') }}. Sono i link dello show che stai
+                importando?
+              </p>
+              <p class="text-xs text-[var(--testo-tenue)]">
+                Rispondi sì se hai creato questa scheda per lo show mentre era ancora sul vecchio
+                host, e non hai mai sottoposto il suo feed a una piattaforma.
+              </p>
+              <div class="flex gap-4 text-sm">
+                <label class="flex items-center gap-1">
+                  <input v-model="imp.linkDelloShow.value" type="radio" value="si" />
+                  Sì, è lo stesso show
+                </label>
+                <label class="flex items-center gap-1">
+                  <input v-model="imp.linkDelloShow.value" type="radio" value="no" />
+                  No, è un altro podcast
+                </label>
+              </div>
+              <BaseAlert v-if="imp.linkDelloShow.value === 'si'" tono="info">
+                Allora la scheda diventa quella dello show importato, con la sua identità: scegli
+                qui sotto, campo per campo, cosa tenere.
+              </BaseAlert>
+              <BaseAlert v-if="imp.linkDelloShow.value === 'no'" tono="pericolo">
+                Allora è un altro podcast già distribuito, e due podcast non stanno su una chiave:
+                importa su una chiave dedicata.
+              </BaseAlert>
+            </template>
             <template v-else>
               <p class="text-sm">
                 Su questa chiave c’è già la scheda «{{ imp.datiEsistenti.value?.title }}». È già
@@ -224,6 +260,7 @@ const etichettaStato: Record<string, string> = {
         </section>
 
         <MediaChiavePodcast
+          v-if="!imp.stessoShow.value"
           v-model="imp.sceltaChiave.value"
           :titolo="imp.campi.titolo"
           :immagine="imp.campi.immagine"
@@ -243,56 +280,61 @@ const etichettaStato: Record<string, string> = {
               (calcolata dall’indirizzo del vecchio feed, come la conosce Podcast Index)
             </template>
           </p>
-
-          <BaseField v-slot="{ id }" label="Titolo" required>
-            <BaseInput :id="id" v-model="imp.campi.titolo" />
-          </BaseField>
-          <p v-if="imp.datiEsistenti.value" class="-mt-2 text-xs text-[var(--testo-tenue)]">
-            Nella tua scheda attuale: «{{ imp.datiEsistenti.value.title }}»
-            <button
-              type="button"
-              class="underline"
-              @click="imp.campi.titolo = imp.datiEsistenti.value!.title"
-            >
-              usa questo
-            </button>
+          <p v-if="imp.stessoShow.value" class="text-sm text-[var(--testo-tenue)]">
+            La scheda su questa chiave resta com’è: per cambiarla usa il Profilo.
           </p>
 
-          <BaseField
-            v-slot="{ id }"
-            label="Descrizione"
-            required
-            hint="Già trasformata in testo semplice: YouTube rifiuta l’HTML."
-          >
-            <BaseTextarea :id="id" v-model="imp.campi.descrizione" :rows="4" />
-          </BaseField>
+          <template v-else>
+            <BaseField v-slot="{ id }" label="Titolo" required>
+              <BaseInput :id="id" v-model="imp.campi.titolo" />
+            </BaseField>
+            <p v-if="imp.datiEsistenti.value" class="-mt-2 text-xs text-[var(--testo-tenue)]">
+              Nella tua scheda attuale: «{{ imp.datiEsistenti.value.title }}»
+              <button
+                type="button"
+                class="underline"
+                @click="imp.campi.titolo = imp.datiEsistenti.value!.title"
+              >
+                usa questo
+              </button>
+            </p>
 
-          <BaseField v-slot="{ id }" label="Copertina (URL)" required>
-            <BaseInput :id="id" v-model="imp.campi.immagine" />
-          </BaseField>
-
-          <div class="grid gap-3 sm:grid-cols-2">
-            <BaseField v-slot="{ id }" label="Autore nel feed">
-              <BaseInput :id="id" v-model="imp.campi.autore" />
-            </BaseField>
-            <BaseField v-slot="{ id }" label="Tipo">
-              <BaseSelect :id="id" v-model="imp.campi.tipo" :options="tipi" />
-            </BaseField>
-            <BaseField v-slot="{ id }" label="Lingua (ISO 639-1)">
-              <BaseInput :id="id" v-model="imp.campi.lingua" />
-            </BaseField>
             <BaseField
               v-slot="{ id }"
-              label="Email del proprietario"
-              hint="Spotify, Amazon e YouTube la usano per verificare che il podcast sia tuo."
+              label="Descrizione"
+              required
+              hint="Già trasformata in testo semplice: YouTube rifiuta l’HTML."
             >
-              <BaseInput :id="id" v-model="imp.campi.email" type="email" />
+              <BaseTextarea :id="id" v-model="imp.campi.descrizione" :rows="4" />
             </BaseField>
-          </div>
-          <p v-if="imp.campi.categoria" class="text-sm">
-            Categoria:
-            <strong>{{ categoria }}</strong>
-          </p>
+
+            <BaseField v-slot="{ id }" label="Copertina (URL)" required>
+              <BaseInput :id="id" v-model="imp.campi.immagine" />
+            </BaseField>
+
+            <div class="grid gap-3 sm:grid-cols-2">
+              <BaseField v-slot="{ id }" label="Autore nel feed">
+                <BaseInput :id="id" v-model="imp.campi.autore" />
+              </BaseField>
+              <BaseField v-slot="{ id }" label="Tipo">
+                <BaseSelect :id="id" v-model="imp.campi.tipo" :options="tipi" />
+              </BaseField>
+              <BaseField v-slot="{ id }" label="Lingua (ISO 639-1)">
+                <BaseInput :id="id" v-model="imp.campi.lingua" />
+              </BaseField>
+              <BaseField
+                v-slot="{ id }"
+                label="Email del proprietario"
+                hint="Spotify, Amazon e YouTube la usano per verificare che il podcast sia tuo."
+              >
+                <BaseInput :id="id" v-model="imp.campi.email" type="email" />
+              </BaseField>
+            </div>
+            <p v-if="imp.campi.categoria" class="text-sm">
+              Categoria:
+              <strong>{{ categoria }}</strong>
+            </p>
+          </template>
         </section>
 
         <!-- ── warnings and what is not carried ── -->
@@ -315,7 +357,10 @@ const etichettaStato: Record<string, string> = {
         </BaseAlert>
 
         <!-- ── the split ── -->
-        <section v-if="imp.aperto.value.podcast.valore" class="flex flex-col gap-2">
+        <section
+          v-if="imp.aperto.value.podcast.valore && !imp.stessoShow.value"
+          class="flex flex-col gap-2"
+        >
           <h3 class="font-semibold">Ripartizione dei pagamenti Lightning (boost)</h3>
           <p class="text-sm text-[var(--testo-tenue)]">
             Così Fountain e gli altri lettori sanno a chi mandare i sat. Togli chi non deve più
@@ -345,7 +390,7 @@ const etichettaStato: Record<string, string> = {
         </section>
 
         <!-- ── where it already is ── -->
-        <section class="flex flex-col gap-2">
+        <section v-if="!imp.stessoShow.value" class="flex flex-col gap-2">
           <h3 class="font-semibold">Dove è già distribuito</h3>
           <p class="text-sm text-[var(--testo-tenue)]">
             Incolla il link dello show sulle piattaforme dove c’è già: lì seguirà il redirect dal
@@ -485,6 +530,7 @@ const etichettaStato: Record<string, string> = {
 
           <div class="flex flex-wrap items-center gap-2">
             <BaseButton
+              v-if="!imp.stessoShow.value"
               variant="primario"
               :loading="imp.inScheda.value"
               :disabled="

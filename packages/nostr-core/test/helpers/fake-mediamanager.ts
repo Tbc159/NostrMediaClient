@@ -299,7 +299,7 @@ export async function avviaMediaManagerFinto(
         return rispondi(200, {
           ...comune,
           status: 'failed',
-          error: { detail: 'ffmpeg si e’ fermato' },
+          error: { detail: 'ffmpeg si è fermato' },
         })
       }
       if (lavoro.giri < (stato.giriPrimaDelFine ?? 1)) {

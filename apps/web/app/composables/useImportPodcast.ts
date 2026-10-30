@@ -4,6 +4,7 @@ import {
   TIPO_AUDIO,
   TIPO_TESTO,
   leggiFeedEsterno,
+  paginaDiPiattaforma,
   podcastEpisodeDefinition,
   podcastMetadataDefinition,
   scaricaFile,
@@ -111,6 +112,9 @@ export function useImportPodcast() {
     urlFonte.value = url.trim()
     inLettura.value = true
     try {
+      // A show's page fails like a feed without CORS: say what it is instead.
+      const pagina = paginaDiPiattaforma(urlFonte.value)
+      if (pagina) throw new Error(pagina)
       let risposta: Response
       try {
         risposta = await fetch(urlFonte.value, { mode: 'cors' })
@@ -228,8 +232,10 @@ export function useImportPodcast() {
 
   const schedaEsistente = ref<NostrEvent | null>(null)
   const datiEsistenti = ref<PodcastMetadataParsed | null>(null)
-  /** The user's answer to «is this card already on a platform?». */
+  /** The user's answer to «is this card already on a platform?», for a card with no signs. */
   const rispostaDistribuita = ref<'si' | 'no' | null>(null)
+  /** The user's answer to «are this card's platform links the show being imported?». */
+  const linkDelloShow = ref<'si' | 'no' | null>(null)
 
   async function controllaScheda(): Promise<void> {
     schedaEsistente.value = null
@@ -246,16 +252,31 @@ export function useImportPodcast() {
     }
   }
 
+  /**
+   * The card on this key is this very show: it has the same `podcast:guid`.
+   *
+   * A second run, or a second batch: the import resumes, publishing the
+   * episodes that are missing, and leaves the card as it is.
+   */
+  const stessoShow = computed(() => {
+    const qui = datiEsistenti.value?.podcastGuid
+    return !!qui && qui === aperto.value?.podcast.podcastGuid
+  })
+
+  /** The platforms the existing card links to, by name. */
+  const linkPiattaforme = computed(() => {
+    const d = datiEsistenti.value
+    return d ? PIATTAFORME.filter((p) => urlShowSu(p, d.websites)).map((p) => p.nome) : []
+  })
+
   /** The signs that the existing card is a podcast already out there. */
   const segniDistribuzione = computed<string[]>(() => {
     const d = datiEsistenti.value
     if (!d) return []
-    const segni: string[] = []
-    if (d.feedUrl) segni.push(`ha già un indirizzo del feed (${d.feedUrl})`)
-    for (const p of PIATTAFORME) {
-      if (urlShowSu(p, d.websites)) segni.push(`ha un link a ${p.nome}`)
-    }
-    return segni
+    return [
+      ...(d.feedUrl ? [`ha già un indirizzo del feed (${d.feedUrl})`] : []),
+      ...linkPiattaforme.value.map((nome) => `ha un link a ${nome}`),
+    ]
   })
 
   /**
@@ -263,22 +284,40 @@ export function useImportPodcast() {
    *
    * In doubt it is: replacing a podcast that is out there would turn it into
    * another one for every app that follows it, and there is no undoing that.
+   * A stable address settles it. Platform links alone do not: a card made by
+   * hand for a show still on its old host carries that show's own links, and
+   * only the creator knows which of the two it is, so the creator is asked.
    */
-  const schedaProtetta = computed(
+  const schedaProtetta = computed(() => {
+    if (!schedaEsistente.value || stessoShow.value) return false
+    if (datiEsistenti.value?.feedUrl) return true
+    if (linkPiattaforme.value.length > 0) return linkDelloShow.value !== 'si'
+    return rispostaDistribuita.value !== 'no'
+  })
+
+  /** Protected beyond doubt: the card is another podcast out there. */
+  const distribuitaCerta = computed(
     () =>
-      !!schedaEsistente.value &&
-      (segniDistribuzione.value.length > 0 || rispostaDistribuita.value !== 'no'),
+      schedaProtetta.value &&
+      (!!datiEsistenti.value?.feedUrl ||
+        (linkPiattaforme.value.length > 0
+          ? linkDelloShow.value === 'no'
+          : rispostaDistribuita.value === 'si')),
   )
 
   /** Why the active key cannot take this podcast, for the key's question. */
   const bloccoQuesta = computed<string | null>(() => {
     if (!schedaProtetta.value) return null
     const titolo = datiEsistenti.value?.title ?? 'senza titolo'
-    if (segniDistribuzione.value.length > 0) {
-      return `Ha già la scheda «${titolo}», distribuita: un secondo podcast non ci sta.`
-    }
-    if (rispostaDistribuita.value === 'si') {
+    if (
+      distribuitaCerta.value &&
+      linkPiattaforme.value.length === 0 &&
+      !datiEsistenti.value?.feedUrl
+    ) {
       return `Ha già la scheda «${titolo}», pubblicata su qualche piattaforma: un secondo podcast non ci sta.`
+    }
+    if (distribuitaCerta.value) {
+      return `Ha già la scheda «${titolo}», distribuita: un secondo podcast non ci sta.`
     }
     return `Ha già la scheda «${titolo}»: rispondi prima alla domanda qui sopra.`
   })
@@ -290,8 +329,10 @@ export function useImportPodcast() {
   /** When a dedicated key was created: the key, and the personal one to name as host. */
   const dedicata = ref<{ pubkey: string; autore: string } | null>(null)
 
+  // The show already living on this key answers the question by itself.
   const chiavePronta = computed(
     () =>
+      stessoShow.value ||
       sceltaChiave.value === 'questa' ||
       (!!dedicata.value && dedicata.value.pubkey === identita.pubkey),
   )
@@ -309,6 +350,7 @@ export function useImportPodcast() {
       noteScheda.value = []
       avanzamento.value = {}
       rispostaDistribuita.value = null
+      linkDelloShow.value = null
       if (dedicata.value?.pubkey !== pubkey) {
         dedicata.value = null
         sceltaChiave.value = null
@@ -440,14 +482,15 @@ export function useImportPodcast() {
       scheda.errore.value = 'Scegli prima su quale chiave vive il podcast.'
       return false
     }
-    if (segniDistribuzione.value.length > 0) {
+    if (stessoShow.value) {
       scheda.errore.value =
-        'La scheda già presente risulta distribuita: due podcast non stanno su una chiave. Importa su una chiave dedicata.'
+        'La scheda su questa chiave è già quella di questo show: si importano solo gli episodi che mancano.'
       return false
     }
     if (schedaProtetta.value) {
-      scheda.errore.value =
-        'Questa chiave ha già una scheda podcast: conferma che non è pubblicata su nessuna piattaforma, oppure importa su una chiave dedicata. Sostituire un podcast distribuito lo trasformerebbe in un altro.'
+      scheda.errore.value = distribuitaCerta.value
+        ? 'La scheda già presente risulta distribuita: due podcast non stanno su una chiave. Importa su una chiave dedicata.'
+        : 'Questa chiave ha già una scheda podcast: rispondi alla domanda sulla scheda, oppure importa su una chiave dedicata. Sostituire un podcast distribuito lo trasformerebbe in un altro.'
       return false
     }
     await copiaCopertina()
@@ -660,8 +703,12 @@ export function useImportPodcast() {
     schedaEsistente,
     datiEsistenti,
     rispostaDistribuita,
+    linkDelloShow,
+    stessoShow,
+    linkPiattaforme,
     segniDistribuzione,
     schedaProtetta,
+    distribuitaCerta,
     episodiNativi,
     caricamentoPropri: propri.caricamento,
     controllaScheda,

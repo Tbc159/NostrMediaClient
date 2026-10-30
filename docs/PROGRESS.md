@@ -549,19 +549,26 @@ real users.
   switching identities, the address gate, the managed modes with the switch
   off and on, the parity check and the platforms. The fakes and the drivers
   were throwaway tools and are not in the repository.
+- **A sixth run**, after the manual test plan had found three paths that went
+  wrong. It covers resuming the import on the same show when its card links
+  to Spotify, a card made by hand with the show's own links (both answers to
+  the new question), and the show's page on Spotify and Apple pasted instead
+  of the feed.
 
 ### What is waiting, and on whom
 
-1. **Prompt N on the media-manager.** Prompt K is deployed (service commit
-   `b76aa41`, 30 October 2026) and already behaves as its corrected version.
-   Reading its code showed what Prompt N asks: the service reads 200 episodes
-   chosen by `created_at`, so a catalogue bigger than that loses some, and
-   which ones depends on the order of the import; two events for one episode
-   give two items. A show under 200 episodes, imported once, is not affected.
-2. **A real run, on confirmation**: import the test show, then compare with
-   the Anchor feed, which must give full parity (same GUIDs, same dates,
-   `podcast:guid` `2977094a-…`). It publishes to real relays, so it waits for
-   an explicit go-ahead. The redirect on Spotify is a separate decision, after.
+1. **Prompts K and N are deployed** on the media-manager (service commits
+   `b76aa41` and `c76307e`, 30 October 2026). The feed carries the show's
+   identity, pages through each relay, keeps one item per episode and cuts by
+   `published_at`, up to 1000 episodes.
+2. **The manual tests, done by the user** on their own relay
+   (`wss://21milionidinostr.duckdns.org`) with one of the default Blossom
+   servers. They follow four creators' stories: no podcast yet; a show on one
+   platform; a card in the person's own name; an account made for the show.
+   Each story runs on a real podcast. Two of those shows still have to be
+   created on other hosts, and the platforms take days to approve them. The
+   redirects on the old hosts come last, one show each, and are the user's
+   decision.
 3. **The NMC domain**, for Prompts M then L. The client side is ready: the
    operator turns on `NUXT_PUBLIC_FEED_DOMINI_GESTITI` and moves
    `NUXT_PUBLIC_MEDIA_MANAGER_URL` to `api.<NMC domain>`.

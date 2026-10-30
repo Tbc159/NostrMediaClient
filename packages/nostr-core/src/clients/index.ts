@@ -315,7 +315,7 @@ export function linkEventoEsterno(
  */
 export function validaTemplate(template: string): string | null {
   const t = template.trim()
-  if (t === '') return 'Il modello e’ vuoto.'
+  if (t === '') return 'Il modello è vuoto.'
   if (!t.includes('{pointer}') && !t.includes('{npub}')) {
     return 'Manca il segnaposto {pointer} (o {npub}, per i client che hanno una pagina per autore).'
   }

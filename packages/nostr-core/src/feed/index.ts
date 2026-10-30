@@ -108,7 +108,7 @@ export function dividiFeed(xml: string): { canale: string; item: string[] } {
 export function riassumiFeedPodcast(xml: string): RiassuntoFeed {
   const problemi: string[] = []
   if (!/<rss\b/i.test(xml)) {
-    throw new Error('Non e’ un feed RSS: il documento non contiene <rss>.')
+    throw new Error('Non è un feed RSS: il documento non contiene <rss>.')
   }
 
   const { canale, item: blocchiItem } = dividiFeed(xml)

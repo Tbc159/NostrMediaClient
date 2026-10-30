@@ -47,7 +47,7 @@ export const PIATTAFORME: readonly Piattaforma[] = [
     dominiShow: ['podcasts.apple.com'],
     legge: 'feed',
     requisiti: ['copertina-quadrata', 'categoria', 'lingua', 'descrizione', 'episodio-mp3'],
-    verificaProprieta: 'Account Apple in Podcasts Connect. L’email nel feed non e’ obbligatoria.',
+    verificaProprieta: 'Account Apple in Podcasts Connect. L’email nel feed non è obbligatoria.',
     nota: 'Da qui leggono anche Overcast, Pocket Casts, Castro e Podcast Addict.',
   },
   {
@@ -58,7 +58,7 @@ export const PIATTAFORME: readonly Piattaforma[] = [
     legge: 'feed',
     requisiti: ['copertina-quadrata', 'email', 'descrizione', 'episodio-mp3'],
     verificaProprieta:
-      'Manda un codice all’email nel feed (itunes:email): senza, non si puo’ sottoporre.',
+      'Manda un codice all’email nel feed (itunes:email): senza, non si può sottoporre.',
   },
   {
     id: 'amazon',
@@ -172,9 +172,9 @@ export function verificaPiattaforma(
         if (copertinaConforme(copertina)) return { requisito: r, ok: true, testo: '' }
         const forma =
           copertina.larghezza !== copertina.altezza
-            ? 'non e’ quadrata'
+            ? 'non è quadrata'
             : copertina.larghezza < COPERTINA_MIN
-              ? `e’ sotto i ${COPERTINA_MIN} px`
+              ? `è sotto i ${COPERTINA_MIN} px`
               : `supera i ${COPERTINA_MAX} px`
         return {
           requisito: r,
@@ -193,7 +193,7 @@ export function verificaPiattaforma(
       case 'email':
         return scheda.email
           ? { requisito: r, ok: true, testo: '' }
-          : { requisito: r, ok: false, testo: 'manca l’email: e’ lì che arriva la verifica' }
+          : { requisito: r, ok: false, testo: 'manca l’email: è lì che arriva la verifica' }
       case 'descrizione':
         return scheda.description?.trim()
           ? { requisito: r, ok: true, testo: '' }

@@ -69,7 +69,7 @@ export async function collegaDelega(opzioni: OpzioniDelega): Promise<Delega> {
       permissions: permessi,
     })
   } else {
-    throw new Error('Serve un indirizzo bunker:// oppure una sessione gia’ autorizzata.')
+    throw new Error('Serve un indirizzo bunker:// oppure una sessione già autorizzata.')
   }
 
   let autore: string
@@ -77,7 +77,7 @@ export async function collegaDelega(opzioni: OpzioniDelega): Promise<Delega> {
     autore = await signer.getPublicKey()
   } catch (e) {
     await signer.close().catch(() => {})
-    throw new Error(`Il banco non ha dichiarato quale identita’ firma: ${messaggio(e)}`)
+    throw new Error(`Il banco non ha dichiarato quale identità firma: ${messaggio(e)}`)
   }
 
   if (opzioni.autoreAtteso && autore !== opzioni.autoreAtteso) {
@@ -86,7 +86,7 @@ export async function collegaDelega(opzioni: OpzioniDelega): Promise<Delega> {
     // noticing.
     await signer.close().catch(() => {})
     throw new Error(
-      'Il banco firma con un’identita’ diversa da quella che hai indicato. ' +
+      'Il banco firma con un’identità diversa da quella che hai indicato. ' +
         'L’indirizzo non corrisponde all’npub: non lo uso.',
     )
   }

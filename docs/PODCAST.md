@@ -454,15 +454,33 @@ both built from the endpoints in use and sent to the indexers too, leaving out
 what only this device can reach; then the active identity switches to it, and its card names the personal key as `host`. Both stay among the
 identities saved in the browser, each locked behind its own password.
 
-A key that already carries a podcast is protected: if its card has a `feed`
-tag or links to the platforms, or the user says it is already distributed, the
-import will not replace it — two podcasts do not fit on one key, and replacing
-a distributed one would turn it into another show for everyone following it.
+When the key already has a card, what the import does depends on that card:
+
+- **The same show**: the card has the `podcast:guid` the import inherits. It
+  is a second batch, or a run resumed after an interruption. The import
+  resumes: no question about the key, the card stays as it is, and only the
+  missing episodes are published.
+- **A card with a stable address** (the `feed` tag): NMC has handed its feed
+  out, so it is another podcast out there. The import will not replace it. Two
+  podcasts do not fit on one key, and replacing a distributed one would turn
+  it into another show for everyone following it. The way on is a dedicated
+  key.
+- **A card with platform links and no stable address**: the links may belong
+  to another show, or to this very show on its old host. That happens when the
+  card was made by hand while the show still lived there. Only the creator
+  knows which, so the import asks. «Same show» lets it replace the card field
+  by field, with the inherited identity, keeping the links. «Another podcast»
+  protects the card, as above.
+- **A card with no signs**: the import asks whether it is already on a
+  platform, and protects it until the answer is no.
 
 ### Moving a podcast, step by step
 
 1. **Import** (_Media → Podcast → Import a podcast from another host_). Read
-   the old feed by URL, or paste it. A feed with `<podcast:locked>yes` stops
+   the old feed by URL, or paste it. The show's page on Spotify, Apple
+   Podcasts, Amazon Music, YouTube or Podcast Index is not a feed: those
+   platforms read the host's feed, and the import says where to find it. A
+   feed with `<podcast:locked>yes` stops
    here: the old host protects it, and it has to be unlocked there. The preview
    shows the inherited identity, the warnings, what will not be carried
    (`podcast:soundbite`, `podcast:alternateEnclosure`, `podcast:location`,

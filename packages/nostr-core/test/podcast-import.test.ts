@@ -4,7 +4,12 @@ import { describe, expect, it } from 'vitest'
 import { confrontaFeed, riassumiFeedPodcast, testoDaHtml } from '../src/feed/index.js'
 import { accettaUpload } from '../src/media/blossom.js'
 import { TIPO_AUDIO, scaricaFile } from '../src/media/download.js'
-import { durataInSecondi, leggiFeedEsterno, type EsitoImport } from '../src/podcast/import.js'
+import {
+  durataInSecondi,
+  leggiFeedEsterno,
+  paginaDiPiattaforma,
+  type EsitoImport,
+} from '../src/podcast/import.js'
 
 /**
  * Reading another host's feed to move the podcast to NMC, and checking before
@@ -188,6 +193,42 @@ describe('a locked feed', () => {
 
   it('refuses what is not RSS', async () => {
     await expect(leggiFeedEsterno('<html></html>')).rejects.toThrow(/feed RSS/)
+    await expect(leggiFeedEsterno('{"title":"x"}')).rejects.toThrow(/^Non è un feed RSS/)
+  })
+
+  it('tells a web page from a feed, and says where the feed is', async () => {
+    await expect(
+      leggiFeedEsterno('<!DOCTYPE html><html><head><title>Show</title></head></html>'),
+    ).rejects.toThrow(/^Questa è una pagina web, non un feed RSS\..*pannello del tuo host/)
+  })
+})
+
+describe('paginaDiPiattaforma', () => {
+  it('recognises a show page on each platform, and says where the feed is', () => {
+    const spotify = paginaDiPiattaforma('https://open.spotify.com/show/4rOoJ6Egrf8K2IrywzwOMk')
+    expect(spotify).toMatch(/^Questo è il link dello show su Spotify, non il feed RSS\./)
+    expect(spotify).toContain('https://anchor.fm/s/')
+    expect(paginaDiPiattaforma('https://podcasts.apple.com/it/podcast/brevi/id1234567890')).toMatch(
+      /^Questo è il link dello show su Apple Podcasts.*Apple Podcasts Connect/,
+    )
+    expect(paginaDiPiattaforma('https://music.amazon.it/podcasts/abc')).toMatch(/Amazon Music/)
+    expect(paginaDiPiattaforma('https://www.youtube.com/@brevi/podcasts')).toMatch(/YouTube/)
+    expect(paginaDiPiattaforma('https://podcastindex.org/podcast/123')).toMatch(
+      /^Questa è la pagina dello show su Podcast Index/,
+    )
+    expect(paginaDiPiattaforma('https://creators.spotify.com/pod/show/brevi')).toMatch(
+      /^Questo è l’indirizzo di una pagina di Spotify for Creators/,
+    )
+  })
+
+  it('lets real feeds through, from the host or anywhere else', () => {
+    expect(paginaDiPiattaforma('https://anchor.fm/s/117e26658/podcast/rss')).toBeNull()
+    expect(paginaDiPiattaforma('https://feeds.buzzsprout.com/123456.rss')).toBeNull()
+    expect(
+      paginaDiPiattaforma('https://www.youtube.com/feeds/videos.xml?playlist_id=PL123'),
+    ).toBeNull()
+    expect(paginaDiPiattaforma('https://esempio.it/podcast')).toBeNull()
+    expect(paginaDiPiattaforma('non un indirizzo')).toBeNull()
   })
 })
 
@@ -338,7 +379,7 @@ describe('copying files from the old host', () => {
         fetch: async () =>
           new Response('<html>', { status: 200, headers: { 'content-type': 'text/html' } }),
       }),
-    ).rejects.toThrow(/non e' un file audio \(text\/html\).*leggerlo/)
+    ).rejects.toThrow(/non è un file audio \(text\/html\).*leggerlo/)
   })
 
   it('asks the Blossom server before uploading, and reads its answer', async () => {

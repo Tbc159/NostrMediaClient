@@ -75,7 +75,7 @@ export function dimensioni(larghezza: number, altezza: number): string {
 
 /** Builds the `imeta` tag from an attachment's metadata. */
 export function buildImetaTag(input: ImetaInput): Tag {
-  if (!input.url) throw new Error('Un tag imeta senza url non e’ valido (NIP-92).')
+  if (!input.url) throw new Error('Un tag imeta senza url non è valido (NIP-92).')
 
   const campi: string[] = [`url ${input.url}`]
   const aggiungi = (chiave: string, valore: string | number | undefined): void => {

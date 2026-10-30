@@ -96,7 +96,7 @@ function creaDefinizioneArticolo(kind: 30023 | 30024, nome: string) {
     build(input, ctx) {
       if (input.identifier.trim() === '') {
         throw new Error(
-          'Un articolo ha bisogno di un identificatore: e’ il tag `d` che rende la modifica una sostituzione invece di un doppione.',
+          'Un articolo ha bisogno di un identificatore: è il tag `d` che rende la modifica una sostituzione invece di un doppione.',
         )
       }
       if (/<[a-z][\s\S]*>/i.test(input.content)) {
