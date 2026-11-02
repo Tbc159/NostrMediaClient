@@ -14,10 +14,13 @@ import { useMediaManager } from '~/stores/mediamanager'
  * The feed's stable address, in the podcast's card.
  *
  * The address the apps subscribe to *is* the podcast: it has to be a name the
- * creator controls, not the service's. Three ways to get one, and only the
- * first works today; the other two wait for the NMC domain and run as a
- * simulation that applies nothing. The model is set only when an address has
- * passed its check — or, for the managed modes, when the service has taken it.
+ * creator controls, not the service's. Three ways to get one. The first and
+ * the third work today; the CNAME waits for the NMC domain and runs as a
+ * simulation that applies nothing. The managed subdomain lives under the
+ * configured suffix (`duckdns.org` until the NMC domain exists), and until the
+ * service hands names out by itself the operator turns each one on by hand.
+ * Either way the model is set only when the address has passed its check: it
+ * must serve this key's feed.
  */
 
 const props = defineProps<{
@@ -48,14 +51,18 @@ watch(
 
 onMounted(() => void domini.leggiCapacita())
 
-// ── (1) through an intermediary ──────────────────────────────────────────
-const scritto = ref('')
-watch(scritto, () => {
-  // A changed address is an unchecked one.
+/** A changed address, or another mode, is an unchecked one. */
+function dimenticaVerifica(): void {
   indirizzo.value = props.salvato ?? ''
   verifica.stato.value = 'da-leggere'
   verifica.errore.value = null
-})
+  verifica.esito.value = null
+}
+watch(modo, dimenticaVerifica)
+
+// ── (1) through an intermediary ──────────────────────────────────────────
+const scritto = ref('')
+watch(scritto, dimenticaVerifica)
 
 const parti = computed(() => {
   try {
@@ -178,7 +185,10 @@ const anteprima = computed(() =>
 )
 const statoNome = ref<{ testo: string; tono: 'info' | 'successo' | 'pericolo' } | null>(null)
 const inNome = ref(false)
-const urlProva = ref<string | null>(null)
+watch(nome, () => {
+  dimenticaVerifica()
+  statoNome.value = null
+})
 
 async function registraNome(): Promise<void> {
   if (!esitoNome.value?.ok) return
@@ -188,7 +198,6 @@ async function registraNome(): Promise<void> {
   }
   const scelto = esitoNome.value.nome
   statoNome.value = null
-  urlProva.value = null
   inNome.value = true
   try {
     const libero = await domini.sottodomini.value.disponibile(scelto)
@@ -200,16 +209,20 @@ async function registraNome(): Promise<void> {
       return
     }
     const { url } = await domini.sottodomini.value.registra(scelto)
-    if (domini.sottodomini.value.modo === 'simulata') {
-      urlProva.value = url
-      statoNome.value = {
-        tono: 'info',
-        testo:
-          'Prova: questo indirizzo non serve il feed e non verrà salvato. Niente è stato inviato al servizio.',
-      }
-    } else {
+    // The name is kept only if it already serves this key's feed: until the
+    // service hands names out, the operator turns each one on by hand.
+    const esito = await verifica.verifica(url)
+    if (esito?.stessoFeed) {
       indirizzo.value = url
-      statoNome.value = { tono: 'successo', testo: `Sottodominio registrato: il feed è su ${url}.` }
+      statoNome.value = {
+        tono: 'successo',
+        testo: `Il nome è attivo: il feed è su ${url}, e verrà scritto nella scheda alla pubblicazione.`,
+      }
+    } else if (!esito) {
+      statoNome.value = {
+        tono: 'pericolo',
+        testo: `${url} non serve ancora il feed: il nome non è attivo. L’operatore di NMC deve configurarlo; poi riprova.`,
+      }
     }
   } catch (e) {
     statoNome.value = { tono: 'pericolo', testo: e instanceof Error ? e.message : String(e) }
@@ -293,9 +306,6 @@ async function copia(testo: string, chi: string): Promise<void> {
           <span class="flex flex-col gap-1">
             <span class="flex flex-wrap items-center gap-2 font-medium">
               Un sottodominio di NMC
-              <BaseBadge v-if="!domini.sottodominiAttivi.value" tono="avviso">
-                Coming soon
-              </BaseBadge>
             </span>
             <span class="text-xs text-[var(--testo-tenue)]">
               Il più semplice: scegli un nome e NMC configura tutto. Il nome però è dell’operatore,
@@ -359,21 +369,6 @@ async function copia(testo: string, chi: string): Promise<void> {
             ✓ verificato: verrà scritto nella scheda alla pubblicazione
           </span>
         </div>
-        <BaseAlert v-if="verifica.errore.value" tono="pericolo">
-          {{ verifica.errore.value }}
-        </BaseAlert>
-        <template v-else-if="verifica.esito.value">
-          <BaseAlert v-if="verifica.esito.value.stessoFeed" tono="successo">
-            È il feed di questa chiave: stessa identità, stessi episodi.
-          </BaseAlert>
-          <BaseAlert
-            v-for="p in verifica.esito.value.problemi"
-            :key="p"
-            :tono="verifica.esito.value.stessoFeed ? 'info' : 'pericolo'"
-          >
-            {{ p }}
-          </BaseAlert>
-        </template>
       </div>
 
       <!-- ── (2) ── -->
@@ -423,10 +418,6 @@ async function copia(testo: string, chi: string): Promise<void> {
 
       <!-- ── (3) ── -->
       <div v-else class="flex flex-col gap-3">
-        <BaseAlert v-if="!domini.sottodominiAttivi.value" tono="avviso">
-          Coming soon: funzionerà quando NMC avrà il suo dominio. Puoi provare il percorso, ma non
-          applica niente.
-        </BaseAlert>
         <BaseField
           v-slot="{ id, describedBy }"
           label="Nome del sottodominio"
@@ -438,12 +429,16 @@ async function copia(testo: string, chi: string): Promise<void> {
           {{ esitoNome.motivo }}
         </p>
         <p v-else-if="anteprima" class="text-sm">
-          Il feed sarebbe su
+          Il feed sarà su
           <code class="break-all">{{ anteprima }}</code>
         </p>
         <p class="text-xs text-[var(--testo-tenue)]">
           Il nome è dell’operatore di NMC, che si impegna a mantenere un redirect 301 verso il tuo
           nuovo feed se un giorno te ne vai. Cambiarlo vorrà dire un trasloco.
+          <template v-if="!domini.sottodominiAttivi.value">
+            Per ora l’operatore attiva ogni nome a mano: NMC lo salva solo quando serve davvero il
+            feed di questa chiave.
+          </template>
         </p>
         <BaseButton
           class="w-fit"
@@ -451,14 +446,29 @@ async function copia(testo: string, chi: string): Promise<void> {
           :disabled="!esitoNome?.ok"
           @click="registraNome"
         >
-          {{ domini.sottodominiAttivi.value ? 'Registra il nome' : 'Prova' }}
+          {{ domini.sottodominiAttivi.value ? 'Registra il nome' : 'Usa questo nome' }}
         </BaseButton>
-        <p v-if="urlProva" class="text-sm">
-          Indirizzo di prova:
-          <code class="break-all">{{ urlProva }}</code>
-        </p>
         <BaseAlert v-if="statoNome" :tono="statoNome.tono">{{ statoNome.testo }}</BaseAlert>
       </div>
+
+      <!-- The check of (1) and (3): the address must serve this key's feed. -->
+      <template v-if="modo !== 'cname'">
+        <BaseAlert v-if="verifica.errore.value" tono="pericolo">
+          {{ verifica.errore.value }}
+        </BaseAlert>
+        <template v-else-if="verifica.esito.value">
+          <BaseAlert v-if="verifica.esito.value.stessoFeed" tono="successo">
+            È il feed di questa chiave: stessa identità, stessi episodi.
+          </BaseAlert>
+          <BaseAlert
+            v-for="p in verifica.esito.value.problemi"
+            :key="p"
+            :tono="verifica.esito.value.stessoFeed ? 'info' : 'pericolo'"
+          >
+            {{ p }}
+          </BaseAlert>
+        </template>
+      </template>
 
       <p class="text-xs text-[var(--testo-tenue)]">
         Qualunque modo scegli, cambiarlo in futuro è un trasloco: redirect 301 dal vecchio indirizzo

@@ -413,3 +413,25 @@ export async function accettaUpload(
     motivo: `${hostDi(server)} non dice in anticipo se accetterebbe il file (${stato}): si prova a caricare.`,
   }
 }
+
+/**
+ * Whether a file's URL is on Blossom: on one of the given servers, or at a
+ * blob path named by its SHA-256, which is how every Blossom server serves.
+ * Used to tell the files an import left at the old host.
+ */
+export function fileSuBlossom(url: string, server: readonly string[]): boolean {
+  let u: URL
+  try {
+    u = new URL(url)
+  } catch {
+    return false
+  }
+  const host = (s: string): string => {
+    try {
+      return new URL(s).host
+    } catch {
+      return ''
+    }
+  }
+  return server.some((s) => host(s) === u.host) || /\/[0-9a-f]{64}(\.[a-z0-9]+)?$/i.test(u.pathname)
+}

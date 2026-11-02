@@ -107,6 +107,13 @@ const etichettaStato: Record<string, string> = {
   saltato: 'saltato',
   errore: 'errore',
 }
+
+// The files left at the old host can be put on Blossom later, by hand.
+const restatiAllOriginale = computed(() =>
+  Object.values(imp.avanzamento.value).some((a) =>
+    a.note.some((n) => n.includes('indirizzo originale')),
+  ),
+)
 </script>
 
 <template>
@@ -450,7 +457,7 @@ const etichettaStato: Record<string, string> = {
           <p class="text-sm">
             Da copiare in questo lotto:
             <strong>{{ peso(imp.pesoLotto.value) }}</strong>
-            (limite di sicurezza {{ peso(imp.limite.value) }}, modificabile in Impostazioni).
+            (limite di sicurezza {{ peso(imp.limite.value) }} per importazione).
             <template v-if="imp.aperto.value.episodiSenzaPeso === 1">
               Un episodio non dichiara il peso e non è contato.
             </template>
@@ -523,6 +530,11 @@ const etichettaStato: Record<string, string> = {
               </span>
             </li>
           </ul>
+          <BaseAlert v-if="restatiAllOriginale" tono="info">
+            Alcuni file sono rimasti sul vecchio host: gli episodi si ascoltano, ma dipendono ancora
+            da lui. Scaricali dal suo pannello e caricali da «Episodi pubblicati», più sotto: il
+            feed tiene lo stesso episodio, con il file nuovo.
+          </BaseAlert>
         </section>
 
         <!-- ── 5. Publishing ── -->

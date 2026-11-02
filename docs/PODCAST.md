@@ -413,7 +413,7 @@ domain of its own therefore waits for the NMC domain; that is deliberate.
 | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ | ----------- |
 | **1. Your domain, with an intermediary** | Your reverse proxy (Caddy, nginx, a Cloudflare Worker) asks the service for the feed and answers with a 200  | Yours                                                              | Active      |
 | **2. Your domain, via CNAME**            | A CNAME to `feeds.<NMC domain>` and a TXT `_nmc.<domain>` with your npub; the service issues the certificate | Yours                                                              | Coming soon |
-| **3. An NMC subdomain**                  | `<name>.<NMC domain>`, set up by the operator                                                                | The operator's, who commits to a 301 to your new feed if you leave | Coming soon |
+| **3. An NMC subdomain**                  | `<name>.<suffix>`, set up by the operator; the suffix is `duckdns.org` until the NMC domain exists           | The operator's, who commits to a 301 to your new feed if you leave | Active      |
 
 **Never an HTTP redirect in front of the service**: the apps follow a 301 and
 remember where it lands, which would be the technical address again.
@@ -426,12 +426,25 @@ CORS header on) and another feed. The feed's own self link names the stable
 address because the card carries it and the service reads it (Prompt K,
 deployed since 30 October 2026).
 
-Ways 2 and 3 need the NMC domain. They appear as «Coming soon» and can be tried
-end to end on a simulation that calls nothing, signs nothing and writes no
-`feed` tag; the simulated subdomain is always `<name>.<suffix>`
-(`NUXT_PUBLIC_FEED_SUBDOMAIN_SUFFIX`, `duckdns.org` for now). They turn on only
+Way 3 works today under the configured suffix
+(`NUXT_PUBLIC_FEED_SUBDOMAIN_SUFFIX`, `duckdns.org` until the NMC domain
+exists): writing `breviarticolitest` gives
+`https://breviarticolitest.duckdns.org/feed.xml`, and moving to the NMC domain
+changes that one value, not the code. Until the service hands names out by
+itself, the operator turns each name on by hand on the server (a certificate
+for the name, and the name mapped to the key's technical feed in the reverse
+proxy). NMC keeps the name only after the same check as way 1: an address that
+does not serve this key's feed yet is reported as «not active», and no `feed`
+tag is written. Podcasts on a `duckdns.org` name will need a move (a 301 from
+that name plus `itunes:new-feed-url`) when the NMC domain arrives; their
+`podcast:guid` does not change, because it is written once in the card.
+
+Way 2 needs the NMC domain, because every creator's CNAME points at a target
+name that must stay for ever. It appears as «Coming soon» and can be tried end
+to end on a simulation that calls nothing, signs nothing and writes no `feed`
+tag. Registration through the service, for both ways 2 and 3, turns on only
 when the operator sets `NUXT_PUBLIC_FEED_DOMINI_GESTITI=true` **and** the
-service declares them in `GET /v0/feed/domini/capacita` (Prompts L and M). The
+service declares it in `GET /v0/feed/domini/capacita` (Prompts L and M). The
 real requests are signed with NIP-98 (kind 27235) by the podcast's key: that
 is how the service knows, without accounts, that a name belongs to a key.
 
@@ -491,7 +504,7 @@ When the key already has a card, what the import does depends on that card:
    whose account can then be closed — or left at their original URLs. Each
    file is asked about first (BUD-06 `HEAD /upload`): one the server refuses
    keeps its original URL, with the reason beside it. Above the safety limit
-   (2 GB, in the settings) the import goes in batches, newest first; running
+   (2 GB, fixed for now; the service is meant to set it later) the import goes in batches, newest first; running
    it again skips what is already on the key.
 3. **Set the stable address** in the podcast card and publish the card again.
 4. **Compare** (_RSS feed → Coming from another host?_) the old feed with

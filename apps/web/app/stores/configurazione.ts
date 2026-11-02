@@ -45,15 +45,7 @@ interface Persistito {
   visualizzatori?: Partial<Record<PiattaformaClient, string>>
   /** The clients the user added by hand. */
   visualizzatoriPersonali?: ClientEsterno[]
-  /** The import's safety limit, in bytes. */
-  limiteImportByte?: number
 }
-
-/**
- * The default safety limit of a podcast import: 2 GB copied to Blossom in one
- * go. Above it the import proceeds in batches; the user can raise it.
- */
-export const LIMITE_IMPORT_PREDEFINITO = 2 * 1024 ** 3
 
 /** The fields shown in the interface, with an explanation of what they change. */
 export interface CampoEndpoint {
@@ -120,7 +112,6 @@ export const useConfigurazione = defineStore('configurazione', () => {
   const daAmbiente = ref<RawEnv>({})
   const override = ref<OverrideEndpoint>({})
   const strategia = ref<StrategiaPubblicazione>('sequenziale')
-  const limiteImportByte = ref(LIMITE_IMPORT_PREDEFINITO)
 
   /**
    * The external clients to open an already published event with.
@@ -230,10 +221,6 @@ export const useConfigurazione = defineStore('configurazione', () => {
       strategia.value = salvato.strategia ?? 'sequenziale'
       visualizzatori.value = salvato.visualizzatori ?? {}
       visualizzatoriPersonali.value = salvato.visualizzatoriPersonali ?? []
-      limiteImportByte.value =
-        typeof salvato.limiteImportByte === 'number' && salvato.limiteImportByte > 0
-          ? salvato.limiteImportByte
-          : LIMITE_IMPORT_PREDEFINITO
     }
   }
 
@@ -249,7 +236,6 @@ export const useConfigurazione = defineStore('configurazione', () => {
           strategia: strategia.value,
           visualizzatori: visualizzatori.value,
           visualizzatoriPersonali: visualizzatoriPersonali.value,
-          limiteImportByte: limiteImportByte.value,
         } satisfies Required<Persistito>),
       )
     } catch {
@@ -298,12 +284,6 @@ export const useConfigurazione = defineStore('configurazione', () => {
     salva()
   }
 
-  function impostaLimiteImport(byte: number): void {
-    if (!Number.isFinite(byte) || byte <= 0) return
-    limiteImportByte.value = Math.round(byte)
-    salva()
-  }
-
   /** The value currently in force for a field, however it was arrived at. */
   function valoreDi(chiave: keyof OverrideEndpoint): string {
     return (grezza.value[chiave] ?? '').toString()
@@ -317,8 +297,6 @@ export const useConfigurazione = defineStore('configurazione', () => {
   return {
     override,
     strategia,
-    limiteImportByte,
-    impostaLimiteImport,
     visualizzatori,
     visualizzatoriPersonali,
     visualizzatoriDisponibili,

@@ -130,6 +130,36 @@ function annulla(): void {
   chiave.scarta()
   scelta.value = null
 }
+
+// The personal key signs the declaration of the new podcast, so it must be
+// unlocked here: after a reload it is saved but locked.
+const passwordPersonale = ref('')
+const erroreSblocco = ref<string | null>(null)
+function sbloccaPersonale(): void {
+  erroreSblocco.value = null
+  try {
+    identita.sblocca(passwordPersonale.value)
+    passwordPersonale.value = ''
+  } catch (e) {
+    erroreSblocco.value = e instanceof Error ? e.message : String(e)
+  }
+}
+
+// The new key lives in this component's memory until it is active: leaving
+// the page loses it, so the browser asks first.
+const inSospeso = computed(() => !!chiave.creata.value && !chiave.completata.value)
+function avvisaUscita(e: BeforeUnloadEvent): void {
+  if (!inSospeso.value) return
+  e.preventDefault()
+}
+onMounted(() => window.addEventListener('beforeunload', avvisaUscita))
+onBeforeUnmount(() => window.removeEventListener('beforeunload', avvisaUscita))
+onBeforeRouteLeave(() => {
+  if (!inSospeso.value) return true
+  return window.confirm(
+    'La chiave del podcast non è ancora attiva: uscendo da questa pagina la perdi. Uscire lo stesso?',
+  )
+})
 </script>
 
 <template>
@@ -274,6 +304,35 @@ function annulla(): void {
           <input v-model="chiave.messaAlSicuro.value" type="checkbox" />
           Ho messo al sicuro la chiave del podcast
         </label>
+        <p class="text-xs text-[var(--testo-tenue)]">
+          Non lasciare questa pagina prima di aver proseguito: finché non è attiva, la nuova chiave
+          esiste solo qui.
+        </p>
+        <div
+          v-if="!identita.puoFirmare"
+          class="flex flex-col gap-2 rounded-md border border-[var(--avviso)] p-3 text-sm"
+        >
+          <p>
+            Per proseguire serve la tua chiave personale ({{ nomeIdentita }}): è lei a dichiarare il
+            nuovo podcast. {{ identita.motivoNonFirmabile }}
+          </p>
+          <form
+            v-if="identita.modo === 'locale' && !identita.sbloccato"
+            class="flex flex-wrap items-end gap-2"
+            @submit.prevent="sbloccaPersonale"
+          >
+            <BaseField v-slot="{ id }" label="Password della tua chiave personale">
+              <BaseInput
+                :id="id"
+                v-model="passwordPersonale"
+                type="password"
+                autocomplete="current-password"
+              />
+            </BaseField>
+            <BaseButton type="submit" size="sm">Sblocca</BaseButton>
+          </form>
+          <p v-if="erroreSblocco" class="text-[var(--pericolo)]">{{ erroreSblocco }}</p>
+        </div>
         <div class="flex flex-wrap items-center gap-2">
           <BaseButton
             variant="primario"

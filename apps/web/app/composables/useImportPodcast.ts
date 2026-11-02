@@ -23,8 +23,14 @@ import {
 } from '@nmc/nostr-core'
 
 import type { SceltaChiave } from '~/composables/useChiaveDedicata'
-import { useConfigurazione } from '~/stores/configurazione'
 import { useMediaManager } from '~/stores/mediamanager'
+
+/**
+ * The safety limit of one import: what is copied to Blossom in one go. Above
+ * it the import proceeds in batches. Fixed for now, and read from this one
+ * place only: the service is meant to set it later.
+ */
+export const LIMITE_IMPORT_BYTE = 2 * 1024 ** 3
 
 /**
  * Moving a podcast to NMC from another host.
@@ -79,7 +85,6 @@ const nomeDaUrl = (url: string, ripiego: string): string => {
 export function useImportPodcast() {
   const identita = useIdentity()
   const servizio = useMediaManager()
-  const configurazione = useConfigurazione()
   const blossom = useBlossom()
   const invio = usePublish()
   const esistente = useEventoEsistente()
@@ -156,7 +161,7 @@ export function useImportPodcast() {
     categoria: null,
   })
 
-  const limite = computed(() => configurazione.limiteImportByte)
+  const limite = computed(() => LIMITE_IMPORT_BYTE)
 
   /** The episodes that can become a kind 54: the ones with an audio file. */
   const importabili = computed(() => aperto.value?.episodi.filter((e) => e.audio) ?? [])
@@ -626,7 +631,7 @@ export function useImportPodcast() {
     }
     if (superaLimite.value) {
       errore.value =
-        'Il lotto supera il limite di sicurezza: scegli meno episodi, tieni per alcuni l’URL originale, oppure alza il limite in Impostazioni.'
+        'Il lotto supera il limite di sicurezza: scegli meno episodi, oppure tieni per alcuni l’URL originale.'
       return
     }
     errore.value = null

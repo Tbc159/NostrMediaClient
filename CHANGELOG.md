@@ -21,6 +21,86 @@ Two things are worth knowing when reading what follows:
 
 ---
 
+## 2026-11-02 — What the first manual tests of scenario B found
+
+Developed on `feature/migrazione-podcast`. The first story of the manual test
+plan moves a real show, «Brevi articoli test», from Spotify to a key made for
+it. Running it by hand, on the user's own relay, stopped at three places
+before the redirect, and showed that the last steps needed a stable address
+that could be used for real before the NMC domain exists. All four are
+addressed together here, so the next round of tests can run the whole story,
+redirect included.
+
+### Added
+
+- **«Episodi pubblicati», in Media → Podcast**: the episodes on the active
+  key, each with its date, its length and where its files live. The ones
+  whose audio or image is still on another host come first, with the label
+  «dipende ancora da anchor.fm» (or whichever host it is). Spotify's CDN does
+  not let a browser download its files, so an import without the processing
+  service, or with one that could not reach the file, leaves the episode
+  playing from the old host: it works, but only while the old account is
+  open.
+- **Replacing an episode's file by hand.** «Sostituisci l'audio» and
+  «Sostituisci l'immagine» take a file from the disk (for instance the one
+  downloaded from Spotify for Creators), ask the Blossom server whether it
+  would take it (BUD-06), upload it, and publish the episode again with the
+  same GUID, the same date and every other tag as it was. The feed service
+  keeps the newest kind 54 per GUID, so for the apps it is the same episode
+  with a new file: no duplicate, no change of date or order. An episode born
+  on NMC, which the feed knew by its event id and its `created_at`, gets both
+  pinned explicitly (`podcast:item:guid` and `published_at`), because the new
+  event has another id and another date. When the new audio is more than 10%
+  longer or shorter than the published one, NMC asks whether it really is the
+  same episode. The pure logic is `sostituisciFileEpisodio` in
+  `packages/nostr-core/src/podcast/sostituzione.ts`, with
+  `ultimaVersionePerGuid` to list one version per episode.
+- **A warning on the podcast card when the cover is still on another host**,
+  with what to do about it. The check, `fileSuBlossom`, counts as Blossom a
+  configured server or a blob path named by its SHA-256.
+- **After an import that left files at the old host**, the import says so and
+  points to «Episodi pubblicati».
+
+### Changed
+
+- **The managed subdomain works today, under `duckdns.org`.** The third way to
+  a stable address, «Un sottodominio di NMC», used to be a simulation that
+  saved nothing until the NMC domain existed. It now works the way it will
+  with that domain, under the configured suffix
+  (`NUXT_PUBLIC_FEED_SUBDOMAIN_SUFFIX`, `duckdns.org` by default): writing
+  `breviarticolitest` gives `https://breviarticolitest.duckdns.org/feed.xml`.
+  NMC keeps the name only after the same check as an intermediary (same
+  `podcast:guid`, same episode GUIDs, readable from the browser, no
+  redirect), so a name the operator has not turned on yet is reported as not
+  active and no `feed` tag is written. Until the service hands names out by
+  itself (Prompt M), the operator turns each name on by hand: a certificate
+  for the name and the name mapped to the key's feed in the reverse proxy.
+  Moving to the NMC domain changes that one value; podcasts on a
+  `duckdns.org` name will then need a move of their own, while their
+  `podcast:guid`, written once in the card, does not change. The CNAME way
+  stays «coming soon»: its target name must stay for ever, and on DuckDNS it
+  would not be ours.
+- **The import's safety limit is fixed at 2 GB** and no longer appears in the
+  settings. It is read from one place in the import, so the service can set
+  it later without touching the import. A value saved in the browser by an
+  earlier version is ignored, and dropped at the next save of the settings.
+  The proposal to import in batches, and the choice to keep a file at its
+  original address, are unchanged.
+- **Prompt M** (`doc/api-to-build.md`) now says that the suffix is
+  configuration, that certificates are per name while the suffix does not
+  allow a wildcard, and that the names turned on by hand are registered like
+  any other when the endpoints arrive.
+
+### Fixed
+
+- **«Prosegui con la nuova chiave» no longer stays greyed out without a
+  reason.** The personal key signs the declaration of the new podcast, and
+  after a reload it is saved but locked. The step now says so, names the
+  identity, and offers its password field right there.
+- **Leaving the page while the new dedicated key is not active yet** asks
+  first, both on a reload and on a link inside the app: until it is active,
+  that key exists only in the page's memory.
+
 ## 2026-10-30 — What the manual test plan found in the import
 
 Developed on `feature/migrazione-podcast`. Writing the plan for the manual

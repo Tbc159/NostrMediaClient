@@ -4,6 +4,7 @@ import {
   MAX_CATEGORIE,
   PIATTAFORME,
   chiama,
+  fileSuBlossom,
   getKindDefinition,
   parsePublicKeyInput,
   podcastGuidPerUrl,
@@ -277,6 +278,17 @@ async function ridistribuisciPodcast(): Promise<void> {
 const podcastTitolo = ref('')
 const podcastDescrizione = ref('')
 const podcastImmagine = ref('')
+const configClient = useClientConfig()
+/** The old host still serving the cover, after an import that could not copy it. */
+const copertinaAltrove = computed(() => {
+  const url = podcastImmagine.value.trim()
+  if (!url || fileSuBlossom(url, configClient.value.blossomServers)) return null
+  try {
+    return new URL(url).host
+  } catch {
+    return null
+  }
+})
 /**
  * The show's websites: the first is the feed's `<link>`, the others are the
  * show's links on the platforms (Apple, Spotify…). NIP-F4 allows several
@@ -834,6 +846,10 @@ const valori = { nome, nomeVisualizzato, immagine, copertina, sito, nip05, lud16
                 required
                 hint="Obbligatoria per NIP-F4. Le piattaforme la vogliono quadrata, da 1400 a 3000 px: «Carica» e «Ritaglia» la sistemano."
               />
+              <BaseAlert v-if="copertinaAltrove" tono="avviso">
+                La copertina è ancora su {{ copertinaAltrove }}: se chiudi l’account del vecchio
+                host, sparisce. Scaricala e caricala di nuovo con «Carica», poi pubblica la scheda.
+              </BaseAlert>
 
               <!-- ── Category, language, explicit ── -->
               <div class="flex flex-col gap-2">

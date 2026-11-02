@@ -923,6 +923,21 @@ simulation that calls nothing; this prompt is what replaces the simulation,
 with no client change — the operator only turns on
 `NUXT_PUBLIC_FEED_DOMINI_GESTITI` once these endpoints answer. Only the block.
 
+**Until then, the suffix is `duckdns.org`.** Since 2 November 2026 the client's
+managed subdomain works for real under `NUXT_PUBLIC_FEED_SUBDOMAIN_SUFFIX`
+(default `duckdns.org`): writing `breviarticolitest` gives
+`https://breviarticolitest.duckdns.org/feed.xml`, and the client writes the
+`feed` tag once that address serves the key's feed. The operator turns each
+name on by hand, which is exactly the work this prompt automates: a DuckDNS
+name pointing at the service's machine, a Let's Encrypt certificate **for that
+name** (HTTP-01: a wildcard is not possible, `*.duckdns.org` is not ours), and
+the name mapped to the key's technical feed in nginx. So when this prompt is
+delivered, the suffix is configuration (`FEED_SUBDOMAIN_SUFFIX`), and the
+certificates follow the suffix: per name, issued on registration, while the
+suffix does not allow a wildcard; one wildcard (DNS-01) once it is the NMC
+domain. The names turned on by hand are registered like any other, bound to
+the key that serves them today, so nothing moves when the endpoints arrive.
+
 ```
 Repository: microservice-media-manager, feed domain, branch develop.
 Depends on Prompt K (the feed tag drives self and new-feed-url).

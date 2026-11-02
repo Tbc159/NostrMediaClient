@@ -13,11 +13,12 @@ import { useMediaManager } from '~/stores/mediamanager'
  * The feed's stable address on a domain NMC manages: a CNAME to the service,
  * or a subdomain the operator sets up.
  *
- * Both need the NMC domain, which does not exist yet. Until then they are
- * «coming soon» and run on a **simulation**: it answers like the service would,
- * so the whole flow can be tried, but it calls nothing, signs nothing and
- * saves nothing — the subdomain it hands back is always
- * `<name>.<suffix>`, and the page says it is a trial.
+ * Until the service hands names out, both run on a **simulation**: it answers
+ * like the service would, but it calls nothing and signs nothing. The
+ * subdomain it hands back is `<name>.<suffix>` (`duckdns.org` until the NMC
+ * domain exists), which the operator turns on by hand: the page keeps it only
+ * after checking that it serves this key's feed. The CNAME needs the NMC
+ * domain, so its simulation saves nothing.
  *
  * The real implementation talks to the endpoints of Prompts L and M with a
  * NIP-98 signed request. It is used only when the operator has turned on

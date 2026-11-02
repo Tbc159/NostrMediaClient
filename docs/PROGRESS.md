@@ -606,6 +606,28 @@ Two more fixes on the branch, found while doing this:
   that feed when a stable address is added, instead of being computed from the
   new address.
 
+## What the first manual tests found (same branch) · DONE, NOT MERGED
+
+The user ran scenario B by hand (B00–B04) on their own relay and stopped at
+three places; the fixes are in the CHANGELOG entry of 2 November 2026:
+
+- the dedicated key's last step now unlocks the personal key in place, and
+  leaving the page before the new key is active asks first;
+- «Episodi pubblicati» in Media → Podcast shows where each episode's files
+  live and replaces a file by hand, publishing the same episode again (same
+  GUID, same date) — Spotify's CDN sends no CORS header, so a browser cannot
+  copy its files;
+- the import's safety limit is fixed at 2 GB, out of the settings;
+- the managed subdomain works for real under `duckdns.org`, and is kept only
+  once it serves the key's feed. The test show uses
+  `breviarticolitest.duckdns.org`, set up by hand on the service's machine
+  (certificate for the name, nginx block proxying to the key's feed).
+
+Verified with `pnpm verify` (7 new unit tests: the rebuilt episode keeps GUID,
+date and every other tag, pins the identity of an episode born on NMC, refuses
+a clock behind the original, lists one version per GUID; Blossom URLs told
+from the old host's). The browser checks are the next round of manual tests.
+
 ---
 
 ## Next step: the rest of Phase 1
