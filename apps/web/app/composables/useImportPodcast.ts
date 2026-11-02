@@ -42,20 +42,47 @@ export const LIMITE_IMPORT_BYTE = 2 * 1024 ** 3
  * original URLs, one at a time and skipping the ones already imported.
  *
  * Nothing is lost silently: what cannot be carried is listed before anything
- * is published, and a file Blossom refuses keeps its original address with the
- * reason beside it.
+ * is published. An episode whose audio or image cannot be copied waits instead
+ * of going out with the old host's address: it is signed only once the file is
+ * on Blossom — attached by hand, or copied on a later run — or once the user
+ * chooses to keep the original URL. So every episode is published once, and
+ * never needs a second version just to change its file.
  */
 
 export type ModoFile = 'copia' | 'originale'
 
 export type StatoEpisodioImport =
-  'in-attesa' | 'gia-presente' | 'in-corso' | 'pubblicato' | 'saltato' | 'errore'
+  'in-attesa' | 'gia-presente' | 'in-corso' | 'in-attesa-file' | 'pubblicato' | 'saltato' | 'errore'
+
+/** The files an episode is waiting for, each with the reason the copy failed. */
+export interface FileMancanti {
+  audio?: string
+  immagine?: string
+}
+
+/**
+ * The files already on Blossom for an episode: copied by a run, or attached by
+ * hand. `immagine: null` is the choice to go without an image of its own.
+ */
+export interface FileAllegati {
+  audio?: { url: string; mime: string }
+  immagine?: string | null
+}
 
 export interface AvanzamentoEpisodio {
   stato: StatoEpisodioImport
   /** What happened, in words: a file kept at its original address and why, an error. */
   note: string[]
+  /** For an episode waiting for its files: which ones, and why the copy failed. */
+  mancanti?: FileMancanti
   esito?: RisultatoPubblicazione
+}
+
+/** Thrown while building an episode whose files are not on Blossom yet. */
+class InAttesaDelFile extends Error {
+  constructor(readonly mancanti: FileMancanti) {
+    super('In attesa del file.')
+  }
 }
 
 /** The editable fields of the card, prefilled from the import. */
@@ -472,9 +499,15 @@ export function useImportPodcast() {
     if (modoFile.value === 'copia' && campi.immagine && !giaSuBlossom) {
       noteScheda.value = []
       try {
-        campi.immagine = (
-          await sistemaFile(campi.immagine, 'immagine', { copia: true }, noteScheda.value)
-        ).url
+        // The card is replaceable: a cover left on the old host can be changed
+        // later without a second version, so it does not hold the card back.
+        const r = await sistemaFile(campi.immagine, 'immagine', { copia: true })
+        if (r.nonCopiato) {
+          noteScheda.value.push(
+            `${nomeDaUrl(campi.immagine, 'immagine')} resta all’indirizzo originale: ${r.nonCopiato}`,
+          )
+        }
+        campi.immagine = r.url
       } finally {
         fase.value = null
       }
@@ -515,28 +548,39 @@ export function useImportPodcast() {
   const inImport = ref(false)
   const fase = ref<string | null>(null)
 
+  const allegati = ref<Record<string, FileAllegati>>({})
+
+  /** The episodes of this run waiting for a file: they block the redirect. */
+  const inAttesaDelFile = computed(() =>
+    importabili.value.filter(
+      (e) => avanzamento.value[chiaveEpisodio(e)]?.stato === 'in-attesa-file',
+    ),
+  )
+  // Shared with the platforms card, which warns while some are waiting.
+  const attesaCondivisa = useState<Record<string, number>>('import-in-attesa-file', () => ({}))
+  watch(
+    () => [identita.pubkey, inAttesaDelFile.value.length] as const,
+    ([pk, n]) => {
+      if (pk) attesaCondivisa.value = { ...attesaCondivisa.value, [pk]: n }
+    },
+  )
+
   /**
-   * One file onto Blossom, or its original URL with the reason.
-   *
-   * A refusal does not stop the episode: the file stays where it was, which
-   * still plays, and the note says why — a full server, a paid one, a host
-   * that will not let the browser read it.
+   * One file onto Blossom, or its original URL with the reason it was not
+   * copied: a full server, a paid one, a host that will not let the browser
+   * read it. The caller decides what that means for the episode.
    */
   async function sistemaFile(
     url: string,
     tipo: 'audio' | 'immagine' | 'testo',
     opzioni: { mime?: string; peso?: number; copia: boolean },
-    note: string[],
-  ): Promise<{ url: string; mime?: string }> {
+  ): Promise<{ url: string; mime?: string; nonCopiato?: string }> {
     const originale = { url, ...(opzioni.mime ? { mime: opzioni.mime } : {}) }
     if (!opzioni.copia) return originale
 
     if (opzioni.peso) {
       const prima = await blossom.chiedi(opzioni.peso, opzioni.mime ?? 'application/octet-stream')
-      if (prima.esito === 'rifiutato') {
-        note.push(`${nomeDaUrl(url, tipo)} resta all’indirizzo originale: ${prima.motivo}`)
-        return originale
-      }
+      if (prima.esito === 'rifiutato') return { ...originale, nonCopiato: prima.motivo }
     }
     try {
       fase.value = `Scarico ${nomeDaUrl(url, tipo)}…`
@@ -557,40 +601,67 @@ export function useImportPodcast() {
     } catch (e) {
       const motivo =
         e instanceof BlossomError ? e.message : e instanceof Error ? e.message : String(e)
-      note.push(`${nomeDaUrl(url, tipo)} resta all’indirizzo originale: ${motivo}`)
-      return originale
+      return { ...originale, nonCopiato: motivo }
     }
+  }
+
+  /** A transcript or chapters file: not worth holding an episode back for. */
+  async function sistemaTesto(
+    file: FileAllegato,
+    copia: boolean,
+    note: string[],
+  ): Promise<FileAllegato> {
+    const r = await sistemaFile(file.url, 'testo', {
+      copia,
+      ...(file.mime ? { mime: file.mime } : {}),
+    })
+    if (r.nonCopiato) {
+      note.push(`${nomeDaUrl(file.url, 'testo')} resta all’indirizzo originale: ${r.nonCopiato}`)
+    }
+    return { url: r.url, ...(r.mime ? { mime: r.mime } : {}) }
   }
 
   async function inputEpisodio(e: EpisodioImportato, note: string[]): Promise<PodcastEpisodeInput> {
     const copia = copiaPer(e)
-    const audio = await sistemaFile(
-      e.audio!.url,
-      'audio',
-      {
+    const chiave = chiaveEpisodio(e)
+    const giaQui = (): FileAllegati => allegati.value[chiave] ?? {}
+    const ricorda = (pezzo: FileAllegati): void => {
+      allegati.value = { ...allegati.value, [chiave]: { ...giaQui(), ...pezzo } }
+    }
+    const mancanti: FileMancanti = {}
+
+    let audio: { url: string; mime?: string }
+    const audioAllegato = giaQui().audio
+    if (audioAllegato) {
+      audio = audioAllegato
+    } else {
+      const r = await sistemaFile(e.audio!.url, 'audio', {
         copia,
         ...(e.audio!.mime ? { mime: e.audio!.mime } : {}),
         ...(e.audio!.peso ? { peso: e.audio!.peso } : {}),
-      },
-      note,
-    )
-    const immagine = e.immagine
-      ? (await sistemaFile(e.immagine, 'immagine', { copia }, note)).url
-      : undefined
-    const trascrizioni: FileAllegato[] = []
-    for (const t of e.trascrizioni) {
-      trascrizioni.push(
-        await sistemaFile(t.url, 'testo', { copia, ...(t.mime ? { mime: t.mime } : {}) }, note),
-      )
+      })
+      audio = { url: r.url, ...(r.mime ? { mime: r.mime } : {}) }
+      if (r.nonCopiato) mancanti.audio = r.nonCopiato
+      // A copy that worked is kept: a later run does not download it again.
+      else if (copia && r.mime) ricorda({ audio: { url: r.url, mime: r.mime } })
     }
-    const capitoli = e.capitoli
-      ? await sistemaFile(
-          e.capitoli.url,
-          'testo',
-          { copia, ...(e.capitoli.mime ? { mime: e.capitoli.mime } : {}) },
-          note,
-        )
-      : undefined
+
+    let immagine: string | undefined
+    const immagineAllegata = giaQui().immagine
+    if (immagineAllegata !== undefined) {
+      immagine = immagineAllegata ?? undefined
+    } else if (e.immagine) {
+      const r = await sistemaFile(e.immagine, 'immagine', { copia })
+      immagine = r.url
+      if (r.nonCopiato) mancanti.immagine = r.nonCopiato
+      else if (copia) ricorda({ immagine: r.url })
+    }
+
+    if (mancanti.audio || mancanti.immagine) throw new InAttesaDelFile(mancanti)
+
+    const trascrizioni: FileAllegato[] = []
+    for (const t of e.trascrizioni) trascrizioni.push(await sistemaTesto(t, copia, note))
+    const capitoli = e.capitoli ? await sistemaTesto(e.capitoli, copia, note) : undefined
 
     return {
       title: e.titolo,
@@ -614,11 +685,57 @@ export function useImportPodcast() {
   }
 
   /**
+   * Builds, signs and sends one episode, with its own outcome. An episode whose
+   * files are not on Blossom is not signed: it waits, with the reason.
+   */
+  async function pubblicaEpisodio(e: EpisodioImportato): Promise<void> {
+    const chiave = chiaveEpisodio(e)
+    const stato: AvanzamentoEpisodio = { stato: 'in-corso', note: [] }
+    avanzamento.value = { ...avanzamento.value, [chiave]: stato }
+
+    if (giaPresente(e)) {
+      avanzamento.value[chiave] = {
+        stato: 'gia-presente',
+        note: ['Già su questa chiave: saltato.'],
+      }
+      return
+    }
+    try {
+      const input = await inputEpisodio(e, stato.note)
+      fase.value = `Firmo «${e.titolo}»…`
+      const template = podcastEpisodeDefinition.build(input, {
+        pubkey: identita.pubkey ?? '',
+        now: Math.floor(Date.now() / 1000),
+      })
+      const firmato = await identita.firma(template)
+      fase.value = `Pubblico «${e.titolo}»…`
+      const riuscita = await invio.pubblica(firmato)
+      avanzamento.value[chiave] = {
+        stato: riuscita ? 'pubblicato' : 'errore',
+        note: riuscita
+          ? stato.note
+          : [...stato.note, invio.errore.value ?? 'Nessun relay l’ha accettato.'],
+        ...(invio.esito.value ? { esito: invio.esito.value } : {}),
+      }
+      // A second run in this session must skip it without re-reading the relays.
+      if (riuscita) propri.anteponi(firmato)
+    } catch (err) {
+      avanzamento.value[chiave] =
+        err instanceof InAttesaDelFile
+          ? { stato: 'in-attesa-file', note: stato.note, mancanti: err.mancanti }
+          : {
+              stato: 'errore',
+              note: [...stato.note, err instanceof Error ? err.message : String(err)],
+            }
+    }
+  }
+
+  /**
    * Publishes the chosen batch, oldest first, one episode at a time.
    *
-   * Each one is built, signed and sent on its own, with its own outcome: one
-   * relay refusing an episode does not stop the others, and a second run skips
-   * whatever is already on the key.
+   * One relay refusing an episode does not stop the others, an episode waiting
+   * for a file does not either, and a second run skips whatever is already on
+   * the key — and tries the waiting ones again.
    */
   async function importaEpisodi(): Promise<void> {
     if (!identita.puoFirmare) {
@@ -638,48 +755,86 @@ export function useImportPodcast() {
     inImport.value = true
     try {
       for (const e of importabili.value) {
-        const chiave = chiaveEpisodio(e)
-        if (!lotto.value.has(chiave)) continue
-        const stato: AvanzamentoEpisodio = { stato: 'in-corso', note: [] }
-        avanzamento.value = { ...avanzamento.value, [chiave]: stato }
-
-        if (giaPresente(e)) {
-          avanzamento.value[chiave] = {
-            stato: 'gia-presente',
-            note: ['Già su questa chiave: saltato.'],
-          }
-          continue
-        }
-        try {
-          const input = await inputEpisodio(e, stato.note)
-          fase.value = `Firmo «${e.titolo}»…`
-          const template = podcastEpisodeDefinition.build(input, {
-            pubkey: identita.pubkey ?? '',
-            now: Math.floor(Date.now() / 1000),
-          })
-          const firmato = await identita.firma(template)
-          fase.value = `Pubblico «${e.titolo}»…`
-          const riuscita = await invio.pubblica(firmato)
-          avanzamento.value[chiave] = {
-            stato: riuscita ? 'pubblicato' : 'errore',
-            note: riuscita
-              ? stato.note
-              : [...stato.note, invio.errore.value ?? 'Nessun relay l’ha accettato.'],
-            ...(invio.esito.value ? { esito: invio.esito.value } : {}),
-          }
-          // A second run in this session must skip it without re-reading the relays.
-          if (riuscita) propri.anteponi(firmato)
-        } catch (err) {
-          avanzamento.value[chiave] = {
-            stato: 'errore',
-            note: [...stato.note, err instanceof Error ? err.message : String(err)],
-          }
-        }
+        if (lotto.value.has(chiaveEpisodio(e))) await pubblicaEpisodio(e)
       }
     } finally {
       inImport.value = false
       fase.value = null
     }
+  }
+
+  /** One waiting episode, published again after a change to its files. */
+  async function riprova(e: EpisodioImportato): Promise<void> {
+    if (!identita.puoFirmare) {
+      errore.value = identita.motivoNonFirmabile ?? 'Serve un’identità che possa firmare.'
+      return
+    }
+    errore.value = null
+    inImport.value = true
+    try {
+      await pubblicaEpisodio(e)
+    } finally {
+      inImport.value = false
+      fase.value = null
+    }
+  }
+
+  /**
+   * A file from the disk for a waiting episode — the one downloaded from the
+   * old host's panel — put on Blossom, then the episode published if nothing
+   * else is missing.
+   */
+  async function allega(
+    e: EpisodioImportato,
+    tipo: 'audio' | 'immagine',
+    file: File,
+  ): Promise<void> {
+    const chiave = chiaveEpisodio(e)
+    const nota = (testo: string): void => {
+      const prima = avanzamento.value[chiave] ?? { stato: 'in-attesa-file' as const, note: [] }
+      avanzamento.value = { ...avanzamento.value, [chiave]: { ...prima, note: [testo] } }
+    }
+    if (blossom.motivoNonCaricabile.value) {
+      nota(blossom.motivoNonCaricabile.value)
+      return
+    }
+    inImport.value = true
+    try {
+      const mime = file.type || (tipo === 'audio' ? 'audio/mpeg' : 'image/jpeg')
+      const prima = await blossom.chiedi(file.size, mime)
+      if (prima.esito === 'rifiutato') throw new Error(prima.motivo)
+      fase.value = `Carico ${file.name}…`
+      const { descrittore } = await blossom.carica(file, { mime, nome: file.name })
+      allegati.value = {
+        ...allegati.value,
+        [chiave]: {
+          ...allegati.value[chiave],
+          ...(tipo === 'audio'
+            ? { audio: { url: descrittore.url, mime } }
+            : { immagine: descrittore.url }),
+        },
+      }
+    } catch (err) {
+      nota(err instanceof Error ? err.message : String(err))
+      inImport.value = false
+      fase.value = null
+      return
+    }
+    inImport.value = false
+    await riprova(e)
+  }
+
+  /** A waiting episode without an image of its own: the players show the show's cover. */
+  async function senzaImmagine(e: EpisodioImportato): Promise<void> {
+    const chiave = chiaveEpisodio(e)
+    allegati.value = { ...allegati.value, [chiave]: { ...allegati.value[chiave], immagine: null } }
+    await riprova(e)
+  }
+
+  /** A waiting episode published with the old host's addresses, by choice. */
+  async function conUrlOriginale(e: EpisodioImportato): Promise<void> {
+    originaliPerEpisodio.value = new Set([...originaliPerEpisodio.value, chiaveEpisodio(e)])
+    await riprova(e)
   }
 
   return {
@@ -734,5 +889,10 @@ export function useImportPodcast() {
     inImport,
     fase,
     importaEpisodi,
+    allegati,
+    inAttesaDelFile,
+    allega,
+    senzaImmagine,
+    conUrlOriginale,
   }
 }

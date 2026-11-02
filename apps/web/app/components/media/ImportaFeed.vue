@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { chiaveEpisodio } from '~/composables/useImportPodcast'
+import type { EpisodioImportato } from '@nmc/nostr-core'
+
+import { chiaveEpisodio, type FileMancanti } from '~/composables/useImportPodcast'
 import { useProfiloProprio } from '~/stores/profiloProprio'
 
 /**
@@ -103,9 +105,29 @@ const etichettaStato: Record<string, string> = {
   'in-attesa': 'in attesa',
   'gia-presente': 'già presente',
   'in-corso': 'in corso…',
+  'in-attesa-file': 'in attesa del file, non pubblicato',
   pubblicato: 'pubblicato',
   saltato: 'saltato',
   errore: 'errore',
+}
+
+/** What a waiting episode still needs, or `null` when it is not waiting. */
+function attesa(e: EpisodioImportato): FileMancanti | null {
+  const a = imp.avanzamento.value[chiaveEpisodio(e)]
+  return a?.stato === 'in-attesa-file' ? (a.mancanti ?? {}) : null
+}
+
+async function allegaFile(
+  e: EpisodioImportato,
+  tipo: 'audio' | 'immagine',
+  evento: Event,
+): Promise<void> {
+  const input = evento.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+  if (tipo === 'audio' && !(await stessoEpisodio(file, e.durata)).ok) return
+  await imp.allega(e, tipo, file)
 }
 
 // The files left at the old host can be put on Blossom later, by hand.
@@ -528,8 +550,73 @@ const restatiAllOriginale = computed(() =>
                   · {{ n }}
                 </template>
               </span>
+              <div v-if="attesa(e)" class="flex w-full flex-col gap-1.5 text-xs">
+                <p v-if="attesa(e)!.audio">L’audio non si è copiato: {{ attesa(e)!.audio }}</p>
+                <p v-if="attesa(e)!.immagine">
+                  L’immagine non si è copiata: {{ attesa(e)!.immagine }}
+                </p>
+                <div class="flex flex-wrap gap-2">
+                  <label
+                    v-if="attesa(e)!.audio"
+                    class="cursor-pointer rounded-md border px-2 py-1"
+                    :class="imp.inImport.value && 'pointer-events-none opacity-60'"
+                  >
+                    Allega l’audio
+                    <input
+                      type="file"
+                      accept="audio/*"
+                      class="sr-only"
+                      :disabled="imp.inImport.value"
+                      @change="allegaFile(e, 'audio', $event)"
+                    />
+                  </label>
+                  <label
+                    v-if="attesa(e)!.immagine"
+                    class="cursor-pointer rounded-md border px-2 py-1"
+                    :class="imp.inImport.value && 'pointer-events-none opacity-60'"
+                  >
+                    Allega l’immagine
+                    <input
+                      type="file"
+                      accept="image/*"
+                      class="sr-only"
+                      :disabled="imp.inImport.value"
+                      @change="allegaFile(e, 'immagine', $event)"
+                    />
+                  </label>
+                  <BaseButton
+                    v-if="attesa(e)!.immagine"
+                    size="sm"
+                    variant="fantasma"
+                    :disabled="imp.inImport.value"
+                    @click="imp.senzaImmagine(e)"
+                  >
+                    Senza immagine
+                  </BaseButton>
+                  <BaseButton
+                    size="sm"
+                    variant="fantasma"
+                    :disabled="imp.inImport.value"
+                    @click="imp.conUrlOriginale(e)"
+                  >
+                    Pubblica con gli URL originali
+                  </BaseButton>
+                </div>
+              </div>
             </li>
           </ul>
+          <BaseAlert v-if="imp.inAttesaDelFile.value.length" tono="avviso">
+            {{
+              imp.inAttesaDelFile.value.length === 1
+                ? 'Un episodio aspetta il suo file e non è stato pubblicato.'
+                : `${imp.inAttesaDelFile.value.length} episodi aspettano i loro file e non sono stati pubblicati.`
+            }}
+            Finché mancano, il feed di NMC non ha tutti gli episodi e il redirect dal vecchio host
+            non è sicuro: «Confronta», nel riquadro Feed RSS, lo segnala. Scarica i file dal
+            pannello del vecchio host (su Spotify for Creators, dalla pagina di ogni episodio) e
+            allegali qui, oppure rilancia l’import più tardi: gli episodi già pubblicati vengono
+            saltati.
+          </BaseAlert>
           <BaseAlert v-if="restatiAllOriginale" tono="info">
             Alcuni file sono rimasti sul vecchio host: gli episodi si ascoltano, ma dipendono ancora
             da lui. Scaricali dal suo pannello e caricali da «Episodi pubblicati», più sotto: il

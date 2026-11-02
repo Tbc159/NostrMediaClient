@@ -5,6 +5,7 @@ import { blossomServersDefinition } from './blossom-servers.js'
 import { calendarDateEventDefinition } from './calendar-date.js'
 import { calendarRsvpDefinition } from './calendar-rsvp.js'
 import { calendarTimeEventDefinition } from './calendar-time.js'
+import { deletionDefinition } from './deletion.js'
 import { draftWrapDefinition, privateRelaysDefinition } from './draft.js'
 import { fileMetadataDefinition } from './file-metadata.js'
 import { httpAuthDefinition } from './http-auth.js'
@@ -27,6 +28,7 @@ export * from './draft.js'
 export * from './calendar-date.js'
 export * from './calendar-rsvp.js'
 export * from './calendar-time.js'
+export * from './deletion.js'
 export * from './file-metadata.js'
 export * from './http-auth.js'
 export * from './metadata.js'
@@ -40,6 +42,7 @@ export * from './video.js'
 export const kindDefinitions = [
   metadataDefinition,
   noteDefinition,
+  deletionDefinition,
   relayListDefinition,
   pictureDefinition,
   videoDefinition,

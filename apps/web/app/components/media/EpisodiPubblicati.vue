@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import {
+  cancellaVersioniPrecedenti,
   dataNelFeed,
   fileSuBlossom,
   podcastEpisodeDefinition,
@@ -74,28 +75,6 @@ const righe = computed<Riga[]>(() =>
 const quando = (secondi: number): string =>
   new Date(secondi * 1000).toLocaleDateString('it-IT', { dateStyle: 'medium' })
 
-const durata = (secondi: number): string => {
-  const m = Math.floor(secondi / 60)
-  const s = Math.round(secondi % 60)
-  return `${m}:${String(s).padStart(2, '0')}`
-}
-
-/** The length of a local audio file, read by the browser; `undefined` if it cannot. */
-function durataDi(file: File): Promise<number | undefined> {
-  return new Promise((risolvi) => {
-    const url = URL.createObjectURL(file)
-    const audio = new Audio()
-    const fine = (valore?: number) => {
-      URL.revokeObjectURL(url)
-      risolvi(valore && Number.isFinite(valore) ? valore : undefined)
-    }
-    audio.preload = 'metadata'
-    audio.onloadedmetadata = () => fine(audio.duration)
-    audio.onerror = () => fine()
-    audio.src = url
-  })
-}
-
 const stato = ref<Record<string, { tono: 'info' | 'successo' | 'pericolo'; testo: string }>>({})
 const inCorso = ref<string | null>(null)
 
@@ -120,18 +99,10 @@ async function sostituisci(riga: Riga, tipo: 'audio' | 'immagine', evento: Event
   const mime = file.type || (tipo === 'audio' ? 'audio/mpeg' : 'image/jpeg')
   let nuovaDurata: number | undefined
   if (tipo === 'audio') {
-    nuovaDurata = await durataDi(file)
     // The only check that it is the same episode: about the same length.
-    if (
-      nuovaDurata &&
-      riga.durata &&
-      Math.abs(nuovaDurata - riga.durata) / riga.durata > 0.1 &&
-      !window.confirm(
-        `Il file dura ${durata(nuovaDurata)}, l’episodio pubblicato ${durata(riga.durata)}. È davvero lo stesso episodio?`,
-      )
-    ) {
-      return
-    }
+    const prova = await stessoEpisodio(file, riga.durata)
+    if (!prova.ok) return
+    nuovaDurata = prova.durata
   }
 
   inCorso.value = id
@@ -154,13 +125,30 @@ async function sostituisci(riga: Riga, tipo: 'audio' | 'immagine', evento: Event
       throw new Error(invio.errore.value ?? 'Nessun relay l’ha accettato.')
     }
     propri.anteponi(firmato)
-    stato.value = {
-      ...stato.value,
-      [firmato.id]: {
-        tono: 'successo',
-        testo: `${tipo === 'audio' ? 'Audio' : 'Immagine'} sostituito: il feed mostra lo stesso episodio con il file nuovo entro qualche minuto.`,
-      },
+    const fatto = `${tipo === 'audio' ? 'Audio' : 'Immagine'} sostituito: il feed mostra lo stesso episodio con il file nuovo entro qualche minuto.`
+    let esito: { tono: 'successo' | 'info'; testo: string } = { tono: 'successo', testo: fatto }
+
+    // The old version, asked to go: without it a Nostr client that reads the
+    // episodes would show both. The feed is right either way.
+    const cancellazione = cancellaVersioniPrecedenti(
+      firmato,
+      propri.eventi.value,
+      Math.floor(Date.now() / 1000),
+    )
+    if (cancellazione) {
+      try {
+        const richiesta = await identita.firma(cancellazione)
+        if (!(await invio.pubblica(richiesta))) {
+          throw new Error(invio.errore.value ?? 'Nessun relay l’ha accettata.')
+        }
+      } catch (e) {
+        esito = {
+          tono: 'info',
+          testo: `${fatto} La richiesta di cancellazione della versione vecchia non è partita (${e instanceof Error ? e.message : String(e)}): qualche client Nostr potrebbe mostrarle entrambe.`,
+        }
+      }
     }
+    stato.value = { ...stato.value, [firmato.id]: esito }
   } catch (e) {
     scrivi('pericolo', e instanceof Error ? e.message : String(e))
   } finally {
@@ -183,8 +171,9 @@ async function sostituisci(riga: Riga, tipo: 'audio' | 'immagine', evento: Event
       <p class="mb-3 text-xs text-[var(--testo-tenue)]">
         «Sostituisci» carica il file su Blossom e ripubblica l’episodio con lo stesso GUID e la
         stessa data: per le app resta lo stesso episodio. YouTube però non aggiorna l’audio di un
-        episodio già importato, e alcune app tengono in cache il file vecchio. Su Nostr resta anche
-        la versione precedente: il feed e questo elenco mostrano solo la più recente.
+        episodio già importato, e alcune app tengono in cache il file vecchio. Per la versione
+        precedente parte una richiesta di cancellazione (NIP-09): i relay che la rispettano la
+        tolgono, e il feed mostra comunque solo la più recente.
       </p>
       <ul class="flex flex-col gap-2">
         <li
@@ -201,7 +190,7 @@ async function sostituisci(riga: Riga, tipo: 'audio' | 'immagine', evento: Event
           </div>
           <span class="text-xs text-[var(--testo-tenue)]">
             {{ quando(r.data) }}
-            <template v-if="r.durata">· {{ durata(r.durata) }}</template>
+            <template v-if="r.durata">· {{ formatoDurata(r.durata) }}</template>
             <template v-if="r.audio">· audio su {{ host(r.audio) }}</template>
             <template v-if="r.immagine">· immagine su {{ host(r.immagine) }}</template>
           </span>

@@ -502,10 +502,23 @@ When the key already has a card, what the import does depends on that card:
 2. **Choose the key**, then publish the card and the episodes. The files are
    copied to Blossom by default — the podcast stops depending on the old host,
    whose account can then be closed — or left at their original URLs. Each
-   file is asked about first (BUD-06 `HEAD /upload`): one the server refuses
-   keeps its original URL, with the reason beside it. Above the safety limit
-   (2 GB, fixed for now; the service is meant to set it later) the import goes in batches, newest first; running
-   it again skips what is already on the key.
+   file is asked about first (BUD-06 `HEAD /upload`). **An episode whose audio
+   or image cannot be copied is not published**: it waits, with the reason
+   (Spotify's CDN, for one, does not let a browser download its files). Attach
+   the file downloaded from the old host's panel, go without an image, or
+   publish it with the original URLs by choice; running the import again also
+   tries the waiting ones once more. So every episode goes out once, with its
+   final files, and never needs a second version just to change them. A
+   transcript or chapters file that cannot be copied keeps its original URL,
+   with a note. While episodes are waiting, the comparison before the redirect
+   reports them missing, and the platforms card says so. Above the safety
+   limit (2 GB, fixed for now; the service is meant to set it later) the import
+   goes in batches, newest first; running it again skips what is already on
+   the key.
+   A file can still be replaced later, in _Media → Podcast → Episodi
+   pubblicati_: the episode is published again with the same GUID and date,
+   which the feed shows in place of the old one, and a deletion request
+   (NIP-09, kind 5) asks relays and clients to drop the old version.
 3. **Set the stable address** in the podcast card and publish the card again.
 4. **Compare** (_RSS feed → Coming from another host?_) the old feed with
    NMC's. It must say the redirect is safe: same identity, every old episode

@@ -57,7 +57,9 @@ export type StrategiaPubblicazione = 'sequenziale' | 'tutti'
  * show whose card is on `nos.lol` is invisible to whoever reads
  * `relay.damus.io`. It happened, and it is the reason for this list.
  */
-export const KIND_OVUNQUE: readonly number[] = [54, 10064, 10154]
+// The deletion request (5) follows the episodes it asks to delete: it must
+// reach every relay the old version reached.
+export const KIND_OVUNQUE: readonly number[] = [5, 54, 10064, 10154]
 
 /**
  * The strategy actually to use for an event.

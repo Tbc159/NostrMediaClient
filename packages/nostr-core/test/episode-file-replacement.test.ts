@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 
 import { podcastEpisodeDefinition } from '../src/kinds/definitions/podcast.js'
+import { deletionDefinition } from '../src/kinds/definitions/deletion.js'
 import {
+  cancellaVersioniPrecedenti,
   dataNelFeed,
   guidNelFeed,
   sostituisciFileEpisodio,
@@ -133,5 +135,54 @@ describe('fileSuBlossom', () => {
     expect(fileSuBlossom('https://anchor.fm/s/1/podcast/play/1/ep.mp3', server)).toBe(false)
     expect(fileSuBlossom('https://d3t3ozftmdmh3i.cloudfront.net/cover.jpg', server)).toBe(false)
     expect(fileSuBlossom('non un url', server)).toBe(false)
+  })
+})
+
+describe('cancellaVersioniPrecedenti', () => {
+  const firma = (
+    t: { tags: Tag[]; created_at: number; kind: number; content: string },
+    id: string,
+  ) => ({ ...t, id, pubkey: PK, sig: '' }) as NostrEvent
+
+  it('asks to delete every older version with the same GUID, and nothing else', () => {
+    const v2 = firma(
+      sostituisciFileEpisodio(importato, { audio: { url: 'https://b/2.mp3' } }, CREATO + 10),
+      '5'.repeat(64),
+    )
+    const v3 = firma(
+      sostituisciFileEpisodio(v2, { audio: { url: 'https://b/3.mp3' } }, CREATO + 20),
+      '6'.repeat(64),
+    )
+    const richiesta = cancellaVersioniPrecedenti(v3, [importato, v2, v3, nativo], CREATO + 21)
+    expect(richiesta?.kind).toBe(5)
+    expect(richiesta?.tags.filter((t) => t[0] === 'e' || t[0] === 'k')).toEqual([
+      ['e', importato.id],
+      ['e', v2.id],
+      ['k', '54'],
+    ])
+    const letta = deletionDefinition.parse(firma(richiesta!, '7'.repeat(64)))
+    expect(letta.eventi).toEqual([importato.id, v2.id])
+    expect(letta.kinds).toEqual([54])
+  })
+
+  it('is null for an episode with a single version', () => {
+    expect(cancellaVersioniPrecedenti(importato, [importato, nativo], CREATO + 1)).toBeNull()
+  })
+
+  it('never asks to delete another key’s event', () => {
+    const altrui = { ...importato, id: '8'.repeat(64), pubkey: 'b'.repeat(64) }
+    const v2 = firma(
+      sostituisciFileEpisodio(importato, { audio: { url: 'https://b/2.mp3' } }, CREATO + 10),
+      '5'.repeat(64),
+    )
+    expect(cancellaVersioniPrecedenti(v2, [altrui, v2], CREATO + 11)).toBeNull()
+  })
+})
+
+describe('deletionDefinition', () => {
+  it('refuses an empty request and a malformed id', () => {
+    const ctx = { pubkey: PK, now: CREATO }
+    expect(() => deletionDefinition.build({ eventi: [] }, ctx)).toThrow()
+    expect(() => deletionDefinition.build({ eventi: [{ id: 'xyz', kind: 54 }] }, ctx)).toThrow()
   })
 })

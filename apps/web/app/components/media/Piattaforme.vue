@@ -24,6 +24,11 @@ import {
  */
 
 const identita = useIdentity()
+// Set by the import: episodes of this key still waiting for their files.
+const attesaImport = useState<Record<string, number>>('import-in-attesa-file', () => ({}))
+const episodiInAttesa = computed(() =>
+  identita.pubkey ? (attesaImport.value[identita.pubkey] ?? 0) : 0,
+)
 const esistente = useEventoEsistente()
 const episodi = useEventiPropri([54], { limite: 200 })
 /** Submitting means handing out the feed's address: only the stable one, checked. */
@@ -161,6 +166,14 @@ const nomeRequisito = (r: string): string => NOMI_REQUISITI[r] ?? r
     subtitle="Cosa chiede ciascuna per accettare il feed, calcolato sulla tua scheda e sui tuoi episodi. Si corregge dal profilo."
   >
     <div class="flex flex-col gap-4">
+      <BaseAlert v-if="episodiInAttesa" tono="avviso">
+        {{
+          episodiInAttesa === 1
+            ? 'Un episodio importato aspetta il suo file e non è nel feed.'
+            : `${episodiInAttesa} episodi importati aspettano i loro file e non sono nel feed.`
+        }}
+        Completali nell’import prima di sottoporre il feed o di fare il redirect dal vecchio host.
+      </BaseAlert>
       <BaseAlert v-if="!identita.pubkey" tono="avviso">
         Serve un’identità: le piattaforme si valutano sulla scheda della chiave che pubblica.
       </BaseAlert>

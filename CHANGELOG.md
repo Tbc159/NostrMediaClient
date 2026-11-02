@@ -41,7 +41,7 @@ redirect included.
   service, or with one that could not reach the file, leaves the episode
   playing from the old host: it works, but only while the old account is
   open.
-- **Replacing an episode's file by hand.** «Sostituisci l'audio» and
+- **Replacing an episode's file by hand, after it is published.** «Sostituisci l'audio» and
   «Sostituisci l'immagine» take a file from the disk (for instance the one
   downloaded from Spotify for Creators), ask the Blossom server whether it
   would take it (BUD-06), upload it, and publish the episode again with the
@@ -58,6 +58,31 @@ redirect included.
 - **A warning on the podcast card when the cover is still on another host**,
   with what to do about it. The check, `fileSuBlossom`, counts as Blossom a
   configured server or a blob path named by its SHA-256.
+- **A deletion request for the replaced version.** Right after the new
+  version of an episode, NMC publishes a NIP-09 request (kind 5, one `e` tag
+  per older version with the same GUID, and `k` 54) to every relay, like the
+  episodes themselves. The feed was already right, since it keeps the newest;
+  the request is for the Nostr clients that read the episodes directly and
+  would otherwise show both. It is a request: a relay or a client may ignore
+  it, and the page says so if it could not be sent. The kind is
+  `deletionDefinition`; `cancellaVersioniPrecedenti` builds the request and
+  never names another key's event.
+- **Imported episodes wait for their files instead of going out with the old
+  host's.** When the import cannot copy an episode's audio or image to
+  Blossom, the episode is not signed: it is marked «in attesa del file» with
+  the reason, and offers «Allega l'audio», «Allega l'immagine», «Senza
+  immagine» and «Pubblica con gli URL originali». Attaching a file uploads it
+  and publishes the episode once nothing else is missing; a copy that did
+  work is remembered, so trying again does not download it twice. Running the
+  import again tries the waiting episodes once more. Every imported episode is
+  therefore published once, with its final files, and needs no second
+  version. A transcript or chapters file that cannot be copied still keeps its
+  original URL, with a note: not worth holding an episode back for. While
+  episodes wait, the import says that the redirect is not safe yet — the
+  comparison before the redirect already reports them as missing — and the
+  platforms card warns too. The show's cover, on the replaceable card, still
+  goes out with its original URL and a note: it can be changed later without
+  a second version.
 - **After an import that left files at the old host**, the import says so and
   points to «Episodi pubblicati».
 

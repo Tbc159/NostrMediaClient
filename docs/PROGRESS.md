@@ -617,16 +617,21 @@ three places; the fixes are in the CHANGELOG entry of 2 November 2026:
   live and replaces a file by hand, publishing the same episode again (same
   GUID, same date) — Spotify's CDN sends no CORS header, so a browser cannot
   copy its files;
+- an imported episode whose audio or image cannot be copied waits, unsigned,
+  until its file is attached or the user chooses the original URLs, so no
+  episode needs a second version; a file replaced later gets a NIP-09
+  deletion request for the old version;
 - the import's safety limit is fixed at 2 GB, out of the settings;
 - the managed subdomain works for real under `duckdns.org`, and is kept only
   once it serves the key's feed. The test show uses
   `breviarticolitest.duckdns.org`, set up by hand on the service's machine
   (certificate for the name, nginx block proxying to the key's feed).
 
-Verified with `pnpm verify` (7 new unit tests: the rebuilt episode keeps GUID,
+Verified with `pnpm verify` (11 new unit tests: the rebuilt episode keeps GUID,
 date and every other tag, pins the identity of an episode born on NMC, refuses
 a clock behind the original, lists one version per GUID; Blossom URLs told
-from the old host's). The browser checks are the next round of manual tests.
+from the old host's; the deletion request names every older version with the
+same GUID and nothing of another key). The browser checks are the next round of manual tests.
 
 ---
 

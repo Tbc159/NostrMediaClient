@@ -1,4 +1,5 @@
 import { podcastEpisodeDefinition, type PodcastEpisodeInput } from '../kinds/definitions/podcast.js'
+import { deletionDefinition } from '../kinds/definitions/deletion.js'
 import { fondiTag, tagAggiuntivi } from '../kinds/preservation.js'
 import type { EventTemplate, NostrEvent } from '../kinds/types.js'
 
@@ -97,4 +98,37 @@ export function ultimaVersionePerGuid(eventi: readonly NostrEvent[]): NostrEvent
     if (!gia || e.created_at > gia.created_at) perGuid.set(guid, e)
   }
   return [...perGuid.values()].sort((a, b) => dataNelFeed(b) - dataNelFeed(a))
+}
+
+/**
+ * The deletion request (NIP-09) for the versions a new one replaces: every
+ * other kind 54 with the same GUID in the feed, older than it. `null` when
+ * there is none.
+ *
+ * The feed is right without it, since it keeps the newest; the request is for
+ * the Nostr clients that read the episodes directly and would show both.
+ */
+export function cancellaVersioniPrecedenti(
+  nuovo: NostrEvent,
+  eventi: readonly NostrEvent[],
+  now: number,
+): EventTemplate | null {
+  const guid = guidNelFeed(nuovo)
+  const vecchie = eventi.filter((e) => {
+    if (e.id === nuovo.id || e.kind !== 54 || e.pubkey !== nuovo.pubkey) return false
+    if (e.created_at > nuovo.created_at) return false
+    try {
+      return guidNelFeed(e) === guid
+    } catch {
+      return false
+    }
+  })
+  if (vecchie.length === 0) return null
+  return deletionDefinition.build(
+    {
+      eventi: vecchie.map((e) => ({ id: e.id, kind: e.kind })),
+      motivo: 'Sostituito da una nuova versione dello stesso episodio, con lo stesso GUID.',
+    },
+    { pubkey: nuovo.pubkey, now },
+  )
 }
